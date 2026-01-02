@@ -21,7 +21,7 @@ document.writeln('<object classid="clsid:d27cdb6e-ae6d-11cf-96b8-444553540000" c
 document.writeln('<param name="movie" value="container.swf?MediaID='+MediaID+'"/>');
 document.writeln('<param name="quality" value="high" />');
 document.writeln('<param name="allowScriptAccess" value="sameDomain" />');
-document.writeln('<param NAME=scale VALUE=exactfit>');
+document.writeln('<param NAME=scale VALUE=showall>');
 document.writeln('<param name="bgcolor" value="#ffffff" />');
 document.writeln('<embed src="container.swf?MediaID='+MediaID+'"; quality=high scale=exactfit bgcolor=#ffffff width="100%" height="100%" name="container" align="middle" type="application/x-shockwave-flash" pluginspage="http://www.macromedia.com/go/getflashplayer" allowScriptAccess="sameDomain" />');
 document.writeln('</object>');
