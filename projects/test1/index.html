@@ -12,7 +12,6 @@
         @font-face {
             font-family: 'LocalArial';
             src: url('arial.ttf') format('truetype');
-            /* إذا كان الملف بصيغة woff2، غير التنسيق إلى: format('woff2') */
             font-weight: normal;
             font-style: normal;
         }
@@ -21,7 +20,7 @@
         body {
             margin: 0; padding: 0; background: #2b2b2b; overflow: hidden; touch-action: manipulation;
             user-select: none; 
-            font-family: 'LocalArial', Arial, sans-serif; /* الخط المحلي أولاً، ثم النظام كنسخة احتياطية */
+            font-family: 'LocalArial', Arial, sans-serif;
             display: flex; justify-content: center; align-items: center;
             height: 100vh; width: 100vw;
         }
@@ -29,7 +28,7 @@
         #game-container {
             width: 1280px; height: 720px; position: relative;
             background-color: #4f7479;
-            background-image: url('image.jpg'); /* صورة الخلفية */
+            background-image: url('image.jpg');
             background-size: cover; background-position: center;
             overflow: hidden; transform-origin: center center; box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
@@ -153,15 +152,15 @@
             <div id="word-container"><word id="word-display"></word></div>
 
             <div id="circles-container">
-                <div id="circle1" class="circle circle-red visible">ح1</div>
-                <div id="circle2" class="circle circle-green">ح2</div>
-                <div id="circle3" class="circle circle-blue">ح3</div>
+                <div id="circle1" class="circle circle-red visible"></div>
+                <div id="circle2" class="circle circle-green"></div>
+                <div id="circle3" class="circle circle-blue"></div>
             </div>
 
             <div id="controls-area">
                 <div id="listen-btn">🔊</div>
             </div>
-            <button id="next-word-btn">← التالي</button>
+            <button id="next-word-btn">التالي←</button>
         </div>
 
         <div id="test-screen">
@@ -187,6 +186,26 @@
 
     <!-- ================= كود الجافاسكربت ================= -->
     <script>
+        // ================== قفل الشاشة على الوضع الأفقي (Landscape) ==================
+        // محاولة القفل عند التحميل (للمتصفحات التي تدعمها)
+        function lockLandscape() {
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(function(err) {
+                    console.log("تعذر قفل الشاشة أفقيًا تلقائيًا. سيتم المحاولة عند أول ضغطة.");
+                });
+            }
+        }
+        lockLandscape();
+
+        // إضافة مستمع لحدث النقر (لأن iOS Safari يحتاج تفاعل مستخدم لتفعيل القفل)
+        document.addEventListener('click', function() {
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(function(err) {
+                    console.log("محاولة القفل الثانية... لا تقلق، اللعبة تعمل بالفعل.");
+                });
+            }
+        }, { once: true }); // { once: true } يعني تنفيذها مرة واحدة فقط عند أول ضغطة
+
         // ================== البيانات ==================
         const rawData = `كَتَبَ;كَ;تَ;بَ
 نَكَبَ;نَ;كَ;بَ
@@ -385,10 +404,18 @@
 
         // ================== كلمات تشجيعية (للأنثى) ==================
         const encouragingWords = [
-            "أحسنتِ!", "ممتازة!", "رائعة!", "مذهلة!", "عبقرية!", "فخورة بكِ!", "خطوة ممتازة!", "أنتِ الأفضل!"
+            "أحسنتِ!",
+            "مُمْتَازَهْ!",
+            "رَائِعَهْ!",
+            "مُذْهِلَهْ!",
+            "مُجْتَهِدَهْ!",
+            "فخور بكِ!",
+            "خطوة مُمْتَازَهْ!",
+            "أنتِ مُثَابِرَهْ!"
+			
         ];
         const tryAgainWords = [
-            "حاولي مرة أخرى", "أثق بقدرتكِ", "لا بأس، جربي مجدداً", "أنتِ قادرة على التقدم", "استمري بالمحاولة", "قريباً ستنجحين"
+            "حاولي مرة أخرى", "أثق بقدرتكِ", "لا بأس، جربي مجدداً", "أنتِ قادرة على التقدم", "استمري بالمُحَاوَلَهْ", "قريباً ستنجحين"
         ];
 
         function getRandomWord(list) { return list[Math.floor(Math.random() * list.length)]; }
@@ -559,7 +586,7 @@
             let wrongOptions = shuffleArray(testPool.filter(w => w.full !== currentTargetWord.full)).slice(0, wrongOptionsCount);
             let allOptions = shuffleArray([currentTargetWord, ...wrongOptions]);
 
-            testQuestion.innerText = '🔊'; 
+            testQuestion.innerText = ''; 
             testOptions.innerHTML = '';
             selectedOptionWord = null;
             confirmBtn.classList.remove('active');
