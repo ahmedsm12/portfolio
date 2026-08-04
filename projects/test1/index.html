@@ -5,10 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>لعبة التهجئة التفاعلية</title>
     <style>
-        /* تم إزالة الخطوط المخصصة واستخدام Arial مباشرة */
+        /* =========================================================
+           تم تحميل الخط المحلي من ملف arial.ttf بجانب ملف الـ HTML
+           إذا لم يجد الملف، سيعود تلقائياً إلى خط النظام (fallback)
+           ========================================================= */
+        @font-face {
+            font-family: 'LocalArial';
+            src: url('arial.ttf') format('truetype');
+            /* إذا كان الملف بصيغة woff2، غير التنسيق إلى: format('woff2') */
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        /* إعدادات عامة للصفحة (كل الخطوط الآن تعتمد على LocalArial) */
         body {
             margin: 0; padding: 0; background: #2b2b2b; overflow: hidden; touch-action: manipulation;
-            user-select: none; font-family: 'Arial', sans-serif; /* تغيير الخط إلى Arial */
+            user-select: none; 
+            font-family: 'LocalArial', Arial, sans-serif; /* الخط المحلي أولاً، ثم النظام كنسخة احتياطية */
             display: flex; justify-content: center; align-items: center;
             height: 100vh; width: 100vw;
         }
@@ -16,78 +29,80 @@
         #game-container {
             width: 1280px; height: 720px; position: relative;
             background-color: #4f7479;
-            background-image: url('image.jpg');
+            background-image: url('image.jpg'); /* صورة الخلفية */
             background-size: cover; background-position: center;
             overflow: hidden; transform-origin: center center; box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
 
-        /* ================= القائمة ================= */
+        /* ================= القائمة (Glassmorphism) ================= */
         #menu-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
             background: rgba(0, 0, 0, 0.4); display: flex; flex-direction: column;
             align-items: center; justify-content: center;
         }
 
-        #menu-header { color: #fff; font-size: 40px; margin-bottom: 15px; font-weight: bold; text-shadow: 0 4px 15px rgba(0,0,0,0.7); font-family: 'Arial', sans-serif; }
+        #menu-header { color: #fff; font-size: 40px; margin-bottom: 15px; font-weight: bold; text-shadow: 0 4px 15px rgba(0,0,0,0.7); font-family: 'LocalArial', sans-serif; }
         
         #top-bar { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 20px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); width: 70%; justify-content: space-between; }
-        #stars-count { color: #fff; font-size: 22px; font-weight: bold; min-width: 100px; text-align: center; font-family: 'Arial', sans-serif; }
+        #stars-count { color: #fff; font-size: 22px; font-weight: bold; min-width: 100px; text-align: center; font-family: 'LocalArial', sans-serif; }
         #progress-bg { flex-grow: 1; height: 12px; background: rgba(255,255,255,0.2); border-radius: 10px; overflow: hidden; position: relative; }
         #progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #f1c40f, #f39c12); border-radius: 10px; transition: width 0.5s ease; }
         #top-controls { display: flex; gap: 10px; }
-        .top-btn { background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.2); font-family: 'Arial', sans-serif; }
+        .top-btn { background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.2); font-family: 'LocalArial', sans-serif; }
         .top-btn:active { transform: scale(0.9); }
 
         #level-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 25px; padding: 30px; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(12px); border-radius: 30px; border: 1px solid rgba(255, 255, 255, 0.25); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37); max-width: 850px; margin-top: 50px; }
 
-        .level-btn { width: 120px; height: 120px; background: rgba(255, 255, 255, 0.85); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: #222; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 15px rgba(0,0,0,0.15); font-family: 'Arial', sans-serif; }
+        .level-btn { width: 120px; height: 120px; background: rgba(255, 255, 255, 0.85); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: #222; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 15px rgba(0,0,0,0.15); font-family: 'LocalArial', sans-serif; }
         .level-btn:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
         .level-btn .stars { font-size: 26px; margin-top: 5px; letter-spacing: 3px; }
         .level-btn .stars .empty { color: #ccc; }
 
-        .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.9); border: none; font-size: 45px; padding: 10px 18px; border-radius: 15px; cursor: pointer; z-index: 11; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-family: 'Arial', sans-serif; }
+        .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.9); border: none; font-size: 45px; padding: 10px 18px; border-radius: 15px; cursor: pointer; z-index: 11; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-family: 'LocalArial', sans-serif; }
         .nav-arrow:active { transform: translateY(-50%) scale(0.9); }
-        #prev-page { right: 20px; left: auto; }
-        #next-page { left: 20px; right: auto; }
+        #prev-page { right: 20px; left: auto; } /* رجوع يمين الشاشة */
+        #next-page { left: 20px; right: auto; } /* التالي يسار الشاشة */
 
-        /* ================= شاشة اللعبة ================= */
+        /* ================= شاشة اللعبة (الكلمة والدوائر) ================= */
         #game-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 5; background: transparent; }
         #word-container { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%; pointer-events: none; }
-        word { display: flex; justify-content: center; align-items: center; direction: rtl; font-family: 'Arial', sans-serif !important; font-size: clamp(80px, 15vw + 1rem, 250px); font-weight: bold; color: black; text-shadow: 0 0 15px rgba(255,255,255,0.8); pointer-events: none; }
+        word { display: flex; justify-content: center; align-items: center; direction: rtl; font-family: 'LocalArial', sans-serif !important; font-size: clamp(80px, 15vw + 1rem, 250px); font-weight: bold; color: black; text-shadow: 0 0 15px rgba(255,255,255,0.8); pointer-events: none; }
 
-        c1, c2, c3 { display: inline-flex; position: relative; font-family: 'Arial', sans-serif !important; font-size: inherit; font-weight: inherit; color: inherit; pointer-events: none; }
+        c1, c2, c3 { display: inline-flex; position: relative; font-family: 'LocalArial', sans-serif !important; font-size: inherit; font-weight: inherit; color: inherit; pointer-events: none; }
         c1 { color: #e74c3c !important; } c2 { color: #27ae60 !important; } c3 { color: #3498db !important; }
 
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
-        c1a, c2a, c3a { display: inline-flex; position: relative; font-family: 'Arial', sans-serif !important; font-size: inherit; font-weight: inherit; animation: pulse 0.5s ease forwards; transform-origin: center; pointer-events: none; }
+        c1a, c2a, c3a { display: inline-flex; position: relative; font-family: 'LocalArial', sans-serif !important; font-size: inherit; font-weight: inherit; animation: pulse 0.5s ease forwards; transform-origin: center; pointer-events: none; }
         c1a { color: #e74c3c !important; } c2a { color: #27ae60 !important; } c3a { color: #3498db !important; }
 
+        /* دوائر التهجئة */
         #circles-container { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); display: flex; gap: 80px; }
-        .circle { width: 80px; height: 80px; border-radius: 50%; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, opacity 0.5s ease; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff; font-weight: bold; position: relative; opacity: 0; pointer-events: none; font-family: 'Arial', sans-serif; }
+        .circle { width: 80px; height: 80px; border-radius: 50%; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, opacity 0.5s ease; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff; font-weight: bold; position: relative; opacity: 0; pointer-events: none; font-family: 'LocalArial', sans-serif; }
         .circle:active { transform: scale(0.9); }
         .circle.visible { opacity: 1; pointer-events: all; }
         .circle-red { background: #e74c3c; border: 4px solid #c0392b; }
         .circle-green { background: #27ae60; border: 4px solid #1e8449; }
         .circle-blue { background: #3498db; border: 4px solid #2471a3; }
 
+        /* أزرار التحكم السفلية */
         #controls-area { position: absolute; bottom: 160px; left: 50%; transform: translateX(-50%); display: flex; gap: 30px; align-items: center; justify-content: center; }
-        #listen-btn { width: 70px; height: 70px; background: rgba(255,255,255,0.9); border-radius: 50%; border: 3px solid #2c3e50; cursor: pointer; font-size: 30px; display: none; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: 0.2s; font-family: 'Arial', sans-serif; }
+        #listen-btn { width: 70px; height: 70px; background: rgba(255,255,255,0.9); border-radius: 50%; border: 3px solid #2c3e50; cursor: pointer; font-size: 30px; display: none; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: 0.2s; font-family: 'LocalArial', sans-serif; }
         #listen-btn:active { transform: scale(0.95); }
-        #next-word-btn { position: absolute; left: 20px; bottom: 120px; background: rgba(255,255,255,0.95); border: none; padding: 15px 25px; border-radius: 15px; font-size: 22px; cursor: pointer; font-weight: bold; display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: 0.2s; font-family: 'Arial', sans-serif; }
+        #next-word-btn { position: absolute; left: 20px; bottom: 120px; background: rgba(255,255,255,0.95); border: none; padding: 15px 25px; border-radius: 15px; font-size: 22px; cursor: pointer; font-weight: bold; display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: 0.2s; font-family: 'LocalArial', sans-serif; }
         #next-word-btn:active { transform: scale(0.95); }
 
-        #level-progress { position: absolute; top: 20px; left: 20px; color: #fff; font-size: 20px; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 10px; font-family: 'Arial', sans-serif; }
-        #back-btn { position: absolute; top: 20px; right: 20px; padding: 10px 25px; background: #e74c3c; color: #fff; border: none; border-radius: 12px; font-size: 20px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.3); transition: 0.2s; font-family: 'Arial', sans-serif; }
+        #level-progress { position: absolute; top: 20px; left: 20px; color: #fff; font-size: 20px; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 10px; font-family: 'LocalArial', sans-serif; }
+        #back-btn { position: absolute; top: 20px; right: 20px; padding: 10px 25px; background: #e74c3c; color: #fff; border: none; border-radius: 12px; font-size: 20px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.3); transition: 0.2s; font-family: 'LocalArial', sans-serif; }
 
-        /* ================= طور الاختبار ================= */
+        /* ================= طور الاختبار (شبكة 2x2) ================= */
         #test-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 6; background: rgba(0,0,0,0.4); flex-direction: column; align-items: center; justify-content: center; }
         #test-header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
         #test-speaker-icon { font-size: 60px; color: #fff; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        #speak-q-btn { width: 60px; height: 60px; background: rgba(255,255,255,0.9); border-radius: 50%; border: none; cursor: pointer; font-size: 28px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-family: 'Arial', sans-serif; }
+        #speak-q-btn { width: 60px; height: 60px; background: rgba(255,255,255,0.9); border-radius: 50%; border: none; cursor: pointer; font-size: 28px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-family: 'LocalArial', sans-serif; }
         #speak-q-btn:active { transform: scale(0.9); }
 
         #test-options { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; width: 650px; }
-        .test-option-btn { background: rgba(255,255,255,0.9); padding: 25px; border-radius: 20px; text-align: center; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: 0.2s; display: flex; justify-content: center; align-items: center; border: 4px solid transparent; min-height: 100px; font-family: 'Arial', sans-serif; }
+        .test-option-btn { background: rgba(255,255,255,0.9); padding: 25px; border-radius: 20px; text-align: center; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: 0.2s; display: flex; justify-content: center; align-items: center; border: 4px solid transparent; min-height: 100px; font-family: 'LocalArial', sans-serif; }
         .test-option-btn:active { transform: scale(0.95); }
         .test-option-btn word { font-size: 40px; }
         
@@ -96,22 +111,23 @@
         .test-option-btn.wrong { border-color: #e74c3c; background: rgba(231, 76, 60, 0.2); }
         
         #confirm-btn-area { margin-top: 40px; display: flex; align-items: center; justify-content: center; }
-        #confirm-btn { background: rgba(255,255,255,0.95); border: none; padding: 15px 50px; border-radius: 20px; font-size: 28px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); opacity: 0.4; pointer-events: none; transition: 0.2s; font-family: 'Arial', sans-serif; }
+        #confirm-btn { background: rgba(255,255,255,0.95); border: none; padding: 15px 50px; border-radius: 20px; font-size: 28px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); opacity: 0.4; pointer-events: none; transition: 0.2s; font-family: 'LocalArial', sans-serif; }
         #confirm-btn.active { opacity: 1; pointer-events: all; background: #2ecc71; color: #fff; }
         #confirm-btn.active:active { transform: scale(0.9); }
 
         /* ================= رسالة نهاية المرحلة ================= */
         #level-complete { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 20; background: rgba(0, 0, 0, 0.7); flex-direction: column; align-items: center; justify-content: center; }
-        #complete-box { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 50px; border-radius: 40px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.5); max-width: 500px; width: 80%; font-family: 'Arial', sans-serif; }
+        #complete-box { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 50px; border-radius: 40px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.5); max-width: 500px; width: 80%; font-family: 'LocalArial', sans-serif; }
         #complete-title { font-size: 36px; color: #2c3e50; font-weight: bold; margin-bottom: 15px; }
         #complete-stars { font-size: 50px; letter-spacing: 10px; margin: 20px 0; }
         #complete-msg { font-size: 24px; color: #555; margin-bottom: 30px; }
-        #complete-btn { background: #3498db; color: #fff; border: none; padding: 15px 40px; border-radius: 20px; font-size: 24px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-family: 'Arial', sans-serif; }
+        #complete-btn { background: #3498db; color: #fff; border: none; padding: 15px 40px; border-radius: 20px; font-size: 24px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-family: 'LocalArial', sans-serif; }
         #complete-btn:active { transform: scale(0.9); }
     </style>
 </head>
 <body>
 
+    <!-- ================= حاوية اللعبة ================= -->
     <div id="game-container">
         
         <div id="menu-screen">
@@ -145,7 +161,7 @@
             <div id="controls-area">
                 <div id="listen-btn">🔊</div>
             </div>
-            <button id="next-word-btn">التالي←</button>
+            <button id="next-word-btn">← التالي</button>
         </div>
 
         <div id="test-screen">
@@ -169,6 +185,7 @@
         </div>
     </div>
 
+    <!-- ================= كود الجافاسكربت ================= -->
     <script>
         // ================== البيانات ==================
         const rawData = `كَتَبَ;كَ;تَ;بَ
@@ -305,23 +322,21 @@
             console.log(`[Audio Source] ${source} - ${type}: ${text}`);
         }
 
-        // دالة نطق أساسية (تتجاهل الطلب إذا كان هناك صوت يعمل)
         function speakText(text, callback) {
             if (!text || isSpeaking) return;
             isSpeaking = true;
             logAudioSource('Speaking', 'Browser SpeechSynthesis (Local)', text);
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'ar-SA'; // اللغة العربية
-            utterance.rate = 0.9; // سرعة النطق
+            utterance.lang = 'ar-SA';
+            utterance.rate = 0.9;
             utterance.onend = () => { isSpeaking = false; if (callback) callback(); };
             window.speechSynthesis.speak(utterance);
         }
 
-        // دالة نطق قوية (تلغي أي صوت يعمل حالياً لتشغيل الجديد فوراً)
         function forceSpeak(text, callback) {
             if (!text) return;
             if (isSpeaking || window.speechSynthesis.speaking) {
-                window.speechSynthesis.cancel(); // إلغاء الصوت السابق
+                window.speechSynthesis.cancel();
             }
             isSpeaking = true;
             logAudioSource('Speaking (Forced)', 'Browser SpeechSynthesis (Local)', text);
@@ -332,7 +347,7 @@
             window.speechSynthesis.speak(utterance);
         }
 
-        // ================== مؤثرات صوتية (تعمل أوفلاين 100%) ==================
+        // ================== مؤثرات صوتية (Web Audio API تعمل أوفلاين) ==================
         let audioCtx = null;
         function initAudio() {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -368,19 +383,12 @@
             setTimeout(() => playTone(300, 0.3, 'sawtooth', 0.15, 'Wrong - Note 2'), 250);
         }
 
-        // ================== كلمات تشجيعية (موجهة للأنثى) ==================
+        // ================== كلمات تشجيعية (للأنثى) ==================
         const encouragingWords = [
-                        "أحسنتِ!",
-            "مُمْتَازَهْ!",
-            "رَائِعَهْ!",
-            "مُذْهِلَهْ!",
-            "مُجْتَهِدَهْ!",
-            "فخور بكِ!",
-            "خطوة مُمْتَازَهْ!",
-            "أنتِ مُثَابِرَهْ!"
+            "أحسنتِ!", "ممتازة!", "رائعة!", "مذهلة!", "عبقرية!", "فخورة بكِ!", "خطوة ممتازة!", "أنتِ الأفضل!"
         ];
         const tryAgainWords = [
-             "حاولي مرة أخرى", "أثق بقدرتكِ", "لا بأس، جربي مجدداً", "أنتِ قادرة على التقدم", "استمري بالمُحَاوَلَهْ", "قريباً ستنجحين"
+            "حاولي مرة أخرى", "أثق بقدرتكِ", "لا بأس، جربي مجدداً", "أنتِ قادرة على التقدم", "استمري بالمحاولة", "قريباً ستنجحين"
         ];
 
         function getRandomWord(list) { return list[Math.floor(Math.random() * list.length)]; }
@@ -551,7 +559,7 @@
             let wrongOptions = shuffleArray(testPool.filter(w => w.full !== currentTargetWord.full)).slice(0, wrongOptionsCount);
             let allOptions = shuffleArray([currentTargetWord, ...wrongOptions]);
 
-            testQuestion.innerText = ''; 
+            testQuestion.innerText = '🔊'; 
             testOptions.innerHTML = '';
             selectedOptionWord = null;
             confirmBtn.classList.remove('active');
@@ -578,7 +586,7 @@
                 testOptions.appendChild(btn);
             });
 
-            // تشغيل السؤال أوتوماتيكيًا
+            // تشغيل السؤال تلقائياً
             setTimeout(() => { forceSpeak(`أين هي كلمة ${currentTargetWord.full}`); }, 300);
         }
 
