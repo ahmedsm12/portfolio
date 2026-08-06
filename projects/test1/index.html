@@ -2,13 +2,10 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>لعبة التهجئة التفاعلية</title>
     <style>
-        /* =========================================================
-           تم تحميل الخط المحلي من ملف arial.ttf بجانب ملف الـ HTML
-           إذا لم يجد الملف، سيعود تلقائياً إلى خط النظام (fallback)
-           ========================================================= */
+        /* تم تحميل الخط المحلي من ملف arial.ttf */
         @font-face {
             font-family: 'LocalArial';
             src: url('arial.ttf') format('truetype');
@@ -16,21 +13,27 @@
             font-style: normal;
         }
 
-        /* إعدادات عامة للصفحة (كل الخطوط الآن تعتمد على LocalArial) */
+        /* إعدادات عامة للصفحة (توسيط الحاوية) */
         body {
-            margin: 0; padding: 0; background: #2b2b2b; overflow: hidden; touch-action: manipulation;
+            margin: 0; padding: 0; background: #1a1a1a; 
+            overflow: hidden; touch-action: manipulation;
             user-select: none; 
             font-family: 'LocalArial', Arial, sans-serif;
             display: flex; justify-content: center; align-items: center;
             height: 100vh; width: 100vw;
         }
 
+        /* الحاوية الأساسية بحجم ثابت 1280x720، ويتم التحكم بحجمها عبر JS */
         #game-container {
-            width: 1280px; height: 720px; position: relative;
+            width: 1280px; 
+            height: 720px; 
+            position: relative;
             background-color: #4f7479;
             background-image: url('image.jpg');
             background-size: cover; background-position: center;
-            overflow: hidden; transform-origin: center center; box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            transform-origin: center center; /* نقطة الارتكاز للتكبير والتصغير */
         }
 
         /* ================= القائمة (Glassmorphism) ================= */
@@ -59,10 +62,10 @@
 
         .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.9); border: none; font-size: 45px; padding: 10px 18px; border-radius: 15px; cursor: pointer; z-index: 11; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-family: 'LocalArial', sans-serif; }
         .nav-arrow:active { transform: translateY(-50%) scale(0.9); }
-        #prev-page { right: 20px; left: auto; } /* رجوع يمين الشاشة */
-        #next-page { left: 20px; right: auto; } /* التالي يسار الشاشة */
+        #prev-page { right: 20px; left: auto; }
+        #next-page { left: 20px; right: auto; }
 
-        /* ================= شاشة اللعبة (الكلمة والدوائر) ================= */
+        /* ================= شاشة اللعبة ================= */
         #game-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 5; background: transparent; }
         #word-container { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%; pointer-events: none; }
         word { display: flex; justify-content: center; align-items: center; direction: rtl; font-family: 'LocalArial', sans-serif !important; font-size: clamp(80px, 15vw + 1rem, 250px); font-weight: bold; color: black; text-shadow: 0 0 15px rgba(255,255,255,0.8); pointer-events: none; }
@@ -83,7 +86,6 @@
         .circle-green { background: #27ae60; border: 4px solid #1e8449; }
         .circle-blue { background: #3498db; border: 4px solid #2471a3; }
 
-        /* أزرار التحكم السفلية */
         #controls-area { position: absolute; bottom: 160px; left: 50%; transform: translateX(-50%); display: flex; gap: 30px; align-items: center; justify-content: center; }
         #listen-btn { width: 70px; height: 70px; background: rgba(255,255,255,0.9); border-radius: 50%; border: 3px solid #2c3e50; cursor: pointer; font-size: 30px; display: none; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: 0.2s; font-family: 'LocalArial', sans-serif; }
         #listen-btn:active { transform: scale(0.95); }
@@ -93,7 +95,7 @@
         #level-progress { position: absolute; top: 20px; left: 20px; color: #fff; font-size: 20px; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 10px; font-family: 'LocalArial', sans-serif; }
         #back-btn { position: absolute; top: 20px; right: 20px; padding: 10px 25px; background: #e74c3c; color: #fff; border: none; border-radius: 12px; font-size: 20px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.3); transition: 0.2s; font-family: 'LocalArial', sans-serif; }
 
-        /* ================= طور الاختبار (شبكة 2x2) ================= */
+        /* ================= طور الاختبار ================= */
         #test-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 6; background: rgba(0,0,0,0.4); flex-direction: column; align-items: center; justify-content: center; }
         #test-header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
         #test-speaker-icon { font-size: 60px; color: #fff; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
@@ -126,7 +128,6 @@
 </head>
 <body>
 
-    <!-- ================= حاوية اللعبة ================= -->
     <div id="game-container">
         
         <div id="menu-screen">
@@ -135,7 +136,6 @@
                 <div id="progress-bg"><div id="progress-fill"></div></div>
                 <div id="top-controls">
                     <button class="top-btn" id="reset-btn" title="إعادة تعيين النجوم">🔄</button>
-                    <button class="top-btn" id="fullscreen-btn" title="ملء الشاشة">⛶</button>
                 </div>
             </div>
 
@@ -152,15 +152,15 @@
             <div id="word-container"><word id="word-display"></word></div>
 
             <div id="circles-container">
-                <div id="circle1" class="circle circle-red visible"></div>
-                <div id="circle2" class="circle circle-green"></div>
-                <div id="circle3" class="circle circle-blue"></div>
+                <div id="circle1" class="circle circle-red visible">ح1</div>
+                <div id="circle2" class="circle circle-green">ح2</div>
+                <div id="circle3" class="circle circle-blue">ح3</div>
             </div>
 
             <div id="controls-area">
                 <div id="listen-btn">🔊</div>
             </div>
-            <button id="next-word-btn">التالي←</button>
+            <button id="next-word-btn">← التالي</button>
         </div>
 
         <div id="test-screen">
@@ -184,28 +184,7 @@
         </div>
     </div>
 
-    <!-- ================= كود الجافاسكربت ================= -->
     <script>
-        // ================== قفل الشاشة على الوضع الأفقي (Landscape) ==================
-        // محاولة القفل عند التحميل (للمتصفحات التي تدعمها)
-        function lockLandscape() {
-            if (screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('landscape').catch(function(err) {
-                    console.log("تعذر قفل الشاشة أفقيًا تلقائيًا. سيتم المحاولة عند أول ضغطة.");
-                });
-            }
-        }
-        lockLandscape();
-
-        // إضافة مستمع لحدث النقر (لأن iOS Safari يحتاج تفاعل مستخدم لتفعيل القفل)
-        document.addEventListener('click', function() {
-            if (screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('landscape').catch(function(err) {
-                    console.log("محاولة القفل الثانية... لا تقلق، اللعبة تعمل بالفعل.");
-                });
-            }
-        }, { once: true }); // { once: true } يعني تنفيذها مرة واحدة فقط عند أول ضغطة
-
         // ================== البيانات ==================
         const rawData = `كَتَبَ;كَ;تَ;بَ
 نَكَبَ;نَ;كَ;بَ
@@ -366,7 +345,7 @@
             window.speechSynthesis.speak(utterance);
         }
 
-        // ================== مؤثرات صوتية (Web Audio API تعمل أوفلاين) ==================
+        // ================== مؤثرات صوتية (Web Audio API) ==================
         let audioCtx = null;
         function initAudio() {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -404,18 +383,10 @@
 
         // ================== كلمات تشجيعية (للأنثى) ==================
         const encouragingWords = [
-            "أحسنتِ!",
-            "مُمْتَازَهْ!",
-            "رَائِعَهْ!",
-            "مُذْهِلَهْ!",
-            "مُجْتَهِدَهْ!",
-            "فخور بكِ!",
-            "خطوة مُمْتَازَهْ!",
-            "أنتِ مُثَابِرَهْ!"
-			
+            "أحسنتِ!", "ممتازة!", "رائعة!", "مذهلة!", "عبقرية!", "فخورة بكِ!", "خطوة ممتازة!", "أنتِ الأفضل!"
         ];
         const tryAgainWords = [
-            "حاولي مرة أخرى", "أثق بقدرتكِ", "لا بأس، جربي مجدداً", "أنتِ قادرة على التقدم", "استمري بالمُحَاوَلَهْ", "قريباً ستنجحين"
+            "حاولي مرة أخرى", "أثق بقدرتكِ", "لا بأس، جربي مجدداً", "أنتِ قادرة على التقدم", "استمري بالمحاولة", "قريباً ستنجحين"
         ];
 
         function getRandomWord(list) { return list[Math.floor(Math.random() * list.length)]; }
@@ -427,15 +398,38 @@
         let selectedOptionWord = null;
         let isConfirming = false;
 
-        const gameContainer = document.getElementById('game-container');
-        function resizeGame() {
-            const w = window.innerWidth, h = window.innerHeight, ratio = 1280 / 720;
-            let scale = 1;
-            if (w / h > ratio) scale = h / 720;
-            else scale = w / 1280;
-            gameContainer.style.transform = `scale(${scale})`;
+        // ================== قفل الشاشة على الوضع الأفقي (Landscape) ==================
+        function forceLandscape() {
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(function(error) {
+                    console.warn("تعذر قفل الشاشة على الوضع الأفقي: ", error);
+                });
+            }
         }
-        window.addEventListener('resize', resizeGame); resizeGame();
+        window.addEventListener('load', forceLandscape);
+        document.addEventListener('click', forceLandscape);
+
+        // ================== تكبير وتصغير اللعبة تلقائياً (Resize) ==================
+        function resizeGame() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            const ratio = 1280 / 720;
+            let scale = 1;
+            if (w / h > ratio) {
+                scale = h / 720; // العرض أوسع من اللازم، نحتاج التكيف مع الارتفاع
+            } else {
+                scale = w / 1280; // الارتفاع أطول، نحتاج التكيف مع العرض
+            }
+            document.getElementById('game-container').style.transform = `scale(${scale})`;
+        }
+
+        // ربط الحدث بتغيير حجم النافذة
+        window.addEventListener('resize', resizeGame);
+        // تشغيله عند التحميل الأول
+        window.addEventListener('load', () => {
+            resizeGame();
+            forceLandscape();
+        });
 
         function updateStarsBar() {
             let totalStars = 0;
@@ -472,11 +466,6 @@
             document.getElementById('prev-page').onclick = () => renderMenu(page - 1);
             document.getElementById('next-page').onclick = () => renderMenu(page + 1);
         }
-
-        document.getElementById('fullscreen-btn').onclick = () => {
-            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(err => {});
-            else if (document.exitFullscreen) document.exitFullscreen();
-        };
 
         document.getElementById('reset-btn').onclick = () => {
             if(confirm('هل أنت متأكد من رغبتك في حذف جميع النجوم وإعادة التقدم للصفر؟')) {
@@ -586,7 +575,7 @@
             let wrongOptions = shuffleArray(testPool.filter(w => w.full !== currentTargetWord.full)).slice(0, wrongOptionsCount);
             let allOptions = shuffleArray([currentTargetWord, ...wrongOptions]);
 
-            testQuestion.innerText = ''; 
+            testQuestion.innerText = '🔊'; 
             testOptions.innerHTML = '';
             selectedOptionWord = null;
             confirmBtn.classList.remove('active');
@@ -613,7 +602,6 @@
                 testOptions.appendChild(btn);
             });
 
-            // تشغيل السؤال تلقائياً
             setTimeout(() => { forceSpeak(`أين هي كلمة ${currentTargetWord.full}`); }, 300);
         }
 
@@ -699,7 +687,6 @@
 
         document.getElementById('back-btn').onclick = () => renderMenu();
         renderMenu();
-        resizeGame();
     </script>
 </body>
 </html>
