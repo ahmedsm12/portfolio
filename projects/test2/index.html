@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم الديناميكية في الصوت - Sherpa-onnx</title>
+    <!-- استدعاء مكتبة sherpa-onnx -->
+    <script src="https://jsdelivr.net"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: #fff; padding: 30px; text-align: center; }
+        .container { max-width: 600px; margin: 0 auto; background: #2d2d2d; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        textarea { width: 100%; font-size: 16px; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; box-sizing: border-box; }
+        .control-group { margin: 20px 0; text-align: right; }
+        label { display: block; margin-bottom: 5px; color: #ddd; font-weight: bold; }
+        .slider-val { float: left; color: #007bff; }
+        select, input[type="range"] { width: 100%; padding: 8px; border-radius: 6px; background: #444; color: #fff; border: none; }
+        button { width: 100%; padding: 15px; font-size: 18px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        #status { margin-top: 15px; color: #bbb; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🎛️ وحدة التحكم الديناميكية بالصوت العربي</h2>
+    
+    <textarea id="textToSpeak" rows="3">مَرْحَبَاً بِكَ أَيُّهَا البَطَلُ فِي مُغَامَرَتِكَ الجَدِيدَةِ!</textarea>
+
+    <!-- 1. اختيار الشخصية (Speaker ID) -->
+    <div class="control-group">
+        <label for="speakerSelect">👤 اختيار الشخصية (صاحب الصوت):</label>
+        <select id="speakerSelect">
+            <option value="0">رجل 1 (Kareem - افتراضي)</option>
+            <option value="1">امرأة 1 (عالية الجودة)</option>
+            <option value="2">طفل (نبرة حماسية)</option>
+            <option value="3">طفلة (نبرة هادئة)</option>
+        </select>
+    </div>
+
+    <!-- 2. التحكم في سرعة النطق -->
+    <div class="control-group">
+        <label for="speedSlider">⚡ سرعة الكلام (Length Scale): <span class="slider-val" id="speedVal">1.0x</span></label>
+        <!-- ملاحظة: في VITS، تقليل القيمة يسرع الصوت، وزيادتها تبطئه برمجياً -->
+        <input type="range" id="speedSlider" min="0.5" max="2.0" step="0.1" value="1.0">
+    </div>
+
+    <!-- 3. التحكم في حدة وتنوع النبرة -->
+    <div class="control-group">
+        <label for="noiseSlider">🎭 تنوع النبرة والتعبير (Noise Scale): <span class="slider-val" id="noiseVal">0.667</span></label>
+        <input type="range" id="noiseSlider" min="0.1" max="1.5" step="0.05" value="0.667">
+    </div>
+
+    <!-- 4. التحكم في درجة الصوت (Pitch / العاطفة) -->
+    <div class="control-group">
+        <label for="noiseWSlider">🍃 تموجات الصوت الحركية (Noise Scale W): <span class="slider-val" id="noiseWVal">0.8</span></label>
+        <input type="range" id="noiseWSlider" min="0.1" max="1.5" step="0.05" value="0.8">
+    </div>
+
+    <button id="speakBtn" disabled>جاري تحميل محرك الصوت الفوري...</button>
+    <div id="status">الرجاء تشغيل اللعبة من خلال خادم محلي (Local Server) لتفعيل تقنية WebAssembly.</div>
+</div>
+
+<script>
+    let tts;
+    const statusDiv = document.getElementById('status');
+    const speakBtn = document.getElementById('speakBtn');
+
+    // ربط الـ Sliders لتحديث الأرقام الظاهرة في الواجهة فوراً
+    document.getElementById('speedSlider').addEventListener('input', (e) => document.getElementById('speedVal').innerText = e.target.value + 'x');
+    document.getElementById('noiseSlider').addEventListener('input', (e) => document.getElementById('noiseVal').innerText = e.target.value);
+    document.getElementById('noiseWSlider').addEventListener('input', (e) => document.getElementById('noiseWVal').innerText = e.target.value);
+
+    // 1. تهيئة محرك الـ TTS
+    async function initTTS() {
+        try {
+            const sherpaOnnx = window.sherpaOnnx;
+            
+            // إعدادات المسارات (تأكد من مطابقة ملفاتك للأسماء الفصيلية)
+            const config = {
+                vits: {
+                    model: "./model/arabic_multi_speaker.onnx", // نموذج عربي متعدد الأصوات
+                    tokens: "./model/tokens.txt",
+                    dataDir: "./model/",
+                    noiseScale: 0.667,
+                    noiseScaleW: 0.8,
+                    lengthScale: 1.0 
+                }
+            };
+
+            tts = await sherpaOnnx.createOfflineTts(config);
+            
+            statusDiv.innerText = "جاهز لتوليد الأصوات ديناميكياً!";
+            speakBtn.innerText = "🔊 تشغيل الصوت الآن";
+            speakBtn.disabled = false;
+        } catch (error) {
+            statusDiv.innerText = "خطأ في تهيئة النموذج الموضعي: " + error.message;
+            console.error(error);
+        }
+    }
+
+    // 2. دالة توليد النطق الحي بناءً على الخيارات المحددة
+    function generateDynamicSpeech() {
+        const text = document.getElementById('textToSpeak').value;
+        if (!tts || !text) return;
+
+        statusDiv.innerText = "جاري معالجة النبرة وتوليد الصوت الحركي...";
+
+        // قراءة قيم التحكم الحالية من الواجهة مباشرة (Dynamic Extraction)
+        const selectedSpeaker = parseInt(document.getElementById('speakerSelect').value);
+        const currentSpeed = parseFloat(document.getElementById('speedSlider').value);
+        const currentNoise = parseFloat(document.getElementById('noiseSlider').value);
+        const currentNoiseW = parseFloat(document.getElementById('noiseWSlider').value);
+
+        // تعديل خصائص المحرك داخلياً قبل المعالجة الفورية
+        // ملاحظة: Length Scale عكسي (0.8 تعني أسرع، 1.2 تعني أبطأ)
+        const invertedLengthScale = 1.0 / currentSpeed; 
+
+        // توليد عينة الصوت المخصصة (Audio Sample Generation)
+        const audioGenerated = tts.generate({ 
+            text: text, 
+            sid: selectedSpeaker, // تحديد معرّف المتحدث (رجل، امرأة..)
+            noiseScale: currentNoise,
+            noiseScaleW: currentNoiseW,
+            lengthScale: invertedLengthScale
+        });
+
+        // تشغيل الموجة الصوتية المحدثة عبر كرت الصوت للمتصفح
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const buffer = audioCtx.createBuffer(1, audioGenerated.samples.length, audioGenerated.sampleRate);
+        
+        buffer.getChannelData(0).set(audioGenerated.samples);
+
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioCtx.destination);
+        
+        source.onended = () => {
+            statusDiv.innerText = "تم النطق بنجاح.";
+        };
+
+        source.start();
+    }
+
+    speakBtn.addEventListener('click', generateDynamicSpeech);
+    window.addEventListener('DOMContentLoaded', initTTS);
+</script>
+
+</body>
+</html>
