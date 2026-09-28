@@ -1,712 +1,1167 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<meta name="theme-color" content="#0e1117" />
-<title>لوحة تعديل الـ PDF والوسائط التفاعلية</title>
-
-<!-- ============================================================
-     Import Map: توحيد نسخ React بين التطبيق و tldraw
-     هذا هو المفتاح لحل مشكلة "Failed to resolve module specifier react"
-     ============================================================ -->
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@18.2.0",
-    "react/": "https://esm.sh/react@18.2.0/",
-    "react-dom": "https://esm.sh/react-dom@18.2.0",
-    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
-    "tldraw": "https://esm.sh/tldraw@2.4.4?external=react,react-dom"
-  }
-}
-</script>
-
-<!-- أنماط tldraw -->
-<link rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/tldraw@2.4.4/dist/tldraw.css" />
-
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1a1a1a">
+<title>لوحة PDF التفاعلية</title>
 <style>
-  :root{
-    --ipb-bg:#0e1117;
-    --ipb-panel:rgba(20,24,32,.86);
-    --ipb-panel-solid:#151a23;
-    --ipb-border:rgba(255,255,255,.10);
-    --ipb-text:#e9eef7;
-    --ipb-muted:#9aa7bd;
-    --ipb-accent:#4f8cff;
-    --ipb-accent-2:#7c5cff;
-    --ipb-radius:16px;
-  }
-  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body,#root{ height:100%; margin:0; padding:0; }
-  body{
-    font-family:"Segoe UI", Tahoma, "Noto Kufi Arabic", "Helvetica Neue", system-ui, sans-serif;
-    background:var(--ipb-bg); color:var(--ipb-text); overflow:hidden;
-  }
-  .ipb-boot{
-    position:fixed; inset:0; display:flex; flex-direction:column; gap:18px;
-    align-items:center; justify-content:center; color:var(--ipb-muted);
-    font-size:15px; background:radial-gradient(1200px 600px at 50% 0%, #1a2130 0%, #0e1117 70%);
-    text-align:center; padding:24px;
-  }
-  .ipb-spinner{
-    width:44px; height:44px; border-radius:50%;
-    border:3px solid rgba(255,255,255,.12); border-top-color:var(--ipb-accent);
-    animation:ipb-spin .9s linear infinite;
-  }
-  @keyframes ipb-spin{ to{ transform:rotate(360deg); } }
-  .ipb-boot-error{ color:#ffb4b4; max-width:620px; line-height:1.8; font-size:14px; }
-  .ipb-boot code{ background:#000; padding:2px 6px; border-radius:6px; direction:ltr; display:inline-block; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
+  body { background: #1a1a1a; color: #eee; display: flex; flex-direction: column; }
 
-  #ipb-root{ position:fixed; inset:0; }
-  .ipb-canvas{ position:absolute; inset:0; direction:ltr; }
+  /* ===== Toolbar ===== */
+  #toolbar {
+    display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+    background: #252525; border-bottom: 1px solid #333;
+    flex-wrap: wrap; flex-shrink: 0; z-index: 100;
+  }
+  .tb-group { display: flex; align-items: center; gap: 4px; padding: 0 8px; border-left: 1px solid #3a3a3a; }
+  .tb-group:first-child { border-left: none; padding-left: 0; }
 
-  .ipb-toolbar-wrap{
-    position:fixed; top:12px; left:50%; transform:translateX(-50%);
-    z-index:1200; pointer-events:none; max-width:calc(100vw - 16px);
+  button {
+    background: #333; color: #eee; border: 1px solid #444;
+    padding: 7px 11px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; font-family: inherit;
+    display: inline-flex; align-items: center; gap: 5px;
+    transition: background .15s, border-color .15s, transform .1s;
   }
-  .ipb-toolbar{
-    pointer-events:auto;
-    display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center;
-    padding:7px 9px; border-radius:var(--ipb-radius);
-    background:var(--ipb-panel); border:1px solid var(--ipb-border);
-    backdrop-filter:blur(14px) saturate(140%);
-    -webkit-backdrop-filter:blur(14px) saturate(140%);
-    box-shadow:0 10px 34px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
-  }
-  .ipb-brand{
-    display:flex; align-items:center; gap:7px; font-weight:700; font-size:13.5px;
-    padding:0 8px 0 4px; white-space:nowrap;
-    background:linear-gradient(90deg,#8ab4ff,#b79bff);
-    -webkit-background-clip:text; background-clip:text; color:transparent;
-  }
-  .ipb-sep{ width:1px; height:24px; background:var(--ipb-border); margin:0 3px; }
-  .ipb-btn{
-    display:inline-flex; align-items:center; gap:7px;
-    font-family:inherit; font-size:13.5px; font-weight:600; color:var(--ipb-text);
-    background:rgba(255,255,255,.05); border:1px solid var(--ipb-border);
-    padding:8px 13px; border-radius:11px; cursor:pointer; white-space:nowrap;
-    transition:background .16s ease, transform .12s ease, border-color .16s ease, opacity .16s;
-  }
-  .ipb-btn:hover:not(:disabled){ background:rgba(255,255,255,.11); border-color:rgba(255,255,255,.2); }
-  .ipb-btn:active:not(:disabled){ transform:scale(.965); }
-  .ipb-btn:disabled{ opacity:.45; cursor:not-allowed; }
-  .ipb-btn.ipb-primary{
-    background:linear-gradient(135deg,var(--ipb-accent),var(--ipb-accent-2));
-    border-color:transparent; color:#fff;
-    box-shadow:0 6px 18px rgba(79,140,255,.32);
-  }
-  .ipb-btn.ipb-primary:hover:not(:disabled){ filter:brightness(1.08); }
-  .ipb-btn.ipb-ghost{ background:transparent; color:var(--ipb-muted); }
-  .ipb-btn.ipb-ghost:hover:not(:disabled){ color:var(--ipb-text); }
-  .ipb-ico{ font-size:15px; line-height:1; }
+  button:hover:not(:disabled) { background: #3d3d3d; }
+  button:active:not(:disabled) { transform: scale(.96); }
+  button.active { background: #4a7eff; border-color: #4a7eff; color: #fff; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
 
-  .ipb-progress{
-    position:fixed; top:78px; left:50%; transform:translateX(-50%);
-    z-index:1150; display:flex; align-items:center; gap:10px;
-    padding:9px 16px; border-radius:999px; font-size:13px; font-weight:600;
-    background:var(--ipb-panel); border:1px solid var(--ipb-border);
-    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-    box-shadow:0 8px 26px rgba(0,0,0,.4); pointer-events:none;
+  input[type="color"] {
+    width: 34px; height: 32px; border: 1px solid #444;
+    border-radius: 6px; padding: 2px; background: #333; cursor: pointer;
   }
-  .ipb-mini-spin{
-    width:15px; height:15px; border-radius:50%;
-    border:2px solid rgba(255,255,255,.2); border-top-color:var(--ipb-accent);
-    animation:ipb-spin .8s linear infinite;
+  input[type="range"] { width: 90px; }
+  input[type="text"], input[type="url"] {
+    background: #1a1a1a; color: #eee; border: 1px solid #444;
+    padding: 7px 10px; border-radius: 6px; font-size: 13px;
+    font-family: inherit; width: 220px;
   }
-  .ipb-toast{
-    position:fixed; bottom:26px; left:50%; transform:translateX(-50%);
-    z-index:1300; padding:11px 20px; border-radius:12px; font-size:13.5px; font-weight:600;
-    background:var(--ipb-panel-solid); border:1px solid var(--ipb-border); color:var(--ipb-text);
-    box-shadow:0 14px 40px rgba(0,0,0,.5); animation:ipb-rise .22s ease; max-width:min(92vw,520px);
-    text-align:center; line-height:1.6;
-  }
-  .ipb-toast.ok{ border-color:rgba(34,197,94,.5); }
-  .ipb-toast.error{ border-color:rgba(239,68,68,.55); }
-  .ipb-toast.warn{ border-color:rgba(245,158,11,.5); }
-  @keyframes ipb-rise{ from{ opacity:0; transform:translate(-50%,14px); } to{ opacity:1; transform:translate(-50%,0); } }
+  input[type="url"] { direction: ltr; text-align: left; }
 
-  .ipb-overlay{
-    position:fixed; inset:0; z-index:1400; background:rgba(6,9,14,.62);
-    backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px);
-    display:flex; align-items:center; justify-content:center; padding:18px;
-    animation:ipb-fade .16s ease;
-  }
-  @keyframes ipb-fade{ from{opacity:0} to{opacity:1} }
-  .ipb-modal{
-    width:100%; max-width:520px; background:var(--ipb-panel-solid);
-    border:1px solid var(--ipb-border); border-radius:20px; padding:22px;
-    box-shadow:0 30px 80px rgba(0,0,0,.6); animation:ipb-pop .2s cubic-bezier(.2,.9,.3,1.3);
-  }
-  @keyframes ipb-pop{ from{ opacity:0; transform:scale(.94) translateY(10px);} to{opacity:1; transform:none;} }
-  .ipb-modal h3{ margin:0 0 8px; font-size:17px; }
-  .ipb-hint{ margin:0 0 14px; font-size:13px; color:var(--ipb-muted); line-height:1.75; }
-  .ipb-input{
-    width:100%; padding:12px 14px; border-radius:12px; font-size:14px; font-family:inherit;
-    background:#0b0f16; color:var(--ipb-text); border:1px solid var(--ipb-border); outline:none;
-    direction:ltr; text-align:left; transition:border-color .15s, box-shadow .15s;
-  }
-  .ipb-input:focus{ border-color:var(--ipb-accent); box-shadow:0 0 0 3px rgba(79,140,255,.2); }
-  .ipb-modal-actions{ display:flex; gap:9px; justify-content:flex-start; margin-top:16px; }
-  .ipb-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
-  .ipb-chip{
-    font-size:11.5px; padding:4px 10px; border-radius:999px; cursor:pointer;
-    background:rgba(255,255,255,.05); border:1px solid var(--ipb-border); color:var(--ipb-muted);
-    transition:all .15s;
-  }
-  .ipb-chip:hover{ color:var(--ipb-text); border-color:var(--ipb-accent); }
+  #strokeVal { font-size: 12px; color: #888; min-width: 18px; text-align: center; }
 
-  @media (max-width:640px){
-    .ipb-brand{ display:none; }
-    .ipb-btn{ font-size:12.5px; padding:7px 10px; }
-    .ipb-toolbar{ gap:5px; padding:6px; }
+  /* ===== Stage ===== */
+  #stageWrapper {
+    flex: 1; position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; background: #1a1a1a;
+  }
+  #stage {
+    position: relative; background: #fff;
+    box-shadow: 0 10px 40px rgba(0,0,0,.6);
+    overflow: hidden; touch-action: none; user-select: none;
+    border-radius: 4px;
+  }
+  #stage > * {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+  }
+  #pdfCanvas { z-index: 1; pointer-events: none; }
+  #svgLayer  { z-index: 2; pointer-events: none; }
+  #embedLayer { z-index: 3; pointer-events: none; }
+  #transientCanvas { z-index: 4; pointer-events: none; }
+  #laserCanvas { z-index: 5; pointer-events: none; }
+
+  /* SVG annotations — clickable only in select mode */
+  #svgLayer [data-annot] { pointer-events: none; }
+  #stage[data-tool="select"] #svgLayer [data-annot] { pointer-events: auto; cursor: move; }
+
+  .annot { vector-effect: non-scaling-stroke; }
+
+  /* Cursor per tool */
+  #stage[data-tool="select"] { cursor: default; }
+  #stage[data-tool="pen"],
+  #stage[data-tool="rect"],
+  #stage[data-tool="circle"],
+  #stage[data-tool="line"],
+  #stage[data-tool="laser"] { cursor: crosshair; }
+  #stage[data-tool="eraser"] { cursor: not-allowed; }
+
+  /* ===== Selection handles ===== */
+  .selection-outline {
+    fill: none; stroke: #4a7eff; stroke-width: 1.5;
+    stroke-dasharray: 5 3;
+    vector-effect: non-scaling-stroke; pointer-events: none;
+  }
+  .handle {
+    fill: #fff; stroke: #4a7eff; stroke-width: 2;
+    vector-effect: non-scaling-stroke; cursor: pointer;
+  }
+  .handle.nw, .handle.se { cursor: nwse-resize; }
+  .handle.ne, .handle.sw { cursor: nesw-resize; }
+
+  /* ===== Embeds ===== */
+  #embedLayer .embed {
+    position: absolute; pointer-events: auto;
+    display: flex; flex-direction: column;
+    background: #222; border: 2px solid #4a7eff; border-radius: 8px;
+    overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  }
+  .embed-header {
+    background: linear-gradient(180deg, #4a7eff, #3b6ee0);
+    color: #fff; padding: 5px 8px; font-size: 11px;
+    cursor: move; display: flex; justify-content: space-between;
+    align-items: center; gap: 8px; user-select: none; flex-shrink: 0;
+  }
+  .embed-title {
+    flex: 1; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; direction: ltr; text-align: left;
+    font-weight: 500;
+  }
+  .embed-close {
+    background: rgba(0,0,0,.3); border: none; color: #fff;
+    width: 18px; height: 18px; border-radius: 3px; cursor: pointer;
+    font-size: 14px; line-height: 1; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s;
+  }
+  .embed-close:hover { background: rgba(0,0,0,.6); }
+  .embed iframe {
+    flex: 1; border: none; background: #fff; width: 100%;
+    min-height: 0;
+  }
+  #stage:not([data-tool="select"]) .embed iframe { pointer-events: none; }
+
+  .embed-resize {
+    position: absolute; width: 14px; height: 14px;
+    background: #4a7eff; border: 2px solid #fff; border-radius: 50%;
+    bottom: -7px; right: -7px; cursor: nwse-resize;
+    z-index: 10; display: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,.3);
+  }
+  #stage[data-tool="select"] .embed.selected .embed-resize { display: block; }
+  #stage[data-tool="select"] .embed.selected {
+    box-shadow: 0 0 0 3px rgba(74,126,255,.4), 0 4px 14px rgba(0,0,0,.35);
+  }
+
+  /* ===== Empty state ===== */
+  #emptyState {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; color: #888; font-size: 15px;
+    pointer-events: none; z-index: 20;
+  }
+  #emptyState .icon { font-size: 64px; opacity: .5; }
+  #emptyState button { pointer-events: auto; padding: 10px 18px; font-size: 14px; }
+
+  /* ===== Loading overlay ===== */
+  #loading {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(20,20,20,.7); z-index: 50;
+    flex-direction: column; gap: 14px; color: #fff;
+  }
+  #loading.show { display: flex; }
+  .spinner {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.15);
+    border-top-color: #4a7eff;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== Page nav ===== */
+  #pageNav {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    padding: 10px; background: #252525; border-top: 1px solid #333;
+    flex-shrink: 0;
+  }
+  #pageInfo {
+    font-size: 13px; color: #aaa; min-width: 100px; text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 720px) {
+    #toolbar { padding: 6px 8px; gap: 4px; }
+    .tb-group { padding: 0 4px; }
+    button { padding: 6px 8px; font-size: 12px; }
+    input[type="url"] { width: 140px; }
+    input[type="range"] { width: 60px; }
   }
 </style>
 </head>
 <body>
 
-<div id="root">
-  <div class="ipb-boot">
-    <div class="ipb-spinner"></div>
-    <div>جارٍ تحميل اللوحة والمحرّكات…</div>
+<!-- ============ Toolbar ============ -->
+<div id="toolbar">
+  <div class="tb-group">
+    <button id="btnOpen">📄 فتح PDF</button>
+    <input type="file" id="fileInput" accept="application/pdf,image/*" style="display:none">
+  </div>
+
+  <div class="tb-group" id="toolButtons">
+    <button data-tool="select" class="active" title="تحديد / تحريك (V)">🖱️ تحديد</button>
+    <button data-tool="pen"    title="قلم حر (P)">✏️ قلم</button>
+    <button data-tool="rect"   title="مستطيل (R)">▭</button>
+    <button data-tool="circle" title="دائرة (O)">◯</button>
+    <button data-tool="line"   title="خط (L)">╱</button>
+    <button data-tool="laser"  title="قلم ليزر (A)">🔴 ليزر</button>
+    <button data-tool="eraser" title="ممحاة (E)">🧽</button>
+  </div>
+
+  <div class="tb-group">
+    <input type="color" id="colorPicker" value="#e11d48" title="اللون">
+    <input type="range" id="strokeWidth" min="1" max="20" value="3" title="السماكة">
+    <span id="strokeVal">3</span>
+  </div>
+
+  <div class="tb-group">
+    <input type="url" id="embedUrl" placeholder="https://example.com/game" dir="ltr">
+    <button id="btnAddEmbed">➕ تضمين</button>
+  </div>
+
+  <div class="tb-group">
+    <button id="btnFullscreen" title="ملء الشاشة">⛶ ملء الشاشة</button>
   </div>
 </div>
 
-<!-- pdf.js يُحمَّل كسكربت كلاسيكي (قبل الموديول) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
-        onerror="console.warn('تعذّر تحميل pdf.js — ميزة معالجة PDF ستكون معطّلة');"></script>
+<!-- ============ Stage ============ -->
+<div id="stageWrapper">
+  <div id="stage" data-tool="select">
+    <canvas id="pdfCanvas"></canvas>
+    <svg id="svgLayer" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="embedLayer"></div>
+    <canvas id="transientCanvas"></canvas>
+    <canvas id="laserCanvas"></canvas>
+  </div>
 
-<script type="module">
-/* ============================================================================
-   لوحة تعديل الـ PDF والوسائط التفاعلية
-   React 18 + tldraw 2.4.4 (ESM عبر Import Map) + pdf.js (UMD)
-   ============================================================================ */
+  <div id="emptyState">
+    <div class="icon">📄</div>
+    <div>افتح ملف PDF أو صورة للبدء</div>
+    <button id="btnOpenEmpty">📄 اختر ملفاً</button>
+  </div>
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { createRoot } from 'react-dom/client';
-import * as TL from 'tldraw';
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loadingText">جارٍ التحميل…</div>
+  </div>
+</div>
 
-const { createElement: h, Fragment } = React;
-const rootEl = document.getElementById('root');
+<!-- ============ Page navigation ============ -->
+<div id="pageNav">
+  <button id="btnPrev" disabled>◀ السابق</button>
+  <span id="pageInfo">— / —</span>
+  <button id="btnNext" disabled>التالي ▶</button>
+</div>
 
-function showFatal(msg) {
-  rootEl.innerHTML =
-    '<div class="ipb-boot">' +
-      '<div style="font-size:38px">⚠️</div>' +
-      '<div class="ipb-boot-error">' + msg + '</div>' +
-      '<div class="ipb-boot-error" style="font-size:12.5px">' +
-        'تأكّد من اتصالك بالإنترنت، ومن أن الشبكة لا تحجب esm.sh أو jsdelivr.' +
-      '</div>' +
-    '</div>';
-}
+<!-- ============ pdf.js ============ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-/* ===== التحقق من وجود المكوّنات الأساسية في tldraw ===== */
-if (!TL || !TL.Tldraw || !TL.Editor) {
-  showFatal('تم استيراد tldraw لكن الكائنات المطلوبة <code>Tldraw</code> / <code>Editor</code> غير موجودة.');
-  throw new Error('tldraw exports missing');
-}
+<script>
+(function () {
+'use strict';
 
-/* ===== ثوابت ===== */
-const SANDBOX_PERMS = [
-  'allow-scripts',
-  'allow-same-origin',
-  'allow-forms',
-  'allow-popups',
-  'allow-modals',
-  'allow-pointer-lock',
-  'allow-downloads',
-  'allow-popups-to-escape-sandbox',
-  'allow-presentation',
-  'allow-top-navigation-by-user-activation'
-].join(' ');
-
-const IFRAME_ALLOW =
-  'fullscreen; autoplay; clipboard-read; clipboard-write; gamepad; ' +
-  'microphone; camera; encrypted-media; picture-in-picture';
-
-const DEFAULT_GAME_URL = 'https://username.github.io/my-interactive-game/';
-const PDF_RENDER_TARGET_W = 1500;
-const DISPLAY_PAGE_W = 1000;
-const PAGE_GAP = 40;
-
-/* تهيئة عامل pdf.js */
-if (window.pdfjsLib) {
-  try {
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  } catch (e) { console.warn(e); }
-}
-
-/* ===== تعريف تضمين مخصّص (لتجاوز قيود tldraw على النطاقات) ===== */
-const INTERACTIVE_EMBED_DEFINITION = {
-  type: 'interactive-html',
-  title: 'وسائط تفاعلية (HTML/لعبة)',
-  hostnames: [
-    '', 'github.io', 'githubusercontent.com',
-    'netlify.app', 'vercel.app', 'pages.dev',
-    'surge.sh', 'glitch.me', 'replit.app', 'repl.co',
-    'codepen.io', 'jsfiddle.net', 'codesandbox.io',
-    'stackblitz.com', 'itch.io', 'localhost', '127.0.0.1'
-  ],
-  width: 900,
-  height: 640,
-  minWidth: 180,
-  minHeight: 140,
-  doesResize: true,
-  toEmbedUrl: (url) => url,
-  fromEmbedUrl: (url) => url
+/* ================================================================
+   State
+   ================================================================ */
+const state = {
+  pdfDoc: null,
+  currentPage: 1,
+  totalPages: 0,
+  pdfW: 0,
+  pdfH: 0,
+  tool: 'select',
+  color: '#e11d48',
+  strokeWidth: 3,
+  pages: {},        // pageNum -> { annotations: [svgHtml], embeds: [obj] }
+  selected: null,   // { kind: 'svg'|'embed', el }
+  drawing: null,
 };
 
-/* ===== بناء shapeUtils مع تعريف التضمين المخصّص (بأمان) ===== */
-let CUSTOM_SHAPE_UTILS = null;
-try {
-  const { EmbedShapeUtil, defaultShapeUtils, defaultEmbedDefinitions } = TL;
-  if (EmbedShapeUtil && typeof EmbedShapeUtil.configure === 'function' && Array.isArray(defaultShapeUtils)) {
-    const CustomEmbedShapeUtil = EmbedShapeUtil.configure({
-      embedDefinitions: (defaultEmbedDefinitions || []).concat([INTERACTIVE_EMBED_DEFINITION])
-    });
-    CUSTOM_SHAPE_UTILS = defaultShapeUtils.map(function (u) {
-      return u === EmbedShapeUtil ? CustomEmbedShapeUtil : u;
-    });
-    if (CUSTOM_SHAPE_UTILS.indexOf(CustomEmbedShapeUtil) === -1) {
-      CUSTOM_SHAPE_UTILS.push(CustomEmbedShapeUtil);
-    }
-    console.log('[IPB] تم تفعيل customEmbedDefinitions بنجاح.');
-  } else {
-    console.warn('[IPB] EmbedShapeUtil.configure غير متاح — سيُستخدم الافتراضي. sandbox bypass سيعمل عبر DOM.');
+/* ================================================================
+   DOM refs
+   ================================================================ */
+const stage          = document.getElementById('stage');
+const stageWrapper   = document.getElementById('stageWrapper');
+const pdfCanvas      = document.getElementById('pdfCanvas');
+const svgLayer       = document.getElementById('svgLayer');
+const embedLayer     = document.getElementById('embedLayer');
+const transientCanvas= document.getElementById('transientCanvas');
+const laserCanvas    = document.getElementById('laserCanvas');
+const emptyState     = document.getElementById('emptyState');
+const loadingEl      = document.getElementById('loading');
+const loadingText    = document.getElementById('loadingText');
+const pageInfo       = document.getElementById('pageInfo');
+const btnPrev        = document.getElementById('btnPrev');
+const btnNext        = document.getElementById('btnNext');
+const fileInput      = document.getElementById('fileInput');
+const colorPicker    = document.getElementById('colorPicker');
+const strokeWidthInp = document.getElementById('strokeWidth');
+const strokeVal      = document.getElementById('strokeVal');
+const embedUrlInput  = document.getElementById('embedUrl');
+
+const transCtx = transientCanvas.getContext('2d');
+const laserCtx = laserCanvas.getContext('2d');
+
+/* ================================================================
+   pdf.js worker
+   ================================================================ */
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+/* ================================================================
+   Helpers
+   ================================================================ */
+function uid() {
+  return 'a' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+function getStagePoint(e) {
+  const r = stage.getBoundingClientRect();
+  return {
+    x: ((e.clientX - r.left) / r.width)  * state.pdfW,
+    y: ((e.clientY - r.top)  / r.height) * state.pdfH,
+  };
+}
+
+function fitStage() {
+  if (!state.pdfW || !state.pdfH) return;
+  const aspect = state.pdfW / state.pdfH;
+  const wrap = stageWrapper.getBoundingClientRect();
+  const availW = wrap.width  - 48;
+  const availH = wrap.height - 48;
+  let w = availW, hgt = w / aspect;
+  if (hgt > availH) { hgt = availH; w = hgt * aspect; }
+  stage.style.width  = Math.max(100, Math.floor(w))  + 'px';
+  stage.style.height = Math.max(100, Math.floor(hgt)) + 'px';
+}
+
+function setLoading(on, text) {
+  loadingEl.classList.toggle('show', !!on);
+  if (text) loadingText.textContent = text;
+}
+
+window.addEventListener('resize', fitStage);
+
+/* ================================================================
+   Page persistence
+   ================================================================ */
+function savePageState() {
+  if (!state.currentPage) return;
+  const annotations = Array.from(svgLayer.querySelectorAll('[data-annot]'))
+    .filter(el => !el.classList.contains('handle'))
+    .map(el => el.outerHTML);
+
+  const embeds = Array.from(embedLayer.querySelectorAll('.embed')).map(el => ({
+    url: el.dataset.url,
+    x: el.style.left,
+    y: el.style.top,
+    w: el.style.width,
+    h: el.style.height,
+  }));
+
+  state.pages[state.currentPage] = { annotations, embeds };
+}
+
+function clearView() {
+  svgLayer.innerHTML = '';
+  embedLayer.innerHTML = '';
+  clearTransient();
+  clearLaser();
+  state.selected = null;
+}
+
+function loadPageState(pageNum) {
+  clearView();
+  const s = state.pages[pageNum];
+  if (!s) return;
+
+  s.annotations.forEach(html => {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const el = tmp.firstElementChild;
+    if (el) svgLayer.appendChild(el);
+  });
+
+  s.embeds.forEach(e => addEmbedElement(e.url, e.x, e.y, e.w, e.h, false));
+}
+
+/* ================================================================
+   PDF rendering
+   ================================================================ */
+async function renderPage(pageNum) {
+  if (!state.pdfDoc) return;
+  setLoading(true, 'جارٍ عرض الصفحة…');
+
+  const page = await state.pdfDoc.getPage(pageNum);
+  const vp1 = page.getViewport({ scale: 1 });
+  const TARGET_W = 1400;
+  const scale = TARGET_W / vp1.width;
+  const viewport = page.getViewport({ scale });
+
+  state.pdfW = Math.floor(viewport.width);
+  state.pdfH = Math.floor(viewport.height);
+
+  [pdfCanvas, transientCanvas, laserCanvas].forEach(c => {
+    c.width  = state.pdfW;
+    c.height = state.pdfH;
+  });
+  svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
+
+  const ctx = pdfCanvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, state.pdfW, state.pdfH);
+  await page.render({ canvasContext: ctx, viewport }).promise;
+
+  fitStage();
+  loadPageState(pageNum);
+  updatePageInfo();
+  emptyState.style.display = 'none';
+  setLoading(false);
+}
+
+async function loadPdfFile(file) {
+  if (!window.pdfjsLib) { alert('pdf.js غير متاح — تحقق من الاتصال بالإنترنت'); return; }
+  setLoading(true, 'جارٍ قراءة الملف…');
+  try {
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    state.pdfDoc      = doc;
+    state.totalPages  = doc.numPages;
+    state.currentPage = 1;
+    state.pages       = {};
+    await renderPage(1);
+  } catch (err) {
+    console.error(err);
+    setLoading(false);
+    alert('تعذّر فتح PDF: ' + err.message);
   }
-} catch (e) {
-  console.warn('[IPB] تعذّر بناء shapeUtils المخصّص:', e);
 }
 
-/* ===== أدوات مساعدة ===== */
-function newAssetId() {
+async function loadImageFile(file) {
+  setLoading(true, 'جارٍ تحميل الصورة…');
+  const url = URL.createObjectURL(file);
   try {
-    if (TL.AssetRecordType && TL.AssetRecordType.createId) return TL.AssetRecordType.createId();
-  } catch (e) {}
-  return 'asset:' + Math.random().toString(36).slice(2, 12);
-}
+    const img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error('صورة غير صالحة'));
+      i.src = url;
+    });
 
-function readAsDataURL(file) {
-  return new Promise(function (resolve, reject) {
-    const fr = new FileReader();
-    fr.onload = function () { resolve(fr.result); };
-    fr.onerror = function () { reject(new Error('تعذّر قراءة الملف: ' + file.name)); };
-    fr.readAsDataURL(file);
-  });
-}
+    state.pdfDoc      = null;
+    state.totalPages  = 1;
+    state.currentPage = 1;
+    state.pages       = {};
+    state.pdfW        = 1400;
+    state.pdfH        = Math.round(1400 * img.height / img.width);
 
-function loadImageSize(dataUrl) {
-  return new Promise(function (resolve, reject) {
-    const img = new Image();
-    img.onload = function () { resolve({ w: img.naturalWidth, h: img.naturalHeight }); };
-    img.onerror = function () { reject(new Error('صورة غير صالحة')); };
-    img.src = dataUrl;
-  });
-}
+    [pdfCanvas, transientCanvas, laserCanvas].forEach(c => {
+      c.width  = state.pdfW;
+      c.height = state.pdfH;
+    });
+    svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
 
-function isPdf(file) {
-  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
-}
+    const ctx = pdfCanvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, state.pdfW, state.pdfH);
+    ctx.drawImage(img, 0, 0, state.pdfW, state.pdfH);
 
-async function renderPdfToImages(file, onProgress) {
-  const pdfjsLib = window.pdfjsLib;
-  if (!pdfjsLib) throw new Error('محرّك pdf.js غير متاح.');
-  const buffer = await file.arrayBuffer();
-  const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
-  const pages = [];
-  try {
-    for (let i = 1; i <= doc.numPages; i++) {
-      if (onProgress) onProgress(i, doc.numPages);
-      const page = await doc.getPage(i);
-      const base = page.getViewport({ scale: 1 });
-      const scale = Math.min(2.2, Math.max(1, PDF_RENDER_TARGET_W / base.width));
-      const viewport = page.getViewport({ scale: scale });
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.floor(viewport.width));
-      canvas.height = Math.max(1, Math.floor(viewport.height));
-      const ctx = canvas.getContext('2d', { alpha: false });
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-      pages.push({
-        dataUrl: canvas.toDataURL('image/jpeg', 0.92),
-        w: canvas.width,
-        h: canvas.height,
-        name: (file.name || 'document') + ' — صفحة ' + i
-      });
-      page.cleanup();
-    }
+    clearView();
+    fitStage();
+    updatePageInfo();
+    emptyState.style.display = 'none';
+  } catch (err) {
+    console.error(err);
+    alert(err.message);
   } finally {
-    try { await doc.destroy(); } catch (e) {}
+    URL.revokeObjectURL(url);
+    setLoading(false);
   }
-  return pages;
 }
 
-function createImageOnBoard(editor, opts) {
-  const assetId = newAssetId();
-  editor.createAssets([{
-    id: assetId,
-    typeName: 'asset',
-    type: 'image',
-    meta: {},
-    props: {
-      name: opts.name || 'asset',
-      src: opts.dataUrl,
-      w: opts.w,
-      h: opts.h,
-      mimeType: opts.mimeType || 'image/jpeg',
-      isAnimated: false
-    }
-  }]);
-  return editor.createShape({
-    type: 'image',
-    x: opts.x,
-    y: opts.y,
-    props: { assetId: assetId, w: opts.w, h: opts.h }
-  });
-}
-
-function placeStack(editor, items, origin) {
-  if (!items.length) return;
-  const layout = items.map(function (it) {
-    const w = Math.min(DISPLAY_PAGE_W, it.w);
-    const ratio = it.h / it.w;
-    return { item: it, w: w, h: Math.round(w * ratio) };
-  });
-  const totalH = layout.reduce(function (a, p) { return a + p.h; }, 0) +
-                 PAGE_GAP * (layout.length - 1);
-  let y = origin.y - totalH / 2;
-  layout.forEach(function (p) {
-    createImageOnBoard(editor, {
-      dataUrl: p.item.dataUrl,
-      w: p.w, h: p.h,
-      x: origin.x - p.w / 2,
-      y: y,
-      name: p.item.name,
-      mimeType: p.item.mimeType
-    });
-    y += p.h + PAGE_GAP;
-  });
-}
-
-/* ==================================================================
-   المكوّنات
-   ================================================================== */
-
-function Toolbar(props) {
-  const disabled = !props.ready || props.busy;
-  return h('div', { className: 'ipb-toolbar-wrap' },
-    h('div', { className: 'ipb-toolbar' },
-      h('div', { className: 'ipb-brand' }, '🎨 لوحة PDF التفاعلية'),
-      h('div', { className: 'ipb-sep' }),
-      h('button', {
-        className: 'ipb-btn ipb-primary',
-        onClick: props.onPickFiles,
-        disabled: disabled
-      }, h('span', { className: 'ipb-ico' }, '📄'), 'رفع مستند'),
-      h('button', {
-        className: 'ipb-btn ipb-primary',
-        onClick: props.onInjectGame,
-        disabled: disabled
-      }, h('span', { className: 'ipb-ico' }, '🎮'), 'حقن لعبة تفاعلية'),
-      h('div', { className: 'ipb-sep' }),
-      h('button', {
-        className: 'ipb-btn ipb-ghost',
-        onClick: props.onZoomFit,
-        disabled: !props.ready
-      }, '🔍 ملاءمة'),
-      h('button', {
-        className: 'ipb-btn ipb-ghost',
-        onClick: props.onClear,
-        disabled: !props.ready
-      }, '🧹 تفريغ')
-    )
-  );
-}
-
-function GameModal(props) {
-  const [url, setUrl] = useState(props.initial || '');
-  useEffect(function () {
-    if (props.open) setUrl(props.initial || '');
-  }, [props.open, props.initial]);
-  if (!props.open) return null;
-  function submit() {
-    const value = (url || '').trim();
-    if (!value) return;
-    props.onSubmit(value);
+function updatePageInfo() {
+  if (state.totalPages === 0) {
+    pageInfo.textContent = '— / —';
+    btnPrev.disabled = true;
+    btnNext.disabled = true;
+    return;
   }
-  const samples = [
-    'https://username.github.io/game/',
-    'https://quiz-app.netlify.app',
-    'https://codepen.io/pen/embed/...'
-  ];
-  return h('div', { className: 'ipb-overlay', onClick: props.onClose },
-    h('div', {
-      className: 'ipb-modal',
-      onClick: function (e) { e.stopPropagation(); }
-    },
-      h('h3', null, '🎮 حقن وسائط تفاعلية'),
-      h('p', { className: 'ipb-hint' },
-        'ألصق رابط اللعبة أو النموذج التفاعلي (GitHub Pages، Netlify، CodePen…). ' +
-        'سيتم إنشاء عنصر Embed حيّ يعمل مباشرة فوق اللوحة دون قيود على الـ iframe.'
-      ),
-      h('input', {
-        className: 'ipb-input',
-        value: url,
-        autoFocus: true,
-        spellCheck: false,
-        placeholder: DEFAULT_GAME_URL,
-        onChange: function (e) { setUrl(e.target.value); },
-        onKeyDown: function (e) {
-          if (e.key === 'Enter') submit();
-          if (e.key === 'Escape') props.onClose();
-        }
-      }),
-      h('div', { className: 'ipb-chips' },
-        samples.map(function (s) {
-          return h('span', {
-            key: s,
-            className: 'ipb-chip',
-            onClick: function () { setUrl(s); }
-          }, s);
-        })
-      ),
-      h('div', { className: 'ipb-modal-actions' },
-        h('button', { className: 'ipb-btn ipb-primary', onClick: submit }, 'حقن الآن'),
-        h('button', { className: 'ipb-btn ipb-ghost', onClick: props.onClose }, 'إلغاء')
-      )
-    )
+  pageInfo.textContent = state.currentPage + ' / ' + state.totalPages;
+  btnPrev.disabled = state.currentPage <= 1;
+  btnNext.disabled = state.currentPage >= state.totalPages;
+}
+
+/* ================================================================
+   Page navigation
+   ================================================================ */
+btnPrev.addEventListener('click', async () => {
+  if (state.currentPage <= 1) return;
+  savePageState();
+  state.currentPage--;
+  if (state.pdfDoc) await renderPage(state.currentPage);
+  else { loadPageState(state.currentPage); updatePageInfo(); }
+});
+
+btnNext.addEventListener('click', async () => {
+  if (state.currentPage >= state.totalPages) return;
+  savePageState();
+  state.currentPage++;
+  if (state.pdfDoc) await renderPage(state.currentPage);
+  else { loadPageState(state.currentPage); updatePageInfo(); }
+});
+
+/* ================================================================
+   Tool selection
+   ================================================================ */
+function setTool(tool) {
+  if (state.tool === 'laser' && tool !== 'laser') clearLaser();
+  state.tool = tool;
+  stage.dataset.tool = tool;
+  if (tool !== 'select') deselect();
+  if (tool === 'laser' && !laserRAF) laserRAF = requestAnimationFrame(laserTick);
+  document.querySelectorAll('#toolButtons button').forEach(b => {
+    b.classList.toggle('active', b.dataset.tool === tool);
+  });
+}
+
+document.querySelectorAll('#toolButtons button').forEach(btn => {
+  btn.addEventListener('click', () => setTool(btn.dataset.tool));
+});
+
+colorPicker.addEventListener('input', () => { state.color = colorPicker.value; });
+strokeWidthInp.addEventListener('input', () => {
+  state.strokeWidth = parseInt(strokeWidthInp.value, 10);
+  strokeVal.textContent = state.strokeWidth;
+});
+
+/* ================================================================
+   Open file
+   ================================================================ */
+document.getElementById('btnOpen').addEventListener('click', () => fileInput.click());
+document.getElementById('btnOpenEmpty').addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+      await loadPdfFile(f);
+    } else if (/^image\//.test(f.type)) {
+      await loadImageFile(f);
+    } else {
+      alert('نوع الملف غير مدعوم');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('خطأ: ' + err.message);
+  }
+  fileInput.value = '';
+});
+
+/* ================================================================
+   Fullscreen
+   ================================================================ */
+document.getElementById('btnFullscreen').addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(console.warn);
+  } else {
+    document.exitFullscreen();
+  }
+});
+
+/* ================================================================
+   Selection system
+   ================================================================ */
+function deselect() {
+  if (state.selected) {
+    if (state.selected.kind === 'svg')   state.selected.el.classList.remove('selected');
+    if (state.selected.kind === 'embed') state.selected.el.classList.remove('selected');
+  }
+  state.selected = null;
+  svgLayer.querySelectorAll('.selection-overlay').forEach(n => n.remove());
+  embedLayer.querySelectorAll('.embed').forEach(e => e.classList.remove('selected'));
+}
+
+function selectAnnotation(el) {
+  deselect();
+  state.selected = { kind: 'svg', el };
+  el.classList.add('selected');
+  drawSelectionOverlay(el);
+}
+
+function selectEmbed(el) {
+  deselect();
+  state.selected = { kind: 'embed', el };
+  el.classList.add('selected');
+}
+
+function getShapeBBox(el) {
+  try {
+    if (el.tagName === 'line') {
+      const x1 = +el.getAttribute('x1'), y1 = +el.getAttribute('y1');
+      const x2 = +el.getAttribute('x2'), y2 = +el.getAttribute('y2');
+      const pad = 8;
+      return { x: Math.min(x1,x2)-pad, y: Math.min(y1,y2)-pad,
+               width: Math.abs(x2-x1)+pad*2, height: Math.abs(y2-y1)+pad*2 };
+    }
+    return el.getBBox();
+  } catch (_) { return null; }
+}
+
+function drawSelectionOverlay(el) {
+  svgLayer.querySelectorAll('.selection-overlay').forEach(n => n.remove());
+
+  const bbox = getShapeBBox(el);
+  if (!bbox) return;
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('class', 'selection-overlay');
+
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', bbox.x);
+  rect.setAttribute('y', bbox.y);
+  rect.setAttribute('width',  bbox.width);
+  rect.setAttribute('height', bbox.height);
+  rect.setAttribute('class', 'selection-outline');
+  g.appendChild(rect);
+
+  const hs = Math.max(8, state.pdfW / 110);
+  const pts = {
+    nw: [bbox.x,                bbox.y],
+    ne: [bbox.x + bbox.width,   bbox.y],
+    se: [bbox.x + bbox.width,   bbox.y + bbox.height],
+    sw: [bbox.x,                bbox.y + bbox.height],
+  };
+  Object.keys(pts).forEach(k => {
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', pts[k][0]);
+    c.setAttribute('cy', pts[k][1]);
+    c.setAttribute('r', hs);
+    c.setAttribute('class', 'handle ' + k);
+    c.dataset.handle = k;
+    c.dataset.annot  = '1';
+    g.appendChild(c);
+  });
+
+  svgLayer.appendChild(g);
+}
+
+/* ================================================================
+   Create annotations
+   ================================================================ */
+function addAnnotation(el) {
+  el.dataset.annot = '1';
+  if (!el.dataset.id) el.dataset.id = uid();
+  el.classList.add('annot');
+  svgLayer.appendChild(el);
+}
+
+/* --- Pen --- */
+let penPoints = null;
+
+function startPen(e) {
+  const p = getStagePoint(e);
+  penPoints = [p];
+  clearTransient();
+}
+
+function drawPenPreview() {
+  clearTransient();
+  if (!penPoints || penPoints.length < 2) return;
+  transCtx.strokeStyle = state.color;
+  transCtx.lineWidth = state.strokeWidth;
+  transCtx.lineCap = 'round';
+  transCtx.lineJoin = 'round';
+  transCtx.beginPath();
+  transCtx.moveTo(penPoints[0].x, penPoints[0].y);
+  for (let i = 1; i < penPoints.length; i++) transCtx.lineTo(penPoints[i].x, penPoints[i].y);
+  transCtx.stroke();
+}
+
+function commitPen() {
+  if (!penPoints || penPoints.length < 2) { penPoints = null; clearTransient(); return; }
+  let d = 'M ' + penPoints[0].x.toFixed(1) + ' ' + penPoints[0].y.toFixed(1);
+  for (let i = 1; i < penPoints.length; i++) {
+    d += ' L ' + penPoints[i].x.toFixed(1) + ' ' + penPoints[i].y.toFixed(1);
+  }
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  path.setAttribute('stroke', state.color);
+  path.setAttribute('stroke-width', state.strokeWidth);
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  path.setAttribute('fill', 'none');
+  path.dataset.type = 'path';
+  addAnnotation(path);
+  penPoints = null;
+  clearTransient();
+}
+
+/* --- Shapes (rect, circle, line) --- */
+function startShape(e, type) {
+  const p = getStagePoint(e);
+  const el = document.createElementNS(
+    'http://www.w3.org/2000/svg',
+    type === 'circle' ? 'ellipse' : type
   );
+  el.setAttribute('stroke', state.color);
+  el.setAttribute('stroke-width', state.strokeWidth);
+  // Transparent fill allows click selection on the whole shape area
+  el.setAttribute('fill', type === 'line' ? 'none' : 'rgba(0,0,0,0)');
+  el.dataset.type = type;
+  el.dataset.id = uid();
+
+  if (type === 'rect') {
+    el.setAttribute('x', p.x); el.setAttribute('y', p.y);
+    el.setAttribute('width', 0); el.setAttribute('height', 0);
+  } else if (type === 'circle') {
+    el.setAttribute('cx', p.x); el.setAttribute('cy', p.y);
+    el.setAttribute('rx', 0); el.setAttribute('ry', 0);
+  } else if (type === 'line') {
+    el.setAttribute('x1', p.x); el.setAttribute('y1', p.y);
+    el.setAttribute('x2', p.x); el.setAttribute('y2', p.y);
+  }
+
+  svgLayer.appendChild(el);
+  state.drawing = { type, start: p, el };
 }
 
-function App() {
-  const [editor, setEditor] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState('');
-  const [toast, setToast] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
+function updateShape(e) {
+  if (!state.drawing) return;
+  const { type, start, el } = state.drawing;
+  const p = getStagePoint(e);
 
-  const fileRef = useRef(null);
-  const toastTimer = useRef(null);
-
-  const notify = useCallback(function (msg, type) {
-    setToast({ msg: msg, type: type || 'info' });
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(function () { setToast(null); }, 4500);
-  }, []);
-
-  useEffect(function () {
-    return function () { clearTimeout(toastTimer.current); };
-  }, []);
-
-  /* ===== Sandbox Bypass Engine (على مستوى DOM) ===== */
-  useEffect(function () {
-    function patchIframe(iframe) {
-      if (!(iframe instanceof HTMLIFrameElement)) return;
-      if (iframe.getAttribute('sandbox') !== SANDBOX_PERMS) {
-        iframe.setAttribute('sandbox', SANDBOX_PERMS);
-      }
-      if (iframe.getAttribute('allow') !== IFRAME_ALLOW) {
-        iframe.setAttribute('allow', IFRAME_ALLOW);
-      }
-      if (iframe.style.pointerEvents === 'none') {
-        iframe.style.pointerEvents = 'auto';
-      }
-    }
-    function scan(root) {
-      if (!root || !root.querySelectorAll) return;
-      const frames = root.querySelectorAll('iframe');
-      for (let i = 0; i < frames.length; i++) patchIframe(frames[i]);
-    }
-    scan(document);
-    const observer = new MutationObserver(function (mutations) {
-      for (let i = 0; i < mutations.length; i++) {
-        const m = mutations[i];
-        if (m.type === 'attributes') {
-          patchIframe(m.target);
-        } else if (m.addedNodes && m.addedNodes.length) {
-          for (let j = 0; j < m.addedNodes.length; j++) {
-            const node = m.addedNodes[j];
-            if (node.nodeType !== 1) continue;
-            if (node instanceof HTMLIFrameElement) patchIframe(node);
-            else scan(node);
-          }
-        }
-      }
-    });
-    observer.observe(document.documentElement, {
-      childList: true, subtree: true,
-      attributes: true, attributeFilter: ['sandbox', 'allow']
-    });
-    return function () { observer.disconnect(); };
-  }, []);
-
-  /* ===== معالجة الملفات ===== */
-  const handleFiles = useCallback(async function (files) {
-    if (!editor || !files || !files.length) return;
-    const list = Array.prototype.slice.call(files);
-    const pdfs = list.filter(isPdf);
-    const images = list.filter(function (f) {
-      return !isPdf(f) && /^image\//i.test(f.type || '');
-    });
-    const skipped = list.length - pdfs.length - images.length;
-
-    setBusy(true);
-    setProgress('جارٍ التحضير…');
-    try {
-      const items = [];
-      for (let i = 0; i < pdfs.length; i++) {
-        const file = pdfs[i];
-        setProgress('تحويل «' + file.name + '» …');
-        const pages = await renderPdfToImages(file, function (current, total) {
-          setProgress('«' + file.name + '» — صفحة ' + current + ' من ' + total);
-        });
-        items.push.apply(items, pages);
-      }
-      for (let i = 0; i < images.length; i++) {
-        const file = images[i];
-        setProgress('تحميل الصورة «' + file.name + '» …');
-        const dataUrl = await readAsDataURL(file);
-        const size = await loadImageSize(dataUrl);
-        items.push({
-          dataUrl: dataUrl, w: size.w, h: size.h,
-          name: file.name, mimeType: file.type || 'image/png'
-        });
-      }
-      if (!items.length) {
-        notify('لم يتم العثور على ملفات PDF أو صور صالحة.', 'warn');
-        return;
-      }
-      setProgress('إسقاط العناصر على اللوحة…');
-      const bounds = typeof editor.getViewportPageBounds === 'function'
-        ? editor.getViewportPageBounds() : null;
-      const center = bounds && bounds.center
-        ? bounds.center : editor.getViewportPageCenter();
-      placeStack(editor, items, center);
-      notify('تمت إضافة ' + items.length + ' عنصر إلى اللوحة ✅', 'ok');
-      if (skipped > 0) notify('تم تجاهل ' + skipped + ' ملف غير مدعوم.', 'warn');
-    } catch (err) {
-      console.error(err);
-      notify('تعذّرت المعالجة: ' + (err && err.message ? err.message : err), 'error');
-    } finally {
-      setBusy(false);
-      setProgress('');
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  }, [editor, notify]);
-
-  /* السحب والإفلات لملفات PDF */
-  useEffect(function () {
-    if (!editor) return;
-    function onDropCapture(e) {
-      const dt = e.dataTransfer;
-      if (!dt || !dt.files || !dt.files.length) return;
-      const files = Array.prototype.slice.call(dt.files);
-      if (files.some(isPdf)) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleFiles(files);
-      }
-    }
-    document.addEventListener('drop', onDropCapture, true);
-    return function () { document.removeEventListener('drop', onDropCapture, true); };
-  }, [editor, handleFiles]);
-
-  /* ===== حقن الوسائط ===== */
-  const injectEmbed = useCallback(function (rawUrl) {
-    if (!editor) return;
-    let url = String(rawUrl).trim();
-    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-    const w = 900, hh = 640;
-    const bounds = typeof editor.getViewportPageBounds === 'function'
-      ? editor.getViewportPageBounds() : null;
-    const center = bounds && bounds.center
-      ? bounds.center : editor.getViewportPageCenter();
-    const id = editor.createShape({
-      type: 'embed',
-      x: center.x - w / 2,
-      y: center.y - hh / 2,
-      props: { url: url, w: w, h: hh }
-    });
-    if (id && editor.setSelectedShapes) editor.setSelectedShapes([id]);
-    setModalOpen(false);
-    notify('تم حقن الوسائط التفاعلية 🎮', 'ok');
-  }, [editor, notify]);
-
-  const zoomFit = useCallback(function () {
-    if (!editor) return;
-    try { editor.zoomToFit({ animation: { duration: 220 } }); }
-    catch (e) { try { editor.zoomToFit(); } catch (e2) {} }
-  }, [editor]);
-
-  const clearBoard = useCallback(function () {
-    if (!editor) return;
-    const ids = Array.from(editor.getCurrentPageShapeIds());
-    if (!ids.length) { notify('اللوحة فارغة أصلاً.', 'info'); return; }
-    editor.deleteShapes(ids);
-    notify('تم تفريغ اللوحة 🧹', 'ok');
-  }, [editor, notify]);
-
-  /* ===== الواجهة ===== */
-  return h(Fragment, null,
-    h('div', { id: 'ipb-root' },
-      h('div', { className: 'ipb-canvas' },
-        h(TL.Tldraw, {
-          persistenceKey: 'interactive-pdf-board-v1',
-          onMount: function (ed) { setEditor(ed); },
-          shapeUtils: CUSTOM_SHAPE_UTILS || undefined,
-          unmountOnBlur: false,
-          autoFocus: true
-        })
-      )
-    ),
-    h(Toolbar, {
-      ready: !!editor,
-      busy: busy,
-      onPickFiles: function () { if (fileRef.current) fileRef.current.click(); },
-      onInjectGame: function () { setModalOpen(true); },
-      onZoomFit: zoomFit,
-      onClear: clearBoard
-    }),
-    h('input', {
-      ref: fileRef,
-      type: 'file',
-      multiple: true,
-      accept: 'application/pdf,image/*',
-      style: { display: 'none' },
-      onChange: function (e) {
-        const files = e.target.files;
-        if (files && files.length) handleFiles(files);
-      }
-    }),
-    busy && progress
-      ? h('div', { className: 'ipb-progress' },
-          h('div', { className: 'ipb-mini-spin' }),
-          h('span', null, progress))
-      : null,
-    toast
-      ? h('div', { className: 'ipb-toast ' + (toast.type || 'info') }, toast.msg)
-      : null,
-    h(GameModal, {
-      open: modalOpen,
-      initial: DEFAULT_GAME_URL,
-      onClose: function () { setModalOpen(false); },
-      onSubmit: injectEmbed
-    })
-  );
+  if (type === 'rect') {
+    const x = Math.min(start.x, p.x), y = Math.min(start.y, p.y);
+    el.setAttribute('x', x);
+    el.setAttribute('y', y);
+    el.setAttribute('width',  Math.abs(p.x - start.x));
+    el.setAttribute('height', Math.abs(p.y - start.y));
+  } else if (type === 'circle') {
+    el.setAttribute('cx', (start.x + p.x) / 2);
+    el.setAttribute('cy', (start.y + p.y) / 2);
+    el.setAttribute('rx', Math.abs(p.x - start.x) / 2);
+    el.setAttribute('ry', Math.abs(p.y - start.y) / 2);
+  } else if (type === 'line') {
+    el.setAttribute('x2', p.x);
+    el.setAttribute('y2', p.y);
+  }
 }
 
-/* ===== الإقلاع ===== */
-try {
-  const root = createRoot(rootEl);
-  root.render(h(App));
-} catch (err) {
-  console.error(err);
-  showFatal('حدث خطأ أثناء إقلاع الواجهة:<br><code>' +
-    String(err && err.message ? err.message : err) + '</code>');
+function commitShape() {
+  if (!state.drawing) return;
+  const { type, el } = state.drawing;
+  let tooSmall = false;
+
+  if (type === 'rect') {
+    if (+el.getAttribute('width') < 4 || +el.getAttribute('height') < 4) tooSmall = true;
+  } else if (type === 'circle') {
+    if (+el.getAttribute('rx') < 3 || +el.getAttribute('ry') < 3) tooSmall = true;
+  } else if (type === 'line') {
+    const dx = +el.getAttribute('x2') - +el.getAttribute('x1');
+    const dy = +el.getAttribute('y2') - +el.getAttribute('y1');
+    if (Math.hypot(dx, dy) < 6) tooSmall = true;
+  }
+
+  if (tooSmall) el.remove();
+  else {
+    el.dataset.annot = '1';
+    el.classList.add('annot');
+  }
+  state.drawing = null;
 }
+
+/* --- Laser pointer --- */
+let laserActive = false;
+let laserRAF = null;
+let lastLaserPoint = null;
+
+function laserTick() {
+  if (state.tool !== 'laser' && !laserActive) { laserRAF = null; return; }
+  laserCtx.globalCompositeOperation = 'destination-out';
+  laserCtx.fillStyle = 'rgba(0,0,0,0.07)';
+  laserCtx.fillRect(0, 0, state.pdfW, state.pdfH);
+  laserCtx.globalCompositeOperation = 'source-over';
+  laserRAF = requestAnimationFrame(laserTick);
+}
+
+function drawLaserPoint(e) {
+  if (state.tool !== 'laser') return;
+  const p = getStagePoint(e);
+  if (lastLaserPoint) {
+    laserCtx.strokeStyle = state.color;
+    laserCtx.lineWidth = state.strokeWidth * 2;
+    laserCtx.lineCap = 'round';
+    laserCtx.lineJoin = 'round';
+    laserCtx.beginPath();
+    laserCtx.moveTo(lastLaserPoint.x, lastLaserPoint.y);
+    laserCtx.lineTo(p.x, p.y);
+    laserCtx.stroke();
+  }
+  lastLaserPoint = p;
+}
+
+function clearLaser() { laserCtx.clearRect(0, 0, state.pdfW, state.pdfH); }
+function clearTransient() { transCtx.clearRect(0, 0, state.pdfW, state.pdfH); }
+
+/* ================================================================
+   Embed system
+   ================================================================ */
+function addEmbedElement(url, x, y, w, hgt, save) {
+  const el = document.createElement('div');
+  el.className = 'embed';
+  el.dataset.url = url;
+  el.style.left   = x   || '35%';
+  el.style.top    = y   || '35%';
+  el.style.width  = w   || '30%';
+  el.style.height = hgt || '30%';
+
+  /* Header */
+  const header = document.createElement('div');
+  header.className = 'embed-header';
+
+  const title = document.createElement('span');
+  title.className = 'embed-title';
+  try { title.textContent = new URL(url).hostname; }
+  catch (_) { title.textContent = url; }
+
+  const close = document.createElement('button');
+  close.className = 'embed-close';
+  close.textContent = '×';
+  close.title = 'حذف التضمين';
+  close.addEventListener('mousedown', e => e.stopPropagation());
+  close.addEventListener('click', e => {
+    e.stopPropagation();
+    if (state.selected && state.selected.el === el) state.selected = null;
+    el.remove();
+    savePageState();
+  });
+
+  header.appendChild(title);
+  header.appendChild(close);
+
+  /* iframe */
+  const iframe = document.createElement('iframe');
+  iframe.src = url;
+  iframe.setAttribute('sandbox',
+    'allow-scripts allow-same-origin allow-forms allow-popups allow-modals ' +
+    'allow-pointer-lock allow-downloads allow-popups-to-escape-sandbox allow-presentation');
+  iframe.setAttribute('allow',
+    'fullscreen; autoplay; clipboard-read; clipboard-write; gamepad; ' +
+    'microphone; camera; encrypted-media; picture-in-picture');
+  iframe.setAttribute('referrerpolicy', 'no-referrer');
+
+  /* Resize handle */
+  const resize = document.createElement('div');
+  resize.className = 'embed-resize';
+
+  el.appendChild(header);
+  el.appendChild(iframe);
+  el.appendChild(resize);
+  embedLayer.appendChild(el);
+
+  /* Drag/resize interaction */
+  header.addEventListener('mousedown', e => {
+    if (state.tool !== 'select') return;
+    e.preventDefault(); e.stopPropagation();
+    selectEmbed(el);
+    startEmbedDrag(el, e, 'move');
+  });
+
+  resize.addEventListener('mousedown', e => {
+    if (state.tool !== 'select') return;
+    e.preventDefault(); e.stopPropagation();
+    selectEmbed(el);
+    startEmbedDrag(el, e, 'resize');
+  });
+
+  if (save !== false) savePageState();
+  return el;
+}
+
+function startEmbedDrag(el, e, mode) {
+  const stageRect = stage.getBoundingClientRect();
+  const elRect    = el.getBoundingClientRect();
+  const startX = e.clientX, startY = e.clientY;
+  const startL = elRect.left - stageRect.left;
+  const startT = elRect.top  - stageRect.top;
+  const startW = elRect.width;
+  const startH = elRect.height;
+
+  function onMove(ev) {
+    const dx = ev.clientX - startX;
+    const dy = ev.clientY - startY;
+
+    if (mode === 'move') {
+      const nl = Math.max(0, Math.min(stageRect.width  - startW, startL + dx));
+      const nt = Math.max(0, Math.min(stageRect.height - startH, startT + dy));
+      el.style.left = (nl / stageRect.width  * 100) + '%';
+      el.style.top  = (nt / stageRect.height * 100) + '%';
+    } else {
+      const nw = Math.max(120, Math.min(stageRect.width  - startL, startW + dx));
+      const nh = Math.max(80,  Math.min(stageRect.height - startT, startH + dy));
+      el.style.width  = (nw / stageRect.width  * 100) + '%';
+      el.style.height = (nh / stageRect.height * 100) + '%';
+    }
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    savePageState();
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+document.getElementById('btnAddEmbed').addEventListener('click', () => {
+  let url = (embedUrlInput.value || '').trim();
+  if (!url) { alert('أدخل رابطاً'); return; }
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  addEmbedElement(url);
+  embedUrlInput.value = '';
+  setTool('select');
+});
+
+/* ================================================================
+   Move SVG annotation
+   ================================================================ */
+function startMoveSvg(el, e) {
+  const p0 = getStagePoint(e);
+  const start = {};
+  const tag = el.tagName;
+
+  if (tag === 'rect') {
+    start.x = +el.getAttribute('x') || 0;
+    start.y = +el.getAttribute('y') || 0;
+  } else if (tag === 'ellipse') {
+    start.cx = +el.getAttribute('cx') || 0;
+    start.cy = +el.getAttribute('cy') || 0;
+  } else if (tag === 'line') {
+    start.x1 = +el.getAttribute('x1'); start.y1 = +el.getAttribute('y1');
+    start.x2 = +el.getAttribute('x2'); start.y2 = +el.getAttribute('y2');
+  } else if (tag === 'path') {
+    const t = el.getAttribute('transform') || '';
+    const m = t.match(/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)/);
+    start.tx = m ? parseFloat(m[1]) : 0;
+    start.ty = m ? parseFloat(m[2]) : 0;
+  }
+
+  function onMove(ev) {
+    const p = getStagePoint(ev);
+    const dx = p.x - p0.x;
+    const dy = p.y - p0.y;
+
+    if (tag === 'rect') {
+      el.setAttribute('x', start.x + dx);
+      el.setAttribute('y', start.y + dy);
+    } else if (tag === 'ellipse') {
+      el.setAttribute('cx', start.cx + dx);
+      el.setAttribute('cy', start.cy + dy);
+    } else if (tag === 'line') {
+      el.setAttribute('x1', start.x1 + dx); el.setAttribute('y1', start.y1 + dy);
+      el.setAttribute('x2', start.x2 + dx); el.setAttribute('y2', start.y2 + dy);
+    } else if (tag === 'path') {
+      el.setAttribute('transform', `translate(${start.tx + dx}, ${start.ty + dy})`);
+    }
+    drawSelectionOverlay(el);
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    savePageState();
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/* ================================================================
+   Resize SVG annotation
+   ================================================================ */
+function startResizeSvg(el, e, handle) {
+  const p0 = getStagePoint(e);
+  const tag = el.tagName;
+  const s = {};
+
+  ['x','y','width','height','cx','cy','rx','ry','x1','y1','x2','y2'].forEach(a => {
+    const v = el.getAttribute(a);
+    if (v !== null) s[a] = parseFloat(v);
+  });
+
+  function onMove(ev) {
+    const p = getStagePoint(ev);
+    const dx = p.x - p0.x;
+    const dy = p.y - p0.y;
+
+    if (tag === 'rect') {
+      if (handle === 'se') {
+        el.setAttribute('width',  Math.max(5, s.width  + dx));
+        el.setAttribute('height', Math.max(5, s.height + dy));
+      } else if (handle === 'nw') {
+        el.setAttribute('x', s.x + dx);
+        el.setAttribute('y', s.y + dy);
+        el.setAttribute('width',  Math.max(5, s.width  - dx));
+        el.setAttribute('height', Math.max(5, s.height - dy));
+      } else if (handle === 'ne') {
+        el.setAttribute('y', s.y + dy);
+        el.setAttribute('width',  Math.max(5, s.width  + dx));
+        el.setAttribute('height', Math.max(5, s.height - dy));
+      } else if (handle === 'sw') {
+        el.setAttribute('x', s.x + dx);
+        el.setAttribute('width',  Math.max(5, s.width  - dx));
+        el.setAttribute('height', Math.max(5, s.height + dy));
+      }
+    } else if (tag === 'ellipse') {
+      const sx = (handle === 'ne' || handle === 'se') ? +1 : -1;
+      const sy = (handle === 'sw' || handle === 'se') ? +1 : -1;
+      el.setAttribute('rx', Math.max(3, s.rx + sx * dx / 2));
+      el.setAttribute('ry', Math.max(3, s.ry + sy * dy / 2));
+      // keep opposite corner fixed by shifting center
+      const shiftX = (handle === 'nw' || handle === 'sw') ? dx : 0;
+      const shiftY = (handle === 'nw' || handle === 'ne') ? dy : 0;
+      el.setAttribute('cx', s.cx + shiftX / 2);
+      el.setAttribute('cy', s.cy + shiftY / 2);
+    } else if (tag === 'line') {
+      if (handle === 'se') {
+        el.setAttribute('x2', s.x2 + dx); el.setAttribute('y2', s.y2 + dy);
+      } else if (handle === 'nw') {
+        el.setAttribute('x1', s.x1 + dx); el.setAttribute('y1', s.y1 + dy);
+      } else if (handle === 'ne') {
+        el.setAttribute('x2', s.x2 + dx); el.setAttribute('y1', s.y1 + dy);
+      } else if (handle === 'sw') {
+        el.setAttribute('x1', s.x1 + dx); el.setAttribute('y2', s.y2 + dy);
+      }
+    }
+    drawSelectionOverlay(el);
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    savePageState();
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/* ================================================================
+   Main event handling
+   ================================================================ */
+stage.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  if (!state.pdfW) return;
+
+  const target = e.target;
+  const tool = state.tool;
+
+  /* Selection handles */
+  if (target.classList && target.classList.contains('handle')) {
+    const handle = target.dataset.handle;
+    if (state.selected && state.selected.kind === 'svg') {
+      startResizeSvg(state.selected.el, e, handle);
+      e.preventDefault();
+    }
+    return;
+  }
+
+  if (tool === 'select') {
+    const annot = target.closest ? target.closest('[data-annot]') : null;
+    if (annot && !annot.classList.contains('handle')) {
+      selectAnnotation(annot);
+      startMoveSvg(annot, e);
+      e.preventDefault();
+      return;
+    }
+    deselect();
+    return;
+  }
+
+  if (tool === 'pen')         { startPen(e); e.preventDefault(); }
+  else if (tool === 'rect')   { startShape(e, 'rect');   e.preventDefault(); }
+  else if (tool === 'circle') { startShape(e, 'circle'); e.preventDefault(); }
+  else if (tool === 'line')   { startShape(e, 'line');   e.preventDefault(); }
+  else if (tool === 'eraser') { eraseAt(e); e.preventDefault(); }
+});
+
+stage.addEventListener('mousemove', e => {
+  if (!state.pdfW) return;
+  const tool = state.tool;
+
+  if (tool === 'pen' && penPoints) {
+    const p = getStagePoint(e);
+    const last = penPoints[penPoints.length - 1];
+    if (Math.hypot(p.x - last.x, p.y - last.y) > 2) {
+      penPoints.push(p);
+      drawPenPreview();
+    }
+  } else if ((tool === 'rect' || tool === 'circle' || tool === 'line') && state.drawing) {
+    updateShape(e);
+  } else if (tool === 'laser') {
+    drawLaserPoint(e);
+  }
+});
+
+stage.addEventListener('mouseup', () => {
+  if (state.tool === 'pen') commitPen();
+  else if (state.tool === 'rect' || state.tool === 'circle' || state.tool === 'line') commitShape();
+});
+
+stage.addEventListener('mouseleave', () => {
+  if (state.tool === 'pen') commitPen();
+  else if (state.tool === 'rect' || state.tool === 'circle' || state.tool === 'line') commitShape();
+  lastLaserPoint = null;
+});
+
+/* Eraser */
+function eraseAt(e) {
+  const annot = e.target.closest ? e.target.closest('[data-annot]') : null;
+  if (annot && !annot.classList.contains('handle')) {
+    annot.remove();
+    if (state.selected && state.selected.el === annot) state.selected = null;
+    savePageState();
+  }
+}
+
+/* ================================================================
+   Keyboard shortcuts
+   ================================================================ */
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea, select')) return;
+
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (state.selected) {
+      if (state.selected.kind === 'svg')   state.selected.el.remove();
+      if (state.selected.kind === 'embed') state.selected.el.remove();
+      state.selected = null;
+      savePageState();
+      e.preventDefault();
+    }
+    return;
+  }
+
+  if (e.key === 'Escape') { deselect(); return; }
+
+  const map = {
+    'v': 'select', 'p': 'pen', 'r': 'rect',
+    'o': 'circle', 'l': 'line', 'a': 'laser', 'e': 'eraser',
+  };
+  const t = map[e.key.toLowerCase()];
+  if (t) setTool(t);
+
+  // Page nav with arrow keys
+  if (e.key === 'ArrowRight' && !btnNext.disabled) btnNext.click();
+  if (e.key === 'ArrowLeft'  && !btnPrev.disabled) btnPrev.click();
+});
+
+/* ================================================================
+   Init
+   ================================================================ */
+stage.addEventListener('dragstart', e => e.preventDefault());
+updatePageInfo();
+
+})();
 </script>
 </body>
 </html>
