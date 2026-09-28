@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تعديل الـ PDF والتطبيق التفاعلي</title>
     
-    <!-- 🎨 استيراد أنماط تيلدرو الرسمية من رابط مباشر مستقر -->
-    <link rel="stylesheet" href="https://jsdelivr.net">
+    <!-- 🎨 استيراد أنماط تيلدرو الرسمية عبر cdnjs المستقر جداً -->
+    <link rel="stylesheet" href="https://cloudflare.com">
 
     <style>
         body, html, #root {
@@ -34,13 +34,13 @@
     <!-- العنصر الحاضن للوحة -->
     <div id="root"></div>
 
-    <!-- 🌐 روابط الـ CDN العالمية المضمونة (إصدارات UMD حقيقية للمتصفح مباشرة) -->
-    <script src="https://jsdelivr.net"></script>
-    <script src="https://jsdelivr.net"></script>
-    <script src="https://jsdelivr.net"></script>
+    <!-- 🌐 استدعاء روابط الـ UMD العالمية الكلاسيكية (تمنع خطأ MIME type نهائياً) -->
+    <script src="https://cloudflare.com"></script>
+    <script src="https://cloudflare.com"></script>
+    <script src="https://cloudflare.com"></script>
 
+    <!-- 💡 استخدام وسم script عادي كلاسيكي بدون استخدام type="module" لتخطي الحظر -->
     <script>
-        // استخراج الصلاحيات والمكونات بعد تحميل روابط الـ UMD بنجاح في المتصفح
         const { useState, createElement } = React;
         const { Tldraw, defaultEmbedDefinitions } = window.tldraw || tldraw;
 
@@ -66,7 +66,7 @@
                 const files = event.target.files;
                 if (!files || files.length === 0 || !editor) return;
 
-                const fileUrl = URL.createObjectURL(files[0]); // قراءة الملف الأول بدقة
+                const fileUrl = URL.createObjectURL(files[0]); // تصحيح قراءة أول ملف مرفوع بدقة
                 
                 editor.createShapes([
                     {
