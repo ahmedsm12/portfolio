@@ -9,8 +9,8 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
   html, body { height: 100%; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; background: #0f1115; color: #eee; user-select: none; -webkit-user-select: none; overscroll-behavior: none; }
   #stageWrapper { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #0f1115; }
-  #stage { position: relative; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.7); overflow: hidden; touch-action: none; border-radius: 4px; }
-  #stageContent { position: absolute; inset: 0; will-change: transform; }
+  #stage { position: relative; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.7); overflow: hidden; touch-action: none; border-radius: 4px; transform-origin: 0 0; }
+  #stageContent { position: absolute; inset: 0; }
   #stageContent > * { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
   #pdfCanvas { z-index: 1; pointer-events: none; }
   #svgLayer  { z-index: 2; pointer-events: none; }
@@ -28,7 +28,6 @@
   }
   #svgLayer [data-annot] { pointer-events: none; }
   #stage[data-tool="select"] #svgLayer [data-annot] { pointer-events: auto; cursor: move; }
-  /* ★ الخطوط بوحدات CSS px (لا تتغير عند تغيير حجم الشاشة) */
   .annot { vector-effect: non-scaling-stroke; }
   .selection-outline { fill: none; stroke: #4a7eff; stroke-width: 1.5; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
   .handle { fill: #fff; stroke: #4a7eff; stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; pointer-events: auto; }
@@ -61,16 +60,47 @@
   .video-obj video { flex: 1; width: 100%; min-height: 0; background: #000; display: block; object-fit: contain; }
   #stage:not([data-tool="select"]) .video-obj video { pointer-events: none; }
   .video-obj .video-play-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 68px; height: 68px; border-radius: 50%; background: rgba(0,0,0,.55); border: 2.5px solid rgba(255,255,255,.9); color: #fff; font-size: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 0 0 5px; z-index: 5; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 6px 22px rgba(0,0,0,.4); font-family: Arial, sans-serif; line-height: 1; }
-  .video-obj .video-play-btn:hover { background: rgba(0,0,0,.75); }
   .video-obj .video-play-btn.hidden { opacity: 0; pointer-events: none; }
   .video-obj .video-resize { position: absolute; width: 14px; height: 14px; background: #4a7eff; border: 2px solid #fff; border-radius: 50%; bottom: -7px; right: -7px; cursor: nwse-resize; z-index: 10; display: none; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
   #stage[data-tool="select"] .video-obj.selected .video-resize { display: block; }
   .video-obj.video-error::after { content: '⚠ تعذّر تحميل الفيديو'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,.85); font-size: 12px; padding: 20px; text-align: center; }
 
-  #toolbar { position: fixed; right: 10px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 3px; padding: 5px 4px; background: rgba(28,32,40,.94); backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.5); z-index: 1000; touch-action: manipulation; max-height: 96vh; overflow-y: auto; }
-  #toolbar button { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #d4d9e2; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; transition: background .14s, transform .1s, color .14s; position: relative; touch-action: manipulation; flex-shrink: 0; }
+  /* ===== TOOLBAR ===== */
+  #toolbar {
+    position: fixed; right: 10px; top: 50%; transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 5px 4px;
+    background: rgba(28,32,40,.94);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+    z-index: 1000;
+    max-height: 96vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* ★ السماح بالتمرير العمودي باللمس دون اعتراضه */
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  #toolbar::-webkit-scrollbar { width: 5px; }
+  #toolbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
+
+  #toolbar button {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; color: #d4d9e2;
+    border: none; border-radius: 10px;
+    font-size: 18px; cursor: pointer;
+    transition: background .14s, color .14s;
+    position: relative;
+    flex-shrink: 0;
+    /* ★ pan-y يسمح بالتمرير من فوق الزر */
+    touch-action: pan-y;
+  }
   #toolbar button:hover { background: rgba(255,255,255,.09); }
-  #toolbar button:active { transform: scale(.92); }
   #toolbar button.active { background: #4a7eff; color: #fff; }
   #toolbar button:disabled { opacity: .3; cursor: not-allowed; }
   #toolbar .tb-divider { height: 1px; background: rgba(255,255,255,.08); margin: 3px 6px; flex-shrink: 0; }
@@ -100,10 +130,25 @@
   .color-input-row label { font-size: 10px; color: #b8c0cc; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
   .color-input-row input[type="checkbox"] { accent-color: #4a7eff; cursor: pointer; width: 14px; height: 14px; }
 
-  .nav-btn { position: fixed; bottom: 20px; width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; background: rgba(28,32,40,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.1); border-radius: 50%; color: #d4d9e2; font-size: 22px; cursor: pointer; z-index: 1000; box-shadow: 0 8px 24px rgba(0,0,0,.5); touch-action: manipulation; user-select: none; }
+  /* ===== NAV BTNS: قريبة من الوسط ===== */
+  .nav-btn {
+    position: fixed; bottom: 22px;
+    width: 54px; height: 54px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(28,32,40,.92);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 50%;
+    color: #d4d9e2; font-size: 22px;
+    cursor: pointer; z-index: 1000;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    touch-action: manipulation;
+    user-select: none;
+  }
   .nav-btn:disabled { opacity: .25; cursor: not-allowed; }
-  #btnPrev { left: 20px; }
-  #btnNext { right: 20px; }
+  /* 90px من الوسط لكل جهة → فراغ 72px بينهما */
+  #btnPrev { left: calc(50% - 90px); }
+  #btnNext { right: calc(50% - 90px); }
 
   .dialog-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(10,12,16,.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; }
   .dialog { background: #1c2028; border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: 20px; width: 90%; max-width: 420px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
@@ -125,16 +170,37 @@
   .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid rgba(255,255,255,.12); border-top-color: #4a7eff; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  #pageIndicator { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); padding: 6px 16px; background: rgba(28,32,40,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.08); border-radius: 999px; font-size: 12px; color: #b8c0cc; font-variant-numeric: tabular-nums; z-index: 999; pointer-events: none; letter-spacing: .5px; }
+  /* ★ مؤشر الصفحة: أعلى يسار، صغير جداً */
+  #pageIndicator {
+    position: fixed; top: 10px; left: 10px;
+    padding: 4px 10px;
+    background: rgba(28,32,40,.85);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.06);
+    border-radius: 8px;
+    font-size: 10.5px; color: #8a94a6;
+    font-variant-numeric: tabular-nums;
+    z-index: 999; pointer-events: none;
+    letter-spacing: .5px;
+  }
   #pageIndicator:empty { display: none; }
+
+  #saveStatus {
+    position: fixed; top: 10px; left: 68px;
+    padding: 4px 10px;
+    background: rgba(28,32,40,.85);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.06);
+    border-radius: 8px;
+    font-size: 10px; color: #8a94a6;
+    z-index: 999; pointer-events: none; opacity: 0; transition: opacity .25s;
+  }
+  #saveStatus.show { opacity: 1; }
 
   .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 10px; background: rgba(28,32,40,.95); border: 1px solid rgba(255,255,255,.1); color: #fff; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.5); z-index: 3000; pointer-events: none; }
   .toast.ok { border-color: rgba(34,197,94,.5); }
   .toast.warn { border-color: rgba(245,158,11,.5); }
   .toast.error { border-color: rgba(239,68,68,.55); }
-
-  #saveStatus { position: fixed; top: 14px; right: 68px; padding: 5px 12px; background: rgba(28,32,40,.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.08); border-radius: 999px; font-size: 10.5px; color: #8a94a6; z-index: 999; pointer-events: none; opacity: 0; transition: opacity .25s; }
-  #saveStatus.show { opacity: 1; }
 
   @media (max-width: 600px) {
     #toolbar { right: 6px; padding: 4px 3px; gap: 2px; }
@@ -142,9 +208,10 @@
     #toolbar button svg { width: 18px; height: 18px; }
     #submenu { right: 50px; }
     .nav-btn { width: 48px; height: 48px; font-size: 20px; bottom: 16px; }
-    #btnPrev { left: 12px; }
-    #btnNext { right: 12px; }
-    #saveStatus { right: 54px; font-size: 9.5px; }
+    #btnPrev { left: calc(50% - 80px); }
+    #btnNext { right: calc(50% - 80px); }
+    #pageIndicator { font-size: 9.5px; padding: 3px 8px; }
+    #saveStatus { left: 60px; font-size: 9px; }
   }
 </style>
 </head>
@@ -173,7 +240,7 @@
 <div id="saveStatus"></div>
 
 <div id="toolbar">
-  <button data-tool="hand" title="يد">🖐️</button>
+  <button data-tool="hand" title="يد — إصبعان للتكبير">🖐️</button>
   <button data-tool="pen" data-submenu="pen" title="قلم" style="--indicator:#000000">✏️</button>
   <button data-tool="highlighter" data-submenu="highlighter" title="قلم تحديد" style="--indicator:#eab308">🖍️</button>
   <button data-tool="eraser" data-submenu="eraser" title="ممحاة">🧽</button>
@@ -188,10 +255,11 @@
   <button id="btnUndo" title="تراجع">↶</button>
   <button id="btnRedo" title="إعادة">↷</button>
   <div class="tb-divider"></div>
-  <button id="btnFullscreen" title="ملء الشاشة">⛶</button>
+  <button id="btnResetZoom" title="إعادة ضبط التكبير">⛶</button>
+  <button id="btnFullscreen" title="ملء الشاشة">🖥️</button>
   <button id="btnOpen" title="فتح ملف">📂</button>
   <div class="tb-divider"></div>
-  <button id="btnSave" title="حفظ المشروع يدوياً">💾</button>
+  <button id="btnSave" title="حفظ المشروع">💾</button>
   <button id="btnClearSaved" title="حذف المشروع المحفوظ">🗑️</button>
 </div>
 
@@ -223,10 +291,8 @@ const DB_NAME = 'interactive-pdf-board';
 const DB_VERSION = 1;
 const STORE_NAME = 'projects';
 const PROJECT_KEY = 'current';
+const CACHE_WIDTH = 2200;  /* دقة الكاش (JPEG) */
 
-/* ================================================================
-   DOM
-   ================================================================ */
 const $ = id => document.getElementById(id);
 const stage = $('stage'), stageWrapper = $('stageWrapper'), stageContent = $('stageContent');
 const pdfCanvas = $('pdfCanvas'), svgLayer = $('svgLayer'), embedLayer = $('embedLayer');
@@ -248,70 +314,22 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const state = {
   pdfDoc: null, currentPage: 1, totalPages: 0,
   pdfW: 0, pdfH: 0,
-  canvasScale: 1,    // canvas px per PDF unit
-  dpr: 1,            // canvas px per CSS px
-  cssW: 0,           // stage's CSS width in px
-  pdfBlob: null,     // original file (for save/reload)
-  pdfName: '',
-  pdfIsImage: false,
+  canvasScale: 1, dpr: 1, cssW: 0, cssH: 0,
+  stageRect0: { left: 0, top: 0, width: 0, height: 0 },
+  view: { scale: 1, tx: 0, ty: 0 },
+  pdfBlob: null, pdfName: '', pdfIsImage: false,
+  pageCache: new Map(),          /* pageNum -> { dataUrl } */
+  preloadToken: 0,
   tool: 'select',
   penColor: '#000000', penSize: 3,
   highlighterColor: '#eab308', highlighterSize: 16,
-  eraserSize: 60, eraserErasesShapes: true,
+  eraserSize: 20, eraserErasesShapes: true,
   laserColor: '#ff0000', laserSize: 4,
   shapeKind: 'rect', shapeStroke: '#000000', shapeFill: '#ffffff',
   shapeFillNone: true, shapeSize: 3,
   selected: null, pages: {}, history: {},
 };
 
-/* ================================================================
-   INDEXEDDB
-   ================================================================ */
-let _db = null;
-function openDB() {
-  if (_db) return Promise.resolve(_db);
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
-    };
-    req.onsuccess = () => { _db = req.result; resolve(_db); };
-    req.onerror = () => reject(req.error);
-  });
-}
-async function idbPut(key, value) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(value, key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
-  });
-}
-async function idbGet(key) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const req = tx.objectStore(STORE_NAME).get(key);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-async function idbDelete(key) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).delete(key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-/* ================================================================
-   VIDEO BLOBS REGISTRY (videoId → Blob)
-   ================================================================ */
 const videoBlobs = new Map();
 
 /* ================================================================
@@ -332,10 +350,13 @@ function showSaveStatus(text) {
   clearTimeout(showSaveStatus._t);
   showSaveStatus._t = setTimeout(() => saveStatusEl.classList.remove('show'), 1600);
 }
+
+/* ★ حساب مساحة PDF القصوى — مساحة صغيرة جداً لمؤشر الصفحة */
 function computeStageSize(naturalW, naturalH) {
   const wrap = stageWrapper.getBoundingClientRect();
-  const availW = Math.max(80, wrap.width - 24 - 66);
-  const availH = Math.max(80, wrap.height - 40 - 84);
+  /* الاحتفاظ بـ: 66px يمين للشريط، 80px أسفل للأزرار، 30px علوي لمؤشر الصفحة */
+  const availW = Math.max(80, wrap.width - 12 - 66);
+  const availH = Math.max(80, wrap.height - 30 - 80);
   const aspect = naturalW / naturalH;
   let cssW = availW, cssH = cssW / aspect;
   if (cssH > availH) { cssH = availH; cssW = cssH * aspect; }
@@ -345,6 +366,23 @@ function computeStageSize(naturalW, naturalH) {
   if (canvasW * canvasH > maxPixels) { const f = Math.sqrt(maxPixels / (canvasW * canvasH)); canvasW = Math.floor(canvasW * f); canvasH = Math.floor(canvasH * f); }
   return { cssW, cssH, canvasW, canvasH };
 }
+function updateStageRect0() {
+  /* احسب موقع stage الأصلي (قبل التحويلات) في إحداثيات viewport */
+  const wrap = stageWrapper.getBoundingClientRect();
+  const cssW = state.cssW, cssH = state.cssH;
+  state.stageRect0.left = wrap.left + (wrap.width - cssW) / 2;
+  state.stageRect0.top = wrap.top + (wrap.height - cssH) / 2;
+  state.stageRect0.width = cssW;
+  state.stageRect0.height = cssH;
+}
+function applyView() {
+  const { scale, tx, ty } = state.view;
+  if (scale === 1 && tx === 0 && ty === 0) {
+    stage.style.transform = '';
+  } else {
+    stage.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  }
+}
 function getVideoDimensions(url) {
   return new Promise((resolve) => {
     const v = document.createElement('video'); v.preload = 'metadata'; v.src = url;
@@ -352,6 +390,47 @@ function getVideoDimensions(url) {
     v.onloadedmetadata = () => done({ w: v.videoWidth || 1280, h: v.videoHeight || 720 });
     v.onerror = () => done({ w: 1280, h: 720 });
     setTimeout(() => done({ w: 1280, h: 720 }), 3000);
+  });
+}
+
+/* ================================================================
+   INDEXEDDB
+   ================================================================ */
+let _db = null;
+function openDB() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => { const db = req.result; if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME); };
+    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbPut(key, value) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbGet(key) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbDelete(key) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -441,15 +520,10 @@ async function saveProject() {
   const videoBlobsObj = {};
   videoBlobs.forEach((blob, id) => { videoBlobsObj[id] = blob; });
   const project = {
-    pdfBlob: state.pdfBlob,
-    pdfName: state.pdfName,
-    pdfIsImage: state.pdfIsImage,
-    totalPages: state.totalPages,
-    currentPage: state.currentPage,
-    pages: state.pages,
-    videoBlobs: videoBlobsObj,
-    savedAt: Date.now(),
-    version: 1,
+    pdfBlob: state.pdfBlob, pdfName: state.pdfName, pdfIsImage: state.pdfIsImage,
+    totalPages: state.totalPages, currentPage: state.currentPage,
+    pages: state.pages, videoBlobs: videoBlobsObj,
+    savedAt: Date.now(), version: 1,
   };
   try {
     await idbPut(PROJECT_KEY, project);
@@ -463,29 +537,22 @@ async function saveProject() {
 }
 async function loadProject() {
   let project;
-  try { project = await idbGet(PROJECT_KEY); } catch (e) { console.warn(e); return false; }
+  try { project = await idbGet(PROJECT_KEY); } catch (e) { return false; }
   if (!project || !project.pdfBlob) return false;
   videoBlobs.clear();
   Object.keys(project.videoBlobs || {}).forEach(id => { videoBlobs.set(id, project.videoBlobs[id]); });
   state.pages = project.pages || {};
   state.history = {};
-  state.currentPage = project.currentPage || 1;
   state.pdfName = project.pdfName || 'document.pdf';
   state.pdfIsImage = !!project.pdfIsImage;
   try {
     const file = new File([project.pdfBlob], state.pdfName, { type: project.pdfBlob.type || 'application/pdf' });
-    if (state.pdfIsImage) {
-      await loadImageFile(file, { keepPages: true, skipRender: true });
-    } else {
-      await loadPdfFile(file, { keepPages: true, skipRender: true });
-    }
+    if (state.pdfIsImage) await loadImageFile(file, { keepPages: true, skipRender: true });
+    else await loadPdfFile(file, { keepPages: true, skipRender: true });
     state.currentPage = project.currentPage || 1;
     await renderPage(state.currentPage);
     return true;
-  } catch (err) {
-    console.error('loadProject restore failed', err);
-    return false;
-  }
+  } catch (err) { console.error('restore failed', err); return false; }
 }
 async function clearSavedProject() {
   try { await idbDelete(PROJECT_KEY); toast('تم حذف المشروع المحفوظ', 'ok'); }
@@ -506,7 +573,7 @@ function loadPageState(pageNum) {
 }
 function startLaserRAF() { if (laserRAF) return; laserRAF = requestAnimationFrame(laserTick); }
 function laserTick() {
-  const now = performance.now(), dpr = state.dpr;
+  const now = performance.now();
   if (laserStrokes.length === 0) { laserRAF = null; return; }
   const age = now - laserLastActivity;
   let alpha = 1;
@@ -515,10 +582,9 @@ function laserTick() {
   laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height);
   if (alpha <= 0) { laserStrokes.length = 0; currentLaserStroke = null; laserRAF = null; return; }
   laserCtx.globalAlpha = alpha; laserCtx.lineCap = 'round'; laserCtx.lineJoin = 'round';
+  const k = state.canvasScale;
   for (let i = 0; i < laserStrokes.length; i++) {
     const s = laserStrokes[i]; if (!s.points || s.points.length < 1) continue;
-    /* ★ استخدام canvasScale للرسم على canvas (وحدات PDF → canvas px) */
-    const k = state.canvasScale;
     laserCtx.shadowColor = s.color; laserCtx.shadowBlur = s.width * k * 2.5;
     laserCtx.strokeStyle = '#ffffff'; laserCtx.lineWidth = s.width * k;
     laserCtx.beginPath(); laserCtx.moveTo(s.points[0].x * k, s.points[0].y * k);
@@ -544,35 +610,124 @@ function laserAdd(p) {
 function laserEnd() { currentLaserStroke = null; laserLastActivity = performance.now(); }
 
 /* ================================================================
-   PDF RENDER
+   RENDER PAGE (بدون إشارة تحميل إذا كان في الكاش)
    ================================================================ */
 async function renderPage(pageNum) {
-  if (!state.pdfDoc) return;
-  setLoading(true, 'جارٍ عرض الصفحة…');
+  if (!state.pdfDoc && !state.pdfIsImage) return;
+  const hasCache = state.pageCache.has(pageNum);
+
+  if (!hasCache) setLoading(true, 'جارٍ عرض الصفحة…');
   try {
-    const page = await state.pdfDoc.getPage(pageNum);
-    const vp1 = page.getViewport({ scale: 1 });
+    let vp1W, vp1H, aspect;
+
+    if (state.pdfDoc) {
+      const page = await state.pdfDoc.getPage(pageNum);
+      const vp1 = page.getViewport({ scale: 1 });
+      vp1W = vp1.width; vp1H = vp1.height; aspect = vp1.height / vp1.width;
+    } else {
+      /* وضع الصورة: use pdfBlob as image */
+      vp1W = 1; vp1H = state.pdfH / state.pdfW;
+      aspect = vp1H / vp1W;
+    }
+
     state.pdfW = COORD_WIDTH;
-    state.pdfH = Math.round(vp1.height * (COORD_WIDTH / vp1.width));
-    const { cssW, cssH, canvasW, canvasH } = computeStageSize(vp1.width, vp1.height);
-    state.canvasScale = canvasW / state.pdfW;   // canvas px per PDF unit
-    state.cssW = cssW;
-    state.dpr = canvasW / cssW;                 // canvas px per CSS px
+    state.pdfH = Math.round(COORD_WIDTH * aspect);
+
+    const { cssW, cssH, canvasW, canvasH } = computeStageSize(vp1W, vp1H);
+    state.canvasScale = canvasW / state.pdfW;
+    state.cssW = cssW; state.cssH = cssH;
+    state.dpr = canvasW / cssW;
     stage.style.width = cssW + 'px'; stage.style.height = cssH + 'px';
     [pdfCanvas, transientCanvas, laserCanvas].forEach(c => { c.width = canvasW; c.height = canvasH; });
     svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
+
     const ctx = pdfCanvas.getContext('2d', { alpha: false });
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvasW, canvasH);
-    const renderScale = canvasW / vp1.width;
-    const viewport = page.getViewport({ scale: renderScale });
-    await page.render({ canvasContext: ctx, viewport, background: '#ffffff' }).promise;
-    stageContent.style.transition = 'none'; stageContent.style.transform = '';
+
+    const cached = state.pageCache.get(pageNum);
+    if (cached) {
+      /* ارسم من الكاش مباشرة — سريع جداً */
+      const img = new Image();
+      await new Promise(res => { img.onload = res; img.onerror = res; img.src = cached.dataUrl; });
+      ctx.drawImage(img, 0, 0, canvasW, canvasH);
+    } else if (state.pdfDoc) {
+      /* ارسم من PDF */
+      const page = await state.pdfDoc.getPage(pageNum);
+      const vp1 = page.getViewport({ scale: 1 });
+      const renderScale = canvasW / vp1.width;
+      const viewport = page.getViewport({ scale: renderScale });
+      await page.render({ canvasContext: ctx, viewport, background: '#ffffff' }).promise;
+      /* خزّن في الكاش */
+      try {
+        const cc = document.createElement('canvas');
+        const cw = Math.min(canvasW, CACHE_WIDTH);
+        const ch = Math.round(cw * canvasH / canvasW);
+        cc.width = cw; cc.height = ch;
+        const cctx = cc.getContext('2d', { alpha: false });
+        cctx.drawImage(pdfCanvas, 0, 0, cw, ch);
+        state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.82) });
+      } catch (e) {}
+    } else {
+      /* صورة مفردة */
+      const blob = state.pdfBlob;
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        try {
+          const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('x')); i.src = url; });
+          ctx.drawImage(img, 0, 0, canvasW, canvasH);
+        } finally { URL.revokeObjectURL(url); }
+      }
+    }
+
+    /* حدّث موضع stage الأصلي للحسابات */
+    updateStageRect0();
+    applyView();
+
     loadPageState(pageNum);
     updatePageIndicator(); updateUndoButtons(); emptyState.style.display = 'none';
-  } catch (err) { console.error(err); toast('تعذّر عرض الصفحة', 'error'); }
-  finally { setLoading(false); }
+  } catch (err) {
+    console.error(err);
+    toast('تعذّر عرض الصفحة', 'error');
+  } finally {
+    if (!hasCache) setLoading(false);
+  }
 }
+
+/* ================================================================
+   PRELOAD ALL PAGES في الخلفية
+   ================================================================ */
+async function preloadAllPages(token) {
+  if (!state.pdfDoc) return;
+  const total = state.totalPages;
+  for (let i = 1; i <= total; i++) {
+    if (state.preloadToken !== token) return; /* أُلغي */
+    if (state.pageCache.has(i)) continue;
+    try {
+      const page = await state.pdfDoc.getPage(i);
+      const vp1 = page.getViewport({ scale: 1 });
+      const cw = Math.min(CACHE_WIDTH, Math.max(1200, Math.round(vp1.width * 1.5)));
+      const scale = cw / vp1.width;
+      const viewport = page.getViewport({ scale });
+      const cvs = document.createElement('canvas');
+      cvs.width = Math.max(1, Math.floor(viewport.width));
+      cvs.height = Math.max(1, Math.floor(viewport.height));
+      const c = cvs.getContext('2d', { alpha: false });
+      c.fillStyle = '#ffffff'; c.fillRect(0, 0, cvs.width, cvs.height);
+      await page.render({ canvasContext: c, viewport }).promise;
+      const dataUrl = cvs.toDataURL('image/jpeg', 0.82);
+      if (state.preloadToken !== token) return;
+      state.pageCache.set(i, { dataUrl });
+      page.cleanup();
+      /* تنفّس صغير */
+      await new Promise(r => setTimeout(r, 0));
+    } catch (e) { console.warn('preload page ' + i, e); }
+  }
+}
+
+/* ================================================================
+   LOAD PDF/IMAGE
+   ================================================================ */
 async function loadPdfFile(file, opts = {}) {
   setLoading(true, 'جارٍ قراءة الملف…');
   try {
@@ -585,6 +740,8 @@ async function loadPdfFile(file, opts = {}) {
     }).promise;
     state.pdfDoc = doc; state.totalPages = doc.numPages;
     state.pdfBlob = file; state.pdfName = file.name; state.pdfIsImage = false;
+    state.pageCache.clear(); state.preloadToken++;
+    const myToken = state.preloadToken;
     if (!opts.keepPages) {
       state.pages = {}; state.history = {}; state.currentPage = 1; state.selected = null;
     }
@@ -592,40 +749,26 @@ async function loadPdfFile(file, opts = {}) {
       updateUndoButtons();
       await renderPage(state.currentPage || 1);
       scheduleSave();
+      /* ابدأ التحميل المسبق في الخلفية */
+      preloadAllPages(myToken);
     }
   } catch (err) { console.error(err); setLoading(false); alert('تعذّر فتح PDF: ' + err.message); throw err; }
 }
 async function loadImageFile(file, opts = {}) {
   setLoading(true, 'جارٍ تحميل الصورة…');
-  const url = URL.createObjectURL(file);
   try {
-    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('صورة غير صالحة')); i.src = url; });
     state.pdfDoc = null; state.totalPages = 1;
     state.pdfBlob = file; state.pdfName = file.name; state.pdfIsImage = true;
-    state.pdfW = COORD_WIDTH; state.pdfH = Math.round(COORD_WIDTH * img.height / img.width);
-    const { cssW, cssH, canvasW, canvasH } = computeStageSize(img.width, img.height);
-    state.canvasScale = canvasW / state.pdfW;
-    state.cssW = cssW;
-    state.dpr = canvasW / cssW;
-    stage.style.width = cssW + 'px'; stage.style.height = cssH + 'px';
-    [pdfCanvas, transientCanvas, laserCanvas].forEach(c => { c.width = canvasW; c.height = canvasH; });
-    svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
-    const ctx = pdfCanvas.getContext('2d');
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvasW, canvasH);
-    ctx.drawImage(img, 0, 0, canvasW, canvasH);
+    state.pageCache.clear(); state.preloadToken++;
     if (!opts.keepPages) {
       state.pages = {}; state.history = {}; state.currentPage = 1;
     }
     if (!opts.skipRender) {
-      deselect(); clearLaser(); clearTransient();
-      while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
-      embedLayer.innerHTML = ''; videoLayer.innerHTML = '';
-      stageContent.style.transform = '';
-      updatePageIndicator(); updateUndoButtons(); emptyState.style.display = 'none';
+      await renderPage(1);
       scheduleSave();
     }
   } catch (err) { console.error(err); alert(err.message); throw err; }
-  finally { URL.revokeObjectURL(url); setLoading(false); }
+  finally { setLoading(false); }
 }
 function updatePageIndicator() {
   if (!state.totalPages) { pageIndicator.textContent = ''; return; }
@@ -642,53 +785,34 @@ function handleResize() {
   resizeTimer = setTimeout(async () => {
     if ((state.pdfDoc || state.pdfIsImage) && state.currentPage) {
       savePageNow();
-      if (state.pdfDoc) await renderPage(state.currentPage);
-      else {
-        /* إعادة رسم الصورة */
-        const blob = state.pdfBlob;
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          try {
-            const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('x')); i.src = url; });
-            const { cssW, cssH, canvasW, canvasH } = computeStageSize(img.width, img.height);
-            state.canvasScale = canvasW / state.pdfW;
-            state.cssW = cssW; state.dpr = canvasW / cssW;
-            stage.style.width = cssW + 'px'; stage.style.height = cssH + 'px';
-            [pdfCanvas, transientCanvas, laserCanvas].forEach(c => { c.width = canvasW; c.height = canvasH; });
-            svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
-            const ctx = pdfCanvas.getContext('2d');
-            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvasW, canvasH);
-            ctx.drawImage(img, 0, 0, canvasW, canvasH);
-            const saved = state.pages[state.currentPage];
-            while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
-            embedLayer.innerHTML = ''; videoLayer.innerHTML = '';
-            if (saved) applySnapshot(saved);
-          } finally { URL.revokeObjectURL(url); }
-        }
-      }
+      /* الكاش لا يحتاج مسحاً — يُعاد استخدامه */
+      await renderPage(state.currentPage);
     }
-  }, 300);
+  }, 250);
 }
 window.addEventListener('resize', handleResize);
 window.addEventListener('orientationchange', () => setTimeout(() => window.dispatchEvent(new Event('resize')), 300));
 
 /* ================================================================
-   NAVIGATION
+   NAVIGATION (بدون إشارة تحميل إذا كان في الكاش)
    ================================================================ */
 let sliding = false;
 async function goToPage(newPage, dir) {
   if (sliding || newPage < 1 || newPage > state.totalPages || newPage === state.currentPage) return;
   sliding = true; savePageNow(); scheduleSave();
-  const w = stage.clientWidth;
-  const outX = dir === 'next' ? -w : w, inX = dir === 'next' ? w : -w;
-  stageContent.style.transition = 'transform .22s ease-out'; stageContent.style.transform = `translateX(${outX}px)`;
-  await new Promise(r => setTimeout(r, 220));
+  const w = stage.clientWidth * state.view.scale;
+  const outX = dir === 'next' ? -w : w;
+  stageContent.style.transition = 'transform .22s ease-out';
+  stageContent.style.transform = `translateX(${outX}px)`;
+  await new Promise(r => setTimeout(r, 200));
   state.currentPage = newPage;
-  if (state.pdfDoc) await renderPage(newPage);
-  else { loadPageState(newPage); updatePageIndicator(); updateUndoButtons(); }
-  stageContent.style.transition = 'none'; stageContent.style.transform = `translateX(${inX}px)`;
+  await renderPage(newPage);
+  const inX = dir === 'next' ? w : -w;
+  stageContent.style.transition = 'none';
+  stageContent.style.transform = `translateX(${inX}px)`;
   void stageContent.offsetWidth;
-  stageContent.style.transition = 'transform .22s ease-out'; stageContent.style.transform = 'translateX(0)';
+  stageContent.style.transition = 'transform .22s ease-out';
+  stageContent.style.transform = 'translateX(0)';
   setTimeout(() => { stageContent.style.transition = ''; stageContent.style.transform = ''; sliding = false; }, 240);
 }
 
@@ -701,21 +825,44 @@ function setTool(tool) {
   document.querySelectorAll('#toolbar button[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
   closeSubmenu();
 }
+
+/* ★ bindPress محسّن: يكتشف السحب ويلغي الضغط */
 function bindPress(el, handler) {
-  let fired = false;
+  const MOVE_THRESHOLD = 10;
   el.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    fired = true; e.preventDefault(); e.stopPropagation(); handler(e);
+    const startX = e.clientX, startY = e.clientY;
+    let moved = false;
+    let longPressTimer = setTimeout(() => { moved = true; }, 600); /* ضغط طويل يُلغي أيضاً */
+
+    const onMove = (ev) => {
+      if (moved) return;
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > MOVE_THRESHOLD) {
+        moved = true;
+        clearTimeout(longPressTimer);
+      }
+    };
+    const onUp = (ev) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      clearTimeout(longPressTimer);
+      if (!moved) {
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        handler(e);
+      }
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
   }, { passive: false });
-  el.addEventListener('click', e => {
-    if (fired) { fired = false; e.preventDefault(); e.stopPropagation(); return; }
-    if (e.pointerType === undefined) { e.preventDefault(); e.stopPropagation(); handler(e); }
-  });
 }
+
 toolbar.querySelectorAll('button').forEach(btn => {
   bindPress(btn, async () => {
     if (btn.id === 'btnUndo') { undo(); return; }
     if (btn.id === 'btnRedo') { redo(); return; }
+    if (btn.id === 'btnResetZoom') { resetView(); return; }
     if (btn.id === 'btnFullscreen') { toggleFullscreen(); return; }
     if (btn.id === 'btnOpen') { fileInput.click(); return; }
     if (btn.id === 'btnSave') {
@@ -734,6 +881,7 @@ toolbar.querySelectorAll('button').forEach(btn => {
     if (hasSub) openSubmenu(btn, btn.dataset.submenu);
   });
 });
+
 function toggleFullscreen() {
   const el = document.documentElement;
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
@@ -744,10 +892,15 @@ function toggleFullscreen() {
     else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
   }
 }
+function resetView() {
+  state.view.scale = 1; state.view.tx = 0; state.view.ty = 0;
+  applyView();
+  toast('تم إعادة الضبط', 'ok');
+}
 function confirmClearSaved() {
   const backdrop = document.createElement('div');
   backdrop.className = 'dialog-backdrop';
-  backdrop.innerHTML = `<div class="dialog"><h3>🗑️ حذف المشروع المحفوظ</h3><p>سيتم حذف كل البيانات المحفوظة (PDF، الرسومات، الفيديوهات، التضمينات). لا يمكن التراجع.</p><div class="dialog-actions"><button type="button" class="btn-secondary" data-action="cancel">إلغاء</button><button type="button" class="btn-danger" data-action="ok">حذف</button></div></div>`;
+  backdrop.innerHTML = `<div class="dialog"><h3>🗑️ حذف المشروع المحفوظ</h3><p>سيتم حذف كل البيانات المحفوظة.</p><div class="dialog-actions"><button type="button" class="btn-secondary" data-action="cancel">إلغاء</button><button type="button" class="btn-danger" data-action="ok">حذف</button></div></div>`;
   document.body.appendChild(backdrop);
   bindPress(backdrop.querySelector('[data-action="cancel"]'), () => backdrop.remove());
   bindPress(backdrop.querySelector('[data-action="ok"]'), async () => { backdrop.remove(); await clearSavedProject(); });
@@ -784,14 +937,15 @@ function renderColorSize(color, size, kind, colors, sizes) {
       ${colors.map(c => `<button type="button" class="color-btn ${c === color ? 'active' : ''}" data-kind="${kind}" data-color="${c}"><div class="swatch" style="background:${c}"></div></button>`).join('')}
     </div></div>
     <div class="sub-section"><div class="sub-label">الحجم</div><div class="size-grid">
-      ${sizes.map(s => `<button type="button" class="size-btn ${s === size ? 'active' : ''}" data-kind="${kind}" data-size="${s}"><div class="dot" style="width:${Math.min(20, Math.max(3, s/1.5))}px;height:${Math.min(20, Math.max(3, s/1.5))}px"></div></button>`).join('')}
+      ${sizes.map(s => `<button type="button" class="size-btn ${s === size ? 'active' : ''}" data-kind="${kind}" data-size="${s}"><div class="dot" style="width:${Math.min(20, Math.max(3, s))}px;height:${Math.min(20, Math.max(3, s))}px"></div></button>`).join('')}
     </div></div>`;
 }
 function renderEraserSubmenu() {
-  const sizes = [40, 80, 140];
+  /* ★ أحجام الممحاة الأصلية الصغيرة */
+  const sizes = [10, 20, 36];
   return `
     <div class="sub-section"><div class="sub-label">الحجم</div><div class="size-grid">
-      ${sizes.map(s => `<button type="button" class="size-btn ${s === state.eraserSize ? 'active' : ''}" data-kind="eraser" data-size="${s}"><div class="dot" style="width:${Math.min(20, s / 4)}px;height:${Math.min(20, s / 4)}px"></div></button>`).join('')}
+      ${sizes.map(s => `<button type="button" class="size-btn ${s === state.eraserSize ? 'active' : ''}" data-kind="eraser" data-size="${s}"><div class="dot" style="width:${Math.min(18, s / 2)}px;height:${Math.min(18, s / 2)}px"></div></button>`).join('')}
     </div></div>
     <div class="sub-section">
       <div class="color-input-row"><label><input type="checkbox" id="subEraseShapes" ${state.eraserErasesShapes ? 'checked' : ''}> امسح الأشكال</label></div>
@@ -904,14 +1058,16 @@ function startEmbedDrag(el, e, mode) {
   const sr = stage.getBoundingClientRect(), er = el.getBoundingClientRect();
   const sX = e.clientX, sY = e.clientY;
   const sL = er.left - sr.left, sT = er.top - sr.top, sW = er.width, sH = er.height;
+  const scale = state.view.scale;
   const pre = snapshot();
   function onMove(ev) {
-    const dx = ev.clientX - sX, dy = ev.clientY - sY;
+    const dx = (ev.clientX - sX) / scale, dy = (ev.clientY - sY) / scale;
     if (mode === 'move') {
-      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx)), nt = Math.max(0, Math.min(sr.height - sH, sT + dy));
+      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx * scale));
+      const nt = Math.max(0, Math.min(sr.height - sH, sT + dy * scale));
       el.style.left = (nl / sr.width * 100) + '%'; el.style.top = (nt / sr.height * 100) + '%';
     } else {
-      const nw = Math.max(80, Math.min(sr.width - sL, sW + dx)), nh = Math.max(60, Math.min(sr.height - sT, sH + dy));
+      const nw = Math.max(80, Math.min(sr.width - sL, sW + dx * scale)), nh = Math.max(60, Math.min(sr.height - sT, sH + dy * scale));
       el.style.width = (nw / sr.width * 100) + '%'; el.style.height = (nh / sr.height * 100) + '%';
     }
   }
@@ -936,7 +1092,6 @@ function openVideoPicker() {
         const file = files[i]; if (!/^video\//i.test(file.type)) continue;
         try {
           const videoId = uid();
-          /* احفظ الـ Blob الأصلي في السجل (للحفظ لاحقاً) */
           videoBlobs.set(videoId, file);
           const blobUrl = URL.createObjectURL(file);
           const dims = await getVideoDimensions(blobUrl);
@@ -958,8 +1113,6 @@ function addVideoElement(videoId, url, title, x, y, w, h, save) {
   el.dataset.videoId = videoId;
   el.dataset.title = title || '';
   el.style.left = x || '25%'; el.style.top = y || '20%'; el.style.width = w || '50%'; el.style.height = h || '40%';
-
-  /* ★ إن كان لدينا blob مسجّل، أنشئ رابطاً جديداً منه (مهم عند الاستعادة) */
   let actualUrl = url;
   const storedBlob = videoBlobs.get(videoId);
   if (storedBlob) {
@@ -967,7 +1120,6 @@ function addVideoElement(videoId, url, title, x, y, w, h, save) {
     actualUrl = URL.createObjectURL(storedBlob);
   }
   el.dataset.url = actualUrl;
-
   const header = document.createElement('div'); header.className = 'video-header';
   const titleEl = document.createElement('span'); titleEl.className = 'video-title'; titleEl.textContent = title || 'فيديو'; titleEl.title = title || '';
   const closeBtn = document.createElement('button'); closeBtn.type = 'button'; closeBtn.className = 'video-close'; closeBtn.textContent = '×'; closeBtn.title = 'حذف';
@@ -976,7 +1128,6 @@ function addVideoElement(videoId, url, title, x, y, w, h, save) {
     e.stopPropagation(); const pre = snapshot();
     if (state.selected && state.selected.el === el) state.selected = null;
     try { const v = el.querySelector('video'); if (v) { v.pause(); v.src = ''; } } catch (_) {}
-    /* لا تحذف الـ blob من السجل — قد نحتاجه للتراجع */
     el.remove(); commitChange(pre);
   });
   header.appendChild(titleEl); header.appendChild(closeBtn);
@@ -1001,14 +1152,15 @@ function startVideoDrag(el, e, mode) {
   const sr = stage.getBoundingClientRect(), er = el.getBoundingClientRect();
   const sX = e.clientX, sY = e.clientY;
   const sL = er.left - sr.left, sT = er.top - sr.top, sW = er.width, sH = er.height;
+  const scale = state.view.scale;
   const pre = snapshot();
   function onMove(ev) {
-    const dx = ev.clientX - sX, dy = ev.clientY - sY;
+    const dx = (ev.clientX - sX) / scale, dy = (ev.clientY - sY) / scale;
     if (mode === 'move') {
-      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx)), nt = Math.max(0, Math.min(sr.height - sH, sT + dy));
+      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx * scale)), nt = Math.max(0, Math.min(sr.height - sH, sT + dy * scale));
       el.style.left = (nl / sr.width * 100) + '%'; el.style.top = (nt / sr.height * 100) + '%';
     } else {
-      const nw = Math.max(120, Math.min(sr.width - sL, sW + dx)), nh = Math.max(80, Math.min(sr.height - sT, sH + dy));
+      const nw = Math.max(120, Math.min(sr.width - sL, sW + dx * scale)), nh = Math.max(80, Math.min(sr.height - sT, sH + dy * scale));
       el.style.width = (nw / sr.width * 100) + '%'; el.style.height = (nh / sr.height * 100) + '%';
     }
   }
@@ -1057,7 +1209,7 @@ function drawSelectionOverlay(el) {
 }
 
 /* ================================================================
-   GEOMETRY HELPERS
+   GEOMETRY
    ================================================================ */
 function distToSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1, dy = y2 - y1, len2 = dx*dx + dy*dy;
@@ -1092,7 +1244,7 @@ function isPointNearShape(p, el, tol) {
 }
 
 /* ================================================================
-   CREATE ANNOTATIONS
+   CREATE
    ================================================================ */
 function addAnnotation(el) { el.dataset.annot = '1'; if (!el.dataset.id) el.dataset.id = uid(); el.classList.add('annot'); svgLayer.appendChild(el); }
 function buildPathFromPoints(points, kind) {
@@ -1102,39 +1254,32 @@ function buildPathFromPoints(points, kind) {
   const path = document.createElementNS(SVG_NS, 'path');
   path.setAttribute('d', d);
   if (kind === 'pen') {
-    path.setAttribute('stroke', state.penColor);
-    path.setAttribute('stroke-width', state.penSize);
-    path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('stroke-linejoin', 'round');
-    path.setAttribute('fill', 'none');
-    path.dataset.type = 'path';
+    path.setAttribute('stroke', state.penColor); path.setAttribute('stroke-width', state.penSize);
+    path.setAttribute('stroke-linecap', 'round'); path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('fill', 'none'); path.dataset.type = 'path';
   } else {
-    path.setAttribute('stroke', state.highlighterColor);
-    path.setAttribute('stroke-width', state.highlighterSize);
-    path.setAttribute('stroke-linecap', 'square');
-    path.setAttribute('stroke-linejoin', 'miter');
-    path.setAttribute('stroke-opacity', '0.4');
-    path.setAttribute('fill', 'none');
-    path.style.mixBlendMode = 'multiply';
-    path.dataset.type = 'highlighter';
+    path.setAttribute('stroke', state.highlighterColor); path.setAttribute('stroke-width', state.highlighterSize);
+    path.setAttribute('stroke-linecap', 'square'); path.setAttribute('stroke-linejoin', 'miter');
+    path.setAttribute('stroke-opacity', '0.4'); path.setAttribute('fill', 'none');
+    path.style.mixBlendMode = 'multiply'; path.dataset.type = 'highlighter';
   }
   addAnnotation(path);
   return path;
 }
 function createShapeElement(kind) {
   const el = document.createElementNS(SVG_NS, kind === 'circle' ? 'ellipse' : kind);
-  el.setAttribute('stroke', state.shapeStroke);
-  el.setAttribute('stroke-width', state.shapeSize);
+  el.setAttribute('stroke', state.shapeStroke); el.setAttribute('stroke-width', state.shapeSize);
   const fill = (kind === 'line' || state.shapeFillNone) ? 'none' : state.shapeFill;
-  el.setAttribute('fill', fill);
-  el.classList.add('annot');
+  el.setAttribute('fill', fill); el.classList.add('annot');
   return el;
 }
 
 /* ================================================================
-   STROKE HANDLING — ★ استخدام dpr بدل canvasScale لضمان التطابق
+   STROKE HANDLING
    ================================================================ */
 let interaction = null, handDrag = null;
+const stagePointers = new Map();
+let pinchState = null;
 
 function startStroke(kind, p) {
   const rect = stage.getBoundingClientRect();
@@ -1145,58 +1290,34 @@ function startStroke(kind, p) {
   interaction = inter;
   drawStrokeIncremental();
 }
-
-/* ★ الرسم التدريجي بوحدات CSS px */
 function drawStrokeIncremental() {
   const inter = interaction;
   if (!inter || inter.type !== 'stroke') return;
-  /* ★ dpr = canvas pixels per CSS pixel — يجعل الخط بنفس سماكة SVG */
   const dpr = state.dpr;
   const pts = inter.points;
   const fromIdx = Math.max(0, inter.lastDrawnIdx - 1);
   if (pts.length - fromIdx < 2 && inter.lastDrawnIdx > 0) return;
-
   let strokeColor, lineWidth, cap, join;
-  if (inter.kind === 'pen') {
-    strokeColor = state.penColor; lineWidth = state.penSize * dpr;
-    cap = 'round'; join = 'round';
-  } else if (inter.kind === 'highlighter') {
-    strokeColor = state.highlighterColor; lineWidth = state.highlighterSize * dpr;
-    cap = 'square'; join = 'miter';
-  } else {
-    strokeColor = '#ffffff'; lineWidth = state.eraserSize * dpr;
-    cap = 'round'; join = 'round';
-  }
-
-  transCtx.strokeStyle = strokeColor;
-  transCtx.lineWidth = lineWidth;
-  transCtx.lineCap = cap;
-  transCtx.lineJoin = join;
-
-  if (inter.kind === 'eraser') {
-    transCtx.shadowColor = 'rgba(0,0,0,0.28)';
-    transCtx.shadowBlur = 4 * dpr;
-  }
-
+  if (inter.kind === 'pen') { strokeColor = state.penColor; lineWidth = state.penSize * dpr; cap = 'round'; join = 'round'; }
+  else if (inter.kind === 'highlighter') { strokeColor = state.highlighterColor; lineWidth = state.highlighterSize * dpr; cap = 'square'; join = 'miter'; }
+  else { strokeColor = '#ffffff'; lineWidth = state.eraserSize * dpr; cap = 'round'; join = 'round'; }
+  transCtx.strokeStyle = strokeColor; transCtx.lineWidth = lineWidth; transCtx.lineCap = cap; transCtx.lineJoin = join;
+  if (inter.kind === 'eraser') { transCtx.shadowColor = 'rgba(0,0,0,0.28)'; transCtx.shadowBlur = 4 * dpr; }
   if (pts.length === 1) {
     if (inter.kind === 'eraser') {
       transCtx.beginPath();
       transCtx.arc(pts[0].x * state.canvasScale, pts[0].y * state.canvasScale, lineWidth / 2, 0, Math.PI * 2);
-      transCtx.fillStyle = strokeColor;
-      transCtx.fill();
+      transCtx.fillStyle = strokeColor; transCtx.fill();
     }
   } else {
     const k = state.canvasScale;
-    transCtx.beginPath();
-    transCtx.moveTo(pts[fromIdx].x * k, pts[fromIdx].y * k);
+    transCtx.beginPath(); transCtx.moveTo(pts[fromIdx].x * k, pts[fromIdx].y * k);
     for (let i = fromIdx + 1; i < pts.length; i++) transCtx.lineTo(pts[i].x * k, pts[i].y * k);
     transCtx.stroke();
   }
-
   if (inter.kind === 'eraser') { transCtx.shadowBlur = 0; transCtx.shadowColor = 'transparent'; }
   inter.lastDrawnIdx = pts.length;
 }
-
 function appendStrokePoints(e) {
   const inter = interaction;
   if (!inter || inter.type !== 'stroke') return;
@@ -1215,13 +1336,10 @@ function appendStrokePoints(e) {
     if (inter.kind === 'eraser') eraserEraseAlongPath();
   }
 }
-
-/* ★ الممحاة: تحويل حجم CSS إلى وحدات PDF */
 function eraserEraseAlongPath() {
   const inter = interaction;
   if (!inter || inter.type !== 'stroke' || inter.kind !== 'eraser') return;
   const pts = inter.points;
-  /* نصف قطر الممحاة بوحدات PDF */
   const cssToPdf = state.cssW > 0 ? state.pdfW / state.cssW : 1;
   const tol = (state.eraserSize / 2) * cssToPdf;
   const startIdx = Math.max(1, inter.lastDrawnIdx - 1);
@@ -1240,29 +1358,19 @@ function eraseAtPdf(p, tol) {
   const toRemove = [];
   svgLayer.querySelectorAll('[data-annot]').forEach(el => {
     if (el.tagName.toLowerCase() === 'g') return;
-    if (!state.eraserErasesShapes) {
-      const tag = el.tagName;
-      if (tag === 'rect' || tag === 'ellipse') return;
-    }
+    if (!state.eraserErasesShapes) { const tag = el.tagName; if (tag === 'rect' || tag === 'ellipse') return; }
     if (isPointNearShape(p, el, tol)) toRemove.push(el);
   });
-  toRemove.forEach(el => {
-    if (state.selected && state.selected.el === el) state.selected = null;
-    el.remove();
-  });
+  toRemove.forEach(el => { if (state.selected && state.selected.el === el) state.selected = null; el.remove(); });
   return toRemove.length;
 }
-
 function endStroke() {
   const inter = interaction;
   if (!inter || inter.type !== 'stroke') return;
   interaction = null;
   clearTransient();
   if (inter.kind === 'pen' || inter.kind === 'highlighter') {
-    if (inter.points.length >= 2) {
-      const p = buildPathFromPoints(inter.points, inter.kind);
-      if (p) commitChange(inter.pre);
-    }
+    if (inter.points.length >= 2) { const p = buildPathFromPoints(inter.points, inter.kind); if (p) commitChange(inter.pre); }
   } else if (inter.kind === 'eraser') {
     if (inter.pre) {
       const before = inter.pre.annotations.map(a => a.dataId).sort().join(',');
@@ -1273,20 +1381,99 @@ function endStroke() {
 }
 
 /* ================================================================
+   ★ PINCH ZOOM
+   ================================================================ */
+function getPinchCenter() {
+  const pts = Array.from(stagePointers.values());
+  if (pts.length < 2) return null;
+  return { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+}
+function getPinchDistance() {
+  const pts = Array.from(stagePointers.values());
+  if (pts.length < 2) return 0;
+  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+}
+function startPinch() {
+  const center = getPinchCenter();
+  const dist = getPinchDistance();
+  if (!center || dist < 5) return;
+  pinchState = {
+    initialScale: state.view.scale,
+    initialTx: state.view.tx,
+    initialTy: state.view.ty,
+    initialDist: dist,
+    initialCenterX: center.x,
+    initialCenterY: center.y,
+  };
+}
+function updatePinch() {
+  if (!pinchState) return;
+  const center = getPinchCenter();
+  const dist = getPinchDistance();
+  if (!center || dist < 5) return;
+
+  const s0 = pinchState.initialScale;
+  const newScale = Math.min(5, Math.max(0.5, s0 * (dist / pinchState.initialDist)));
+
+  /* احتفظ بنقطة الوسط الأولى تحت نفس النقطة الحالية على الشاشة */
+  const R0 = state.stageRect0;
+  /* نقطة الوسط الأولية بالنسبة لـ stage (قبل التحويل) */
+  const ux = (pinchState.initialCenterX - R0.left - pinchState.initialTx) / s0;
+  const uy = (pinchState.initialCenterY - R0.top - pinchState.initialTy) / s0;
+
+  /* نريد أن تكون هذه النقطة تحت مركز الإصبعين الحالي */
+  const tx = center.x - R0.left - ux * newScale;
+  const ty = center.y - R0.top - uy * newScale;
+
+  state.view.scale = newScale;
+  state.view.tx = tx;
+  state.view.ty = ty;
+  applyView();
+}
+function endPinch() { pinchState = null; }
+function cancelInteraction() {
+  if (interaction) {
+    if (interaction.type === 'stroke') { interaction = null; clearTransient(); }
+    else interaction = null;
+  }
+  handDrag = null;
+  stage.classList.remove('dragging');
+}
+
+/* ================================================================
    POINTER EVENTS
    ================================================================ */
 stage.addEventListener('pointerdown', e => {
   if (!state.pdfW) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   if (e.target.closest && (e.target.closest('.embed') || e.target.closest('.video-obj'))) return;
+
+  stagePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  /* ★ pinch: عند وجود إصبعين + hand */
+  if (state.tool === 'hand' && stagePointers.size === 2) {
+    cancelInteraction();
+    startPinch();
+    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+    return;
+  }
+  if (stagePointers.size > 1) return;
+
   try { stage.setPointerCapture(e.pointerId); } catch (_) {}
   const p = getStagePoint(e), tool = state.tool;
   closeSubmenu();
 
   if (tool === 'hand') {
-    stage.classList.add('dragging');
-    handDrag = { startX: e.clientX, dx: 0 };
-    interaction = { type: 'hand' }; e.preventDefault(); return;
+    /* ★ عند zoom > 1: السحب panning، عند 1: سحب الصفحات */
+    if (state.view.scale > 1.02) {
+      interaction = { type: 'pan', startX: e.clientX, startY: e.clientY, startTx: state.view.tx, startTy: state.view.ty };
+    } else {
+      stage.classList.add('dragging');
+      handDrag = { startX: e.clientX, dx: 0 };
+      interaction = { type: 'hand' };
+    }
+    e.preventDefault(); return;
   }
   if (tool === 'select') {
     const handle = e.target.closest && e.target.closest('.handle');
@@ -1319,9 +1506,19 @@ stage.addEventListener('pointerdown', e => {
 });
 
 stage.addEventListener('pointermove', e => {
+  if (stagePointers.has(e.pointerId)) stagePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (pinchState && stagePointers.size >= 2) { updatePinch(); e.preventDefault(); return; }
   if (!interaction) return;
+
   if (interaction.type === 'stroke') { appendStrokePoints(e); return; }
   const p = getStagePoint(e);
+
+  if (interaction.type === 'pan') {
+    state.view.tx = interaction.startTx + (e.clientX - interaction.startX);
+    state.view.ty = interaction.startTy + (e.clientY - interaction.startY);
+    applyView(); return;
+  }
   if (interaction.type === 'hand' && handDrag) {
     handDrag.dx = e.clientX - handDrag.startX;
     stageContent.style.transition = 'none';
@@ -1340,15 +1537,15 @@ stage.addEventListener('pointermove', e => {
   if (interaction.type === 'resizeSvg') { resizeSvg(interaction.el, interaction.handle, interaction.start, p); drawSelectionOverlay(interaction.el); return; }
 });
 
-stage.addEventListener('pointerup', onStageUp);
-stage.addEventListener('pointercancel', onStageUp);
-
-function onStageUp(e) {
+stage.addEventListener('pointerup', e => {
+  stagePointers.delete(e.pointerId);
+  if (pinchState && stagePointers.size < 2) { endPinch(); try { stage.releasePointerCapture(e.pointerId); } catch (_) {} return; }
   if (!interaction) return;
   const inter = interaction;
   try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
   if (inter.type === 'stroke') { endStroke(); return; }
   interaction = null;
+  if (inter.type === 'pan') { return; }
   if (inter.type === 'hand' && handDrag) {
     stage.classList.remove('dragging');
     const dx = handDrag.dx, w = stage.clientWidth, thr = w * 0.15;
@@ -1373,7 +1570,12 @@ function onStageUp(e) {
     return;
   }
   if (inter.type === 'moveSvg' || inter.type === 'resizeSvg') commitChange(inter.pre);
-}
+});
+stage.addEventListener('pointercancel', e => {
+  stagePointers.delete(e.pointerId);
+  if (pinchState && stagePointers.size < 2) endPinch();
+  if (interaction && interaction.type === 'stroke') { interaction = null; clearTransient(); }
+});
 
 function getStagePoint(e) {
   const r = stage.getBoundingClientRect();
@@ -1434,10 +1636,7 @@ document.addEventListener('keydown', e => {
       const pre = snapshot(); const sel = state.selected;
       if (sel.kind === 'svg') sel.el.remove();
       if (sel.kind === 'embed') sel.el.remove();
-      if (sel.kind === 'video') {
-        try { const v = sel.el.querySelector('video'); if (v) { v.pause(); v.src = ''; } } catch (_) {}
-        sel.el.remove();
-      }
+      if (sel.kind === 'video') { try { const v = sel.el.querySelector('video'); if (v) { v.pause(); v.src = ''; } } catch (_) {} sel.el.remove(); }
       state.selected = null; svgLayer.querySelectorAll('.selection-overlay').forEach(n => n.remove());
       commitChange(pre); e.preventDefault();
     }
@@ -1467,10 +1666,7 @@ document.addEventListener('pointerdown', e => {
   if (submenu.classList.contains('show') && !submenu.contains(e.target) && !toolbar.contains(e.target)) closeSubmenu();
 }, true);
 
-/* حفظ عند إغلاق النافذة (best-effort) */
-window.addEventListener('beforeunload', () => {
-  if (state.pdfBlob) { try { saveProject(); } catch (_) {} }
-});
+window.addEventListener('beforeunload', () => { if (state.pdfBlob) { try { saveProject(); } catch (_) {} } });
 
 /* ================================================================
    INIT + AUTO-RESTORE
@@ -1482,12 +1678,8 @@ window.addEventListener('beforeunload', () => {
   updatePageIndicator();
   try {
     const ok = await loadProject();
-    if (ok) {
-      toast('تم استعادة المشروع المحفوظ ✅', 'ok');
-    }
-  } catch (err) {
-    console.warn('restore failed', err);
-  }
+    if (ok) toast('تم استعادة المشروع المحفوظ ✅', 'ok');
+  } catch (err) { console.warn('restore failed', err); }
 })();
 
 </script>
