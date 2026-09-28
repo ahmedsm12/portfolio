@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تعديل الـ PDF والتطبيق التفاعلي</title>
     
-    <!-- 🎨 استدعاء ملف الأنماط المحلي الذي قمت بتحميله مسبقاً -->
+    <!-- 🎨 Correct local stylesheet loading -->
     <link rel="stylesheet" href="./tldraw.css">
 
     <style>
@@ -33,9 +33,8 @@
 
     <div id="root"></div>
 
-    <!-- 💡 استخدام نظام الأقسام الحديث (ES Modules) المدعوم في المتصفحات رسمياً -->
+    <!-- 💡 Safe ES Module imports via unified browser package paths -->
     <script type="module">
-        // جلب المكتبات بشكل آمن ومتوافق من روابط الـ ESM المخصصة للمتصفح مباشرة
         import React, { useState } from 'https://unpkg.com';
         import ReactDOM from 'https://unpkg.com';
         import { Tldraw, defaultEmbedDefinitions } from 'https://unpkg.com';
@@ -43,13 +42,12 @@
         function App() {
             const [editor, setEditor] = useState(null);
 
-            // إعداد فك قيود الحماية للعبتك لتعمل وتتفاعل بسلاسة
             const customEmbeds = [
                 ...defaultEmbedDefinitions,
                 {
                     type: 'interactive-game',
                     title: 'Interactive Game',
-                    hostnames: ['ahmedsm12.github.io', 'localhost', '127.0.0.1'],
+                    hostnames: ['ahmedsm12.github.io'],
                     minWidth: 400, minHeight: 300, doesResize: true,
                     toEmbedUrl: (url) => url,
                     fromEmbedUrl: (url) => url,
@@ -57,7 +55,6 @@
                 }
             ];
 
-            // دالة رفع الـ PDF أو الصور وإسقاطها باللوحة
             const handlePdfUpload = (event) => {
                 const file = event.target.files[0];
                 if (!file || !editor) return;
@@ -77,10 +74,8 @@
                 ]);
             };
 
-            // دالة إسقاط اللعبة التفاعلية تلقائياً داخل مساحة تيلدرو بضغطة زر
             const insertGameEmbed = () => {
                 if (!editor) return;
-                
                 const gameUrl = "https://github.io";
                 
                 editor.createShapes([
@@ -96,7 +91,6 @@
                 ]);
             };
 
-            // بناء العناصر التفاعلية
             return React.createElement('div', { style: { width: '100%', height: '100%', position: 'relative' } },
                 React.createElement('div', { className: 'toolbar' },
                     React.createElement('span', { style: { fontSize: '14px', fontWeight: 'bold' } }, 'التحكم التفاعلي:'),
@@ -113,7 +107,6 @@
             );
         }
 
-        // بدء تشغيل بيئة العرض داخل الصفحة بصورة سليمة
         const container = document.getElementById('root');
         const root = ReactDOM.createRoot(container);
         root.render(React.createElement(App));
