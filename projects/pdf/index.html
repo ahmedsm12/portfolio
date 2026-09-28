@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تعديل الـ PDF والتطبيق التفاعلي</title>
     
-    <!-- 🎨 استدعاء الأنماط الرسمية لتيلدرو من رابط خارجي مستقر جداً -->
-    <link rel="stylesheet" href="https://jsdelivr.net">
+    <!-- 🎨 استيراد أنماط تيلدرو من شبكة خوادم cdnjs الآمنة والسريعة جداً -->
+    <link rel="stylesheet" href="https://cloudflare.com">
 
     <style>
         body, html, #root {
@@ -31,23 +31,23 @@
 </head>
 <body>
 
-    <!-- العنصر الحاضن للوحة التحكم والواجهة -->
+    <!-- المكون الأساسي لربط واجهة تيلدرو -->
     <div id="root"></div>
 
-    <!-- 🌐 استيراد نسخ المتصفح العالمية (Global UMD) المضمونة 100% بدون أخطاء تجميع -->
+    <!-- 🌐 استيراد نسخ المتصفحات المستقرة من خوادم cdnjs وخوادم ميكروسوفت (خالية من الحظر والـ CORS) -->
     <script src="https://cloudflare.com"></script>
     <script src="https://cloudflare.com"></script>
-    <script src="https://jsdelivr.net"></script>
+    <script src="https://cloudflare.com"></script>
 
     <script>
-        // استخراج الخصائص مباشرة من نطاق المتصفح العالمي بعد التحميل الآمن
+        // استخراج الصلاحيات مباشرة من النطاق العام للمتصفح
         const { useState, createElement } = React;
         const { Tldraw, defaultEmbedDefinitions } = window.tldraw || tldraw;
 
         function App() {
             const [editor, setEditor] = useState(null);
 
-            // إعداد كسر قيود الحماية داخل اللوحة للعبتك المنشورة
+            // إعداد كسر قيود الأمان في المتصفح لتعمل لعبتك بشكل تفاعلي ممتاز
             const customEmbeds = [
                 ...defaultEmbedDefinitions,
                 {
@@ -66,7 +66,7 @@
                 const files = event.target.files;
                 if (!files || files.length === 0 || !editor) return;
 
-                const fileUrl = URL.createObjectURL(files[0]);
+                const fileUrl = URL.createObjectURL(files[0]); // تصحيح لقراءة أول ملف مرفوع بدقة
                 
                 editor.createShapes([
                     {
@@ -81,7 +81,7 @@
                 ]);
             };
 
-            // زر استدعاء لعبتك وحقن الـ iframe الخاص بها تفاعلياً تلقائياً
+            // حقن اللعبة التفاعلية الخاصة بك المرفوعة على جيت هاب داخل إحداثيات اللوحة
             const insertGameEmbed = () => {
                 if (!editor) return;
                 const gameUrl = "https://github.io";
@@ -115,7 +115,7 @@
             );
         }
 
-        // تشغيل نظام العرض وربطه بواجهة الويب الحية
+        // ربط الواجهة التفاعلية بهيكل الصفحة المكتمل
         const container = document.getElementById('root');
         const root = ReactDOM.createRoot(container);
         root.render(createElement(App));
