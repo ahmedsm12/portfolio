@@ -7,13 +7,7 @@
 <title>لوحة PDF التفاعلية</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
-  html, body {
-    height: 100%; overflow: hidden;
-    font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
-    background: #0f1115; color: #eee;
-    user-select: none; -webkit-user-select: none;
-    overscroll-behavior: none;
-  }
+  html, body { height: 100%; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; background: #0f1115; color: #eee; user-select: none; -webkit-user-select: none; overscroll-behavior: none; }
   #stageWrapper { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #0f1115; }
   #stage { position: relative; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.7); overflow: hidden; touch-action: none; border-radius: 4px; }
   #stageContent { position: absolute; inset: 0; will-change: transform; }
@@ -25,29 +19,22 @@
   #transientCanvas { z-index: 5; pointer-events: none; }
   #laserCanvas { z-index: 6; pointer-events: none; }
 
-  #stage[data-tool="hand"]   { cursor: grab; }
+  #stage[data-tool="hand"] { cursor: grab; }
   #stage[data-tool="hand"].dragging { cursor: grabbing; }
-  #stage[data-tool="pen"],
-  #stage[data-tool="laser"],
-  #stage[data-tool="rect"],
-  #stage[data-tool="circle"],
-  #stage[data-tool="line"] { cursor: crosshair; }
-
+  #stage[data-tool="pen"], #stage[data-tool="highlighter"], #stage[data-tool="laser"],
+  #stage[data-tool="rect"], #stage[data-tool="circle"], #stage[data-tool="line"] { cursor: crosshair; }
   #stage[data-tool="eraser"] {
     cursor: url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"%3E%3Ccircle cx="16" cy="16" r="12" fill="%23ffffff" fill-opacity="0.85" stroke="%23000000" stroke-width="2"/%3E%3Ccircle cx="16" cy="16" r="8" fill="none" stroke="%23666666" stroke-width="1" stroke-dasharray="2 2"/%3E%3C/svg%3E') 16 16, cell;
   }
-
   #svgLayer [data-annot] { pointer-events: none; }
   #stage[data-tool="select"] #svgLayer [data-annot] { pointer-events: auto; cursor: move; }
   .annot { vector-effect: non-scaling-stroke; }
-
   .selection-outline { fill: none; stroke: #4a7eff; stroke-width: 1.5; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
   .handle { fill: #fff; stroke: #4a7eff; stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; pointer-events: auto; }
   .handle.nw, .handle.se { cursor: nwse-resize; }
   .handle.ne, .handle.sw { cursor: nesw-resize; }
 
-  /* ===== EMBED (iframe) ===== */
-  #embedLayer .embed { position: absolute; pointer-events: auto; display: flex; flex-direction: column; background: #fff; border: 1px solid #4a7eff; border-radius: 3px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.12); transition: box-shadow .15s; }
+  #embedLayer .embed { position: absolute; pointer-events: auto; display: flex; flex-direction: column; background: #fff; border: 1px solid #4a7eff; border-radius: 3px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
   #embedLayer .embed.selected { box-shadow: 0 0 0 2px rgba(74,126,255,.35), 0 2px 8px rgba(0,0,0,.2); }
   .embed-header { height: 22px; background: #4a7eff; color: #fff; padding: 0 5px; font-size: 10px; display: flex; justify-content: space-between; align-items: center; gap: 4px; cursor: move; user-select: none; flex-shrink: 0; opacity: 0; transition: opacity .15s; }
   #stage[data-tool="select"] .embed:hover .embed-header,
@@ -61,119 +48,25 @@
   .embed-resize { position: absolute; width: 14px; height: 14px; background: #4a7eff; border: 2px solid #fff; border-radius: 50%; bottom: -7px; right: -7px; cursor: nwse-resize; z-index: 10; display: none; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
   #stage[data-tool="select"] .embed.selected .embed-resize { display: block; }
 
-  /* ===== VIDEO OBJECT ===== */
-  #videoLayer .video-obj {
-    position: absolute; pointer-events: auto;
-    display: flex; flex-direction: column;
-    background: #000;
-    border: 1px solid #4a7eff;
-    border-radius: 6px;
-    overflow: hidden;
-    box-shadow: 0 4px 16px rgba(0,0,0,.35);
-    transition: box-shadow .15s;
-  }
-  #videoLayer .video-obj.selected {
-    box-shadow: 0 0 0 3px rgba(74,126,255,.4), 0 6px 20px rgba(0,0,0,.4);
-  }
-  .video-obj .video-header {
-    height: 24px;
-    background: linear-gradient(180deg, #4a7eff, #3b6ee0);
-    color: #fff;
-    padding: 0 6px;
-    font-size: 11px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 6px;
-    cursor: move;
-    user-select: none;
-    flex-shrink: 0;
-    opacity: 0;
-    transition: opacity .15s;
-  }
+  #videoLayer .video-obj { position: absolute; pointer-events: auto; display: flex; flex-direction: column; background: #000; border: 1px solid #4a7eff; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,.35); }
+  #videoLayer .video-obj.selected { box-shadow: 0 0 0 3px rgba(74,126,255,.4), 0 6px 20px rgba(0,0,0,.4); }
+  .video-obj .video-header { height: 24px; background: linear-gradient(180deg, #4a7eff, #3b6ee0); color: #fff; padding: 0 6px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; gap: 6px; cursor: move; user-select: none; flex-shrink: 0; opacity: 0; transition: opacity .15s; }
   #stage[data-tool="select"] .video-obj:hover .video-header,
   #stage[data-tool="select"] .video-obj.selected .video-header { opacity: 1; }
   #stage:not([data-tool="select"]) .video-header { pointer-events: none; }
-  .video-obj .video-title {
-    flex: 1; overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap; direction: ltr; text-align: left;
-    font-weight: 500;
-  }
-  .video-obj .video-close {
-    background: rgba(0,0,0,.25); border: none; color: #fff;
-    width: 18px; height: 18px; border-radius: 3px; cursor: pointer;
-    font-size: 13px; line-height: 1; padding: 0;
-    display: flex; align-items: center; justify-content: center;
-  }
+  .video-obj .video-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; text-align: left; font-weight: 500; }
+  .video-obj .video-close { background: rgba(0,0,0,.25); border: none; color: #fff; width: 18px; height: 18px; border-radius: 3px; cursor: pointer; font-size: 13px; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; }
   .video-obj .video-close:hover { background: rgba(0,0,0,.5); }
-  .video-obj video {
-    flex: 1; width: 100%; min-height: 0;
-    background: #000; display: block;
-    object-fit: contain;
-  }
+  .video-obj video { flex: 1; width: 100%; min-height: 0; background: #000; display: block; object-fit: contain; }
   #stage:not([data-tool="select"]) .video-obj video { pointer-events: none; }
-
-  /* ★ زر التشغيل في المنتصف */
-  .video-obj .video-play-btn {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 68px; height: 68px;
-    border-radius: 50%;
-    background: rgba(0,0,0,.55);
-    border: 2.5px solid rgba(255,255,255,.9);
-    color: #fff;
-    font-size: 26px;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    padding: 0 0 0 5px;
-    transition: opacity .2s, transform .15s, background .15s;
-    z-index: 5;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    box-shadow: 0 6px 22px rgba(0,0,0,.4);
-    font-family: Arial, sans-serif;
-    line-height: 1;
-  }
-  .video-obj .video-play-btn:hover {
-    background: rgba(0,0,0,.75);
-    transform: translate(-50%, -50%) scale(1.06);
-  }
-  .video-obj .video-play-btn:active {
-    transform: translate(-50%, -50%) scale(.94);
-  }
-  .video-obj .video-play-btn.hidden {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .video-obj .video-resize {
-    position: absolute;
-    width: 14px; height: 14px;
-    background: #4a7eff;
-    border: 2px solid #fff;
-    border-radius: 50%;
-    bottom: -7px; right: -7px;
-    cursor: nwse-resize;
-    z-index: 10;
-    display: none;
-    box-shadow: 0 1px 4px rgba(0,0,0,.3);
-  }
+  .video-obj .video-play-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 68px; height: 68px; border-radius: 50%; background: rgba(0,0,0,.55); border: 2.5px solid rgba(255,255,255,.9); color: #fff; font-size: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 0 0 5px; transition: opacity .2s, transform .15s, background .15s; z-index: 5; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 6px 22px rgba(0,0,0,.4); font-family: Arial, sans-serif; line-height: 1; }
+  .video-obj .video-play-btn:hover { background: rgba(0,0,0,.75); transform: translate(-50%, -50%) scale(1.06); }
+  .video-obj .video-play-btn:active { transform: translate(-50%, -50%) scale(.94); }
+  .video-obj .video-play-btn.hidden { opacity: 0; pointer-events: none; }
+  .video-obj .video-resize { position: absolute; width: 14px; height: 14px; background: #4a7eff; border: 2px solid #fff; border-radius: 50%; bottom: -7px; right: -7px; cursor: nwse-resize; z-index: 10; display: none; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
   #stage[data-tool="select"] .video-obj.selected .video-resize { display: block; }
+  .video-obj.video-error::after { content: '⚠ تعذّر تحميل الفيديو'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,.85); font-size: 12px; padding: 20px; text-align: center; }
 
-  .video-obj.video-error::after {
-    content: '⚠ تعذّر تحميل الفيديو — أعد رفع الملف';
-    position: absolute;
-    inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    color: #fff;
-    background: rgba(0,0,0,.85);
-    font-size: 12px;
-    padding: 20px;
-    text-align: center;
-  }
-
-  /* ===== TOOLBAR ===== */
   #toolbar { position: fixed; right: 10px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 3px; padding: 5px 4px; background: rgba(28,32,40,.94); backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.5); z-index: 1000; touch-action: manipulation; }
   #toolbar button { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #d4d9e2; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; transition: background .14s, transform .1s, color .14s; position: relative; touch-action: manipulation; }
   #toolbar button:hover { background: rgba(255,255,255,.09); }
@@ -182,12 +75,10 @@
   #toolbar button:disabled { opacity: .3; cursor: not-allowed; }
   #toolbar .tb-divider { height: 1px; background: rgba(255,255,255,.08); margin: 3px 6px; }
   #toolbar button[data-tool="pen"]::after,
+  #toolbar button[data-tool="highlighter"]::after,
   #toolbar button[data-tool="laser"]::after { content: ''; position: absolute; bottom: 4px; right: 5px; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid #1c2028; background: var(--indicator, transparent); }
-
-  /* SVG icon in toolbar */
   #toolbar button svg { width: 20px; height: 20px; fill: currentColor; display: block; }
 
-  /* ===== SUBMENU ===== */
   #submenu { position: fixed; right: 58px; display: none; flex-direction: column; min-width: 60px; padding: 7px 5px; background: rgba(28,32,40,.96); backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.5); z-index: 1001; animation: subIn .15s ease-out; touch-action: manipulation; }
   @keyframes subIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
   #submenu.show { display: flex; }
@@ -213,32 +104,27 @@
   .color-input-row label { font-size: 10px; color: #b8c0cc; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
   .color-input-row input[type="checkbox"] { accent-color: #4a7eff; cursor: pointer; width: 14px; height: 14px; }
 
-  /* ===== NAV BTNS ===== */
   .nav-btn { position: fixed; bottom: 20px; width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; background: rgba(28,32,40,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.1); border-radius: 50%; color: #d4d9e2; font-size: 22px; cursor: pointer; z-index: 1000; box-shadow: 0 8px 24px rgba(0,0,0,.5); transition: background .15s, transform .1s, opacity .15s; touch-action: manipulation; user-select: none; }
   .nav-btn:active:not(:disabled) { transform: scale(.9); background: rgba(74,126,255,.4); }
   .nav-btn:disabled { opacity: .25; cursor: not-allowed; }
   #btnPrev { left: 20px; }
   #btnNext { right: 20px; }
 
-  /* ===== DIALOG ===== */
   .dialog-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(10,12,16,.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; animation: fadeIn .16s ease; }
   @keyframes fadeIn { from{opacity:0} to{opacity:1} }
   .dialog { background: #1c2028; border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: 20px; width: 90%; max-width: 420px; box-shadow: 0 30px 80px rgba(0,0,0,.6); animation: dlgIn .2s cubic-bezier(.2,.9,.3,1.3); }
   @keyframes dlgIn { from { opacity: 0; transform: scale(.94) translateY(8px); } to { opacity: 1; transform: none; } }
   .dialog h3 { font-size: 15px; margin-bottom: 12px; color: #fff; font-weight: 700; }
-  .dialog input[type="url"] { width: 100%; padding: 12px 14px; background: #0f1115; color: #eee; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; font-size: 15px; direction: ltr; text-align: left; outline: none; font-family: inherit; transition: border-color .15s, box-shadow .15s; }
+  .dialog input[type="url"] { width: 100%; padding: 12px 14px; background: #0f1115; color: #eee; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; font-size: 15px; direction: ltr; text-align: left; outline: none; font-family: inherit; }
   .dialog input[type="url"]:focus { border-color: #4a7eff; box-shadow: 0 0 0 3px rgba(74,126,255,.2); }
   .dialog-actions { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
-  .dialog-actions button { padding: 11px 18px; border-radius: 9px; font-size: 14px; font-family: inherit; cursor: pointer; font-weight: 600; border: 1px solid transparent; transition: all .14s; touch-action: manipulation; }
+  .dialog-actions button { padding: 11px 18px; border-radius: 9px; font-size: 14px; font-family: inherit; cursor: pointer; font-weight: 600; border: 1px solid transparent; touch-action: manipulation; }
   .dialog-actions .btn-primary { background: #4a7eff; color: #fff; }
-  .dialog-actions .btn-primary:active { background: #3b6ee0; }
   .dialog-actions .btn-secondary { background: transparent; color: #8a94a6; border-color: rgba(255,255,255,.12); }
-  .dialog-actions .btn-secondary:active { color: #fff; border-color: rgba(255,255,255,.25); }
 
   #emptyState { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: #666; pointer-events: none; z-index: 20; font-size: 14px; }
   #emptyState .icon { font-size: 72px; opacity: .4; }
   #emptyState button { pointer-events: auto; padding: 13px 26px; background: #4a7eff; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-size: 15px; font-family: inherit; font-weight: 600; touch-action: manipulation; }
-  #emptyState button:active { background: #3b6ee0; }
 
   #loading { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; color: #fff; background: rgba(15,17,21,.75); z-index: 100; backdrop-filter: blur(3px); }
   #loading.show { display: flex; }
@@ -248,8 +134,7 @@
   #pageIndicator { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); padding: 6px 16px; background: rgba(28,32,40,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.08); border-radius: 999px; font-size: 12px; color: #b8c0cc; font-variant-numeric: tabular-nums; z-index: 999; pointer-events: none; letter-spacing: .5px; }
   #pageIndicator:empty { display: none; }
 
-  .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 10px; background: rgba(28,32,40,.95); border: 1px solid rgba(255,255,255,.1); color: #fff; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.5); z-index: 3000; animation: toastIn .2s ease; pointer-events: none; }
-  @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+  .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 10px; background: rgba(28,32,40,.95); border: 1px solid rgba(255,255,255,.1); color: #fff; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.5); z-index: 3000; pointer-events: none; }
 
   @media (max-width: 600px) {
     #toolbar { right: 6px; padding: 4px 3px; gap: 2px; }
@@ -259,7 +144,6 @@
     .nav-btn { width: 48px; height: 48px; font-size: 20px; bottom: 16px; }
     #btnPrev { left: 12px; }
     #btnNext { right: 12px; }
-    .video-obj .video-play-btn { width: 56px; height: 56px; font-size: 22px; }
   }
 </style>
 </head>
@@ -276,17 +160,12 @@
       <canvas id="laserCanvas"></canvas>
     </div>
   </div>
-
   <div id="emptyState">
     <div class="icon">📄</div>
     <div>افتح ملف PDF للبدء</div>
     <button id="btnOpenEmpty">📂 اختر ملفاً</button>
   </div>
-
-  <div id="loading">
-    <div class="spinner"></div>
-    <div id="loadingText">جارٍ التحميل…</div>
-  </div>
+  <div id="loading"><div class="spinner"></div><div id="loadingText">جارٍ التحميل…</div></div>
 </div>
 
 <div id="pageIndicator"></div>
@@ -294,16 +173,14 @@
 <div id="toolbar">
   <button data-tool="hand" title="يد">🖐️</button>
   <button data-tool="pen" data-submenu="pen" title="قلم" style="--indicator:#000000">✏️</button>
+  <button data-tool="highlighter" data-submenu="highlighter" title="قلم تحديد" style="--indicator:#ffff00">🖍️</button>
   <button data-tool="eraser" data-submenu="eraser" title="ممحاة">🧽</button>
   <button data-tool="laser" data-submenu="laser" title="ليزر" style="--indicator:#ff0000">🔴</button>
   <button data-tool="shape" data-submenu="shape" title="أشكال">▭</button>
   <button data-tool="embed" title="تضمين صفحة ويب">🔗</button>
-  <button data-tool="video" title="إضافة فيديو من الجهاز">🎬</button>
+  <button data-tool="video" title="إضافة فيديو">🎬</button>
   <button data-tool="select" title="تحديد / تحريك (V)">
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M5.5 3.2 L18.8 12.2 L12.4 13.1 L15.6 20.2 L13.3 21.2 L10.2 14.2 L5.5 18.4 Z"
-            stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="currentColor"/>
-    </svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 3.2 L18.8 12.2 L12.4 13.1 L15.6 20.2 L13.3 21.2 L10.2 14.2 L5.5 18.4 Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="currentColor"/></svg>
   </button>
   <div class="tb-divider"></div>
   <button id="btnUndo" title="تراجع">↶</button>
@@ -314,37 +191,24 @@
 </div>
 
 <div id="submenu"></div>
-
 <button class="nav-btn" id="btnPrev" title="السابق">←</button>
 <button class="nav-btn" id="btnNext" title="التالي">→</button>
-
 <input type="file" id="fileInput" accept="application/pdf,image/*" style="display:none">
 
 <script type="module">
 const PDFJS_VERSION = '4.7.76';
 const PDFJS_BASE = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}`;
-
 let pdfjsLib;
 try {
   pdfjsLib = await import(`${PDFJS_BASE}/build/pdf.min.mjs`);
   pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_BASE}/build/pdf.worker.min.mjs`;
-  console.log('[PDF] pdf.js v' + pdfjsLib.version);
-} catch (err) {
-  console.error('فشل تحميل pdf.js:', err);
-  throw err;
-}
+} catch (err) { console.error('فشل تحميل pdf.js:', err); throw err; }
 
-/* ================================================================
-   CONSTANTS
-   ================================================================ */
 const LASER_LIFE_MS = 5000;
 const LASER_FADE_MS = 1500;
 const UNDO_LIMIT = 50;
 const COORD_WIDTH = 2000;
 
-/* ================================================================
-   DOM
-   ================================================================ */
 const $ = id => document.getElementById(id);
 const stage = $('stage'), stageWrapper = $('stageWrapper'), stageContent = $('stageContent');
 const pdfCanvas = $('pdfCanvas'), svgLayer = $('svgLayer'), embedLayer = $('embedLayer');
@@ -359,41 +223,22 @@ const transCtx = transientCanvas.getContext('2d');
 const laserCtx = laserCanvas.getContext('2d');
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/* ================================================================
-   STATE
-   ================================================================ */
 const state = {
   pdfDoc: null, currentPage: 1, totalPages: 0,
   pdfW: 0, pdfH: 0, canvasScale: 1,
   tool: 'select',
   penColor: '#000000', penSize: 3,
-  eraserSize: 60,
-  eraserErasesShapes: true,     // ★ خيار الممحاة: مسح الأشكال أيضاً
+  highlighterColor: '#eab308', highlighterSize: 16,
+  eraserSize: 60, eraserErasesShapes: true,
   laserColor: '#ff0000', laserSize: 4,
   shapeKind: 'rect', shapeStroke: '#000000', shapeFill: '#ffffff',
   shapeFillNone: true, shapeSize: 3,
   selected: null, pages: {}, history: {},
 };
 
-/* ================================================================
-   HELPERS
-   ================================================================ */
 function uid() { return 'a' + Math.random().toString(36).slice(2, 9); }
-function getStagePoint(e) {
-  const r = stage.getBoundingClientRect();
-  return { x: ((e.clientX - r.left) / r.width) * state.pdfW,
-           y: ((e.clientY - r.top) / r.height) * state.pdfH };
-}
-function setLoading(on, text) {
-  loadingEl.classList.toggle('show', !!on);
-  if (text) loadingText.textContent = text;
-}
-function toast(msg) {
-  const el = document.createElement('div');
-  el.className = 'toast'; el.textContent = msg;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 2200);
-}
+function setLoading(on, text) { loadingEl.classList.toggle('show', !!on); if (text) loadingText.textContent = text; }
+function toast(msg) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg; document.body.appendChild(el); setTimeout(() => el.remove(), 2200); }
 function computeStageSize(naturalW, naturalH) {
   const wrap = stageWrapper.getBoundingClientRect();
   const availW = Math.max(80, wrap.width - 24 - 66);
@@ -404,32 +249,22 @@ function computeStageSize(naturalW, naturalH) {
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
   let canvasW = Math.ceil(cssW * dpr), canvasH = Math.ceil(cssH * dpr);
   const maxPixels = 16 * 1024 * 1024;
-  if (canvasW * canvasH > maxPixels) {
-    const f = Math.sqrt(maxPixels / (canvasW * canvasH));
-    canvasW = Math.floor(canvasW * f); canvasH = Math.floor(canvasH * f);
-  }
+  if (canvasW * canvasH > maxPixels) { const f = Math.sqrt(maxPixels / (canvasW * canvasH)); canvasW = Math.floor(canvasW * f); canvasH = Math.floor(canvasH * f); }
   return { cssW, cssH, canvasW, canvasH };
 }
 function getVideoDimensions(url) {
   return new Promise((resolve) => {
-    const v = document.createElement('video');
-    v.preload = 'metadata';
-    v.src = url;
+    const v = document.createElement('video'); v.preload = 'metadata'; v.src = url;
     const done = (res) => { v.src = ''; resolve(res); };
-    v.onloadedmetadata = () => {
-      done({ w: v.videoWidth || 1280, h: v.videoHeight || 720 });
-    };
+    v.onloadedmetadata = () => done({ w: v.videoWidth || 1280, h: v.videoHeight || 720 });
     v.onerror = () => done({ w: 1280, h: 720 });
     setTimeout(() => done({ w: 1280, h: 720 }), 3000);
   });
 }
 
-/* ================================================================
-   SERIALIZATION
-   ================================================================ */
+/* ===== SERIALIZATION ===== */
 function serializeSvgElement(el) {
-  const tag = el.tagName.toLowerCase();
-  const attrs = {};
+  const tag = el.tagName.toLowerCase(); const attrs = {};
   for (let i = 0; i < el.attributes.length; i++) {
     const a = el.attributes[i];
     if (['class', 'data-annot', 'data-id', 'selected'].includes(a.name)) continue;
@@ -442,22 +277,10 @@ function deserializeSvgElement(spec) {
   Object.keys(spec.attrs || {}).forEach(k => el.setAttribute(k, spec.attrs[k]));
   el.dataset.annot = '1'; el.dataset.id = spec.dataId;
   if (spec.shapeType) el.dataset.type = spec.shapeType;
-  el.classList.add('annot');
-  return el;
+  el.classList.add('annot'); return el;
 }
-function serializeEmbed(el) {
-  return { kind: 'embed', url: el.dataset.url, x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height };
-}
-function serializeVideo(el) {
-  return {
-    kind: 'video',
-    videoId: el.dataset.videoId,
-    url: el.dataset.url,
-    title: el.dataset.title || '',
-    x: el.style.left, y: el.style.top,
-    w: el.style.width, h: el.style.height,
-  };
-}
+function serializeEmbed(el) { return { kind: 'embed', url: el.dataset.url, x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height }; }
+function serializeVideo(el) { return { kind: 'video', videoId: el.dataset.videoId, url: el.dataset.url, title: el.dataset.title || '', x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height }; }
 function snapshot() {
   const annotations = [];
   svgLayer.querySelectorAll('[data-annot]').forEach(el => {
@@ -465,27 +288,20 @@ function snapshot() {
     if (el.classList.contains('handle') || el.classList.contains('selection-outline')) return;
     annotations.push(serializeSvgElement(el));
   });
-  const embeds = [];
-  embedLayer.querySelectorAll('.embed').forEach(el => embeds.push(serializeEmbed(el)));
-  const videos = [];
-  videoLayer.querySelectorAll('.video-obj').forEach(el => videos.push(serializeVideo(el)));
+  const embeds = []; embedLayer.querySelectorAll('.embed').forEach(el => embeds.push(serializeEmbed(el)));
+  const videos = []; videoLayer.querySelectorAll('.video-obj').forEach(el => videos.push(serializeVideo(el)));
   return { annotations, embeds, videos };
 }
 function applySnapshot(s) {
   deselect();
   while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
-  embedLayer.innerHTML = '';
-  videoLayer.innerHTML = '';
-  (s.annotations || []).forEach(spec => {
-    try { svgLayer.appendChild(deserializeSvgElement(spec)); } catch (e) { console.warn(e); }
-  });
+  embedLayer.innerHTML = ''; videoLayer.innerHTML = '';
+  (s.annotations || []).forEach(spec => { try { svgLayer.appendChild(deserializeSvgElement(spec)); } catch (e) {} });
   (s.embeds || []).forEach(spec => addEmbedElement(spec.url, spec.x, spec.y, spec.w, spec.h, false));
   (s.videos || []).forEach(spec => addVideoElement(spec.videoId, spec.url, spec.title, spec.x, spec.y, spec.w, spec.h, false));
 }
 
-/* ================================================================
-   HISTORY
-   ================================================================ */
+/* ===== HISTORY ===== */
 function getHistory() { return state.history[state.currentPage] || (state.history[state.currentPage] = { past: [], future: [] }); }
 function savePageNow() { if (state.currentPage) state.pages[state.currentPage] = snapshot(); }
 function commitChange(pre) {
@@ -497,203 +313,69 @@ function commitChange(pre) {
 }
 function updateUndoButtons() {
   const h = state.history[state.currentPage] || { past: [], future: [] };
-  btnUndo.disabled = h.past.length === 0;
-  btnRedo.disabled = h.future.length === 0;
+  btnUndo.disabled = h.past.length === 0; btnRedo.disabled = h.future.length === 0;
 }
 function undo() {
   if (!state.currentPage) return;
   const h = getHistory(); if (!h.past.length) return;
-  h.future.push(snapshot());
-  const p = h.past.pop();
-  state.pages[state.currentPage] = p;
-  applySnapshot(p); updateUndoButtons();
+  h.future.push(snapshot()); const p = h.past.pop();
+  state.pages[state.currentPage] = p; applySnapshot(p); updateUndoButtons();
 }
 function redo() {
   if (!state.currentPage) return;
   const h = getHistory(); if (!h.future.length) return;
-  h.past.push(snapshot());
-  const n = h.future.pop();
-  state.pages[state.currentPage] = n;
-  applySnapshot(n); updateUndoButtons();
+  h.past.push(snapshot()); const n = h.future.pop();
+  state.pages[state.currentPage] = n; applySnapshot(n); updateUndoButtons();
 }
 
-/* ================================================================
-   LASER STATE
-   ================================================================ */
-const laserStrokes = [];
-let currentLaserStroke = null;
-let laserRAF = null;
-let laserLastActivity = 0;
-
-function clearLaser() {
-  laserStrokes.length = 0;
-  currentLaserStroke = null;
-  laserLastActivity = 0;
-  laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height);
-}
-function clearTransient() { transCtx.clearRect(0, 0, transientCanvas.width, transientCanvas.height); }
-
+/* ===== LASER ===== */
+const laserStrokes = []; let currentLaserStroke = null; let laserRAF = null; let laserLastActivity = 0;
+function clearLaser() { laserStrokes.length = 0; currentLaserStroke = null; laserLastActivity = 0; laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height); }
+function clearTransient() { transCtx.clearRect(0, 0, transientCanvas.width, transientCanvas.height); transientCanvas.style.opacity = '1'; }
 function loadPageState(pageNum) {
   deselect(); clearLaser(); clearTransient();
   while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
-  embedLayer.innerHTML = '';
-  videoLayer.innerHTML = '';
+  embedLayer.innerHTML = ''; videoLayer.innerHTML = '';
   const s = state.pages[pageNum]; if (s) applySnapshot(s);
 }
-
 function startLaserRAF() { if (laserRAF) return; laserRAF = requestAnimationFrame(laserTick); }
-
 function laserTick() {
-  const now = performance.now();
-  const k = state.canvasScale;
-
+  const now = performance.now(), k = state.canvasScale;
   if (laserStrokes.length === 0) { laserRAF = null; return; }
-
   const age = now - laserLastActivity;
   let alpha = 1;
   if (age > LASER_LIFE_MS) alpha = Math.max(0, 1 - (age - LASER_LIFE_MS) / LASER_FADE_MS);
-
   laserCtx.setTransform(1, 0, 0, 1, 0, 0);
   laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height);
-
   if (alpha <= 0) { laserStrokes.length = 0; currentLaserStroke = null; laserRAF = null; return; }
-
-  laserCtx.globalAlpha = alpha;
-  laserCtx.lineCap = 'round';
-  laserCtx.lineJoin = 'round';
-
+  laserCtx.globalAlpha = alpha; laserCtx.lineCap = 'round'; laserCtx.lineJoin = 'round';
   for (let i = 0; i < laserStrokes.length; i++) {
-    const s = laserStrokes[i];
-    if (!s.points || s.points.length < 1) continue;
-    laserCtx.shadowColor = s.color;
-    laserCtx.shadowBlur = s.width * k * 2.5;
-    laserCtx.strokeStyle = '#ffffff';
-    laserCtx.lineWidth = s.width * k;
-    laserCtx.beginPath();
-    laserCtx.moveTo(s.points[0].x * k, s.points[0].y * k);
+    const s = laserStrokes[i]; if (!s.points || s.points.length < 1) continue;
+    laserCtx.shadowColor = s.color; laserCtx.shadowBlur = s.width * k * 2.5;
+    laserCtx.strokeStyle = '#ffffff'; laserCtx.lineWidth = s.width * k;
+    laserCtx.beginPath(); laserCtx.moveTo(s.points[0].x * k, s.points[0].y * k);
     if (s.points.length === 1) laserCtx.lineTo(s.points[0].x * k + 0.01, s.points[0].y * k);
     else for (let j = 1; j < s.points.length; j++) laserCtx.lineTo(s.points[j].x * k, s.points[j].y * k);
     laserCtx.stroke();
-
-    laserCtx.shadowBlur = 0;
-    laserCtx.shadowColor = 'transparent';
-    laserCtx.strokeStyle = '#ffffff';
-    laserCtx.lineWidth = Math.max(1, s.width * k * 0.5);
-    laserCtx.beginPath();
-    laserCtx.moveTo(s.points[0].x * k, s.points[0].y * k);
+    laserCtx.shadowBlur = 0; laserCtx.shadowColor = 'transparent';
+    laserCtx.strokeStyle = '#ffffff'; laserCtx.lineWidth = Math.max(1, s.width * k * 0.5);
+    laserCtx.beginPath(); laserCtx.moveTo(s.points[0].x * k, s.points[0].y * k);
     for (let j = 1; j < s.points.length; j++) laserCtx.lineTo(s.points[j].x * k, s.points[j].y * k);
     laserCtx.stroke();
   }
-  laserCtx.shadowBlur = 0; laserCtx.shadowColor = 'transparent';
-  laserCtx.globalAlpha = 1;
+  laserCtx.shadowBlur = 0; laserCtx.shadowColor = 'transparent'; laserCtx.globalAlpha = 1;
   laserRAF = requestAnimationFrame(laserTick);
 }
-
-function laserStart(p) {
-  laserLastActivity = performance.now();
-  currentLaserStroke = { points: [p], color: state.laserColor, width: state.laserSize };
-  laserStrokes.push(currentLaserStroke);
-  startLaserRAF();
-}
+function laserStart(p) { laserLastActivity = performance.now(); currentLaserStroke = { points: [p], color: state.laserColor, width: state.laserSize }; laserStrokes.push(currentLaserStroke); startLaserRAF(); }
 function laserAdd(p) {
   if (!currentLaserStroke) return;
   const last = currentLaserStroke.points[currentLaserStroke.points.length - 1];
   if (Math.hypot(p.x - last.x, p.y - last.y) < 1.5) return;
-  currentLaserStroke.points.push(p);
-  laserLastActivity = performance.now();
+  currentLaserStroke.points.push(p); laserLastActivity = performance.now();
 }
 function laserEnd() { currentLaserStroke = null; laserLastActivity = performance.now(); }
 
-/* ================================================================
-   ERASER
-   ================================================================ */
-let eraserPoints = null;
-let eraserPreSnapshot = null;
-let eraserActive = false;
-
-function eraserBegin(p) {
-  eraserActive = true;
-  eraserPoints = [p];
-  eraserPreSnapshot = snapshot();
-  eraserDraw();
-  eraserEraseAt(p);
-}
-function eraserMoveTo(p) {
-  if (!eraserActive) return;
-  const last = eraserPoints[eraserPoints.length - 1];
-  eraserPoints.push(p);
-  eraserDraw();
-  eraserEraseSegment(last, p);
-}
-function eraserEnd() {
-  if (!eraserActive) return;
-  eraserActive = false;
-  eraserPoints = null;
-  clearTransient();
-  if (eraserPreSnapshot) { commitChange(eraserPreSnapshot); eraserPreSnapshot = null; }
-}
-function eraserDraw() {
-  const k = state.canvasScale;
-  const size = state.eraserSize;
-  transCtx.setTransform(1, 0, 0, 1, 0, 0);
-  transCtx.clearRect(0, 0, transientCanvas.width, transientCanvas.height);
-  if (!eraserPoints || eraserPoints.length < 1) return;
-  transCtx.lineCap = 'round';
-  transCtx.lineJoin = 'round';
-  transCtx.shadowColor = 'rgba(0,0,0,0.28)';
-  transCtx.shadowBlur = 5 * k;
-  transCtx.strokeStyle = '#ffffff';
-  transCtx.fillStyle = '#ffffff';
-  transCtx.lineWidth = size * k;
-  if (eraserPoints.length === 1) {
-    const p0 = eraserPoints[0];
-    transCtx.beginPath();
-    transCtx.arc(p0.x * k, p0.y * k, (size * k) / 2, 0, Math.PI * 2);
-    transCtx.fill();
-  } else {
-    transCtx.beginPath();
-    transCtx.moveTo(eraserPoints[0].x * k, eraserPoints[0].y * k);
-    for (let i = 1; i < eraserPoints.length; i++) transCtx.lineTo(eraserPoints[i].x * k, eraserPoints[i].y * k);
-    transCtx.stroke();
-  }
-  transCtx.shadowBlur = 0;
-  transCtx.shadowColor = 'transparent';
-}
-function isErasable(el) {
-  /* ★ الخيار: هل تمسح الممحاة الأشكال (rect/ellipse) أم الخطوط فقط؟ */
-  if (!state.eraserErasesShapes) {
-    const tag = el.tagName;
-    if (tag === 'rect' || tag === 'ellipse') return false;
-  }
-  return true;
-}
-function eraserEraseAt(p) {
-  const tol = Math.max(state.eraserSize / 2, 6);
-  const toRemove = [];
-  svgLayer.querySelectorAll('[data-annot]').forEach(el => {
-    if (el.tagName.toLowerCase() === 'g') return;
-    if (!isErasable(el)) return;
-    if (isPointNearShape(p, el, tol)) toRemove.push(el);
-  });
-  toRemove.forEach(el => {
-    if (state.selected && state.selected.el === el) state.selected = null;
-    el.remove();
-  });
-  return toRemove.length;
-}
-function eraserEraseSegment(a, b) {
-  const dist = Math.hypot(b.x - a.x, b.y - a.y);
-  const step = Math.max(state.eraserSize / 3, 4);
-  const n = Math.max(1, Math.ceil(dist / step));
-  for (let i = 0; i <= n; i++) {
-    const t = i / n;
-    eraserEraseAt({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
-  }
-}
-
-/* ================================================================
-   PDF RENDER
-   ================================================================ */
+/* ===== PDF RENDER ===== */
 async function renderPage(pageNum) {
   if (!state.pdfDoc) return;
   setLoading(true, 'جارٍ عرض الصفحة…');
@@ -704,74 +386,44 @@ async function renderPage(pageNum) {
     state.pdfH = Math.round(vp1.height * (COORD_WIDTH / vp1.width));
     const { cssW, cssH, canvasW, canvasH } = computeStageSize(vp1.width, vp1.height);
     state.canvasScale = canvasW / state.pdfW;
-    stage.style.width = cssW + 'px';
-    stage.style.height = cssH + 'px';
+    stage.style.width = cssW + 'px'; stage.style.height = cssH + 'px';
     [pdfCanvas, transientCanvas, laserCanvas].forEach(c => { c.width = canvasW; c.height = canvasH; });
     svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
     const ctx = pdfCanvas.getContext('2d', { alpha: false });
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvasW, canvasH);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvasW, canvasH);
     const renderScale = canvasW / vp1.width;
     const viewport = page.getViewport({ scale: renderScale });
     await page.render({ canvasContext: ctx, viewport, background: '#ffffff' }).promise;
-    stageContent.style.transition = 'none';
-    stageContent.style.transform = '';
+    stageContent.style.transition = 'none'; stageContent.style.transform = '';
     loadPageState(pageNum);
-    updatePageIndicator(); updateUndoButtons();
-    emptyState.style.display = 'none';
-  } catch (err) {
-    console.error('render error', err);
-    toast('تعذّر عرض الصفحة: ' + (err.message || err));
-  } finally { setLoading(false); }
+    updatePageIndicator(); updateUndoButtons(); emptyState.style.display = 'none';
+  } catch (err) { console.error(err); toast('تعذّر عرض الصفحة'); }
+  finally { setLoading(false); }
 }
-
 async function loadPdfFile(file) {
   setLoading(true, 'جارٍ قراءة الملف…');
   try {
     const buf = await file.arrayBuffer();
     const doc = await pdfjsLib.getDocument({
-      data: buf,
-      cMapUrl: `${PDFJS_BASE}/cmaps/`,
-      cMapPacked: true,
-      standardFontDataUrl: `${PDFJS_BASE}/standard_fonts/`,
-      wasmUrl: `${PDFJS_BASE}/wasm/`,
-      useSystemFonts: false,
-      disableFontFace: false,
-      isEvalSupported: false,
-      disableRange: false,
-      disableStream: false,
-      disableAutoFetch: false,
-      fontExtraProperties: true,
-      verbosity: 0,
+      data: buf, cMapUrl: `${PDFJS_BASE}/cmaps/`, cMapPacked: true,
+      standardFontDataUrl: `${PDFJS_BASE}/standard_fonts/`, wasmUrl: `${PDFJS_BASE}/wasm/`,
+      useSystemFonts: false, disableFontFace: false, isEvalSupported: false,
+      fontExtraProperties: true, verbosity: 0,
     }).promise;
-    state.pdfDoc = doc;
-    state.totalPages = doc.numPages;
-    state.currentPage = 1;
+    state.pdfDoc = doc; state.totalPages = doc.numPages; state.currentPage = 1;
     state.pages = {}; state.history = {}; state.selected = null;
-    updateUndoButtons();
-    await renderPage(1);
-  } catch (err) {
-    console.error(err);
-    setLoading(false);
-    alert('تعذّر فتح PDF: ' + err.message);
-  }
+    updateUndoButtons(); await renderPage(1);
+  } catch (err) { console.error(err); setLoading(false); alert('تعذّر فتح PDF: ' + err.message); }
 }
-
 async function loadImageFile(file) {
   setLoading(true, 'جارٍ تحميل الصورة…');
   const url = URL.createObjectURL(file);
   try {
-    const img = await new Promise((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.onerror = () => rej(new Error('صورة غير صالحة'));
-      i.src = url;
-    });
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('صورة غير صالحة')); i.src = url; });
     state.pdfDoc = null; state.totalPages = 1; state.currentPage = 1;
     state.pages = {}; state.history = {};
-    state.pdfW = COORD_WIDTH;
-    state.pdfH = Math.round(COORD_WIDTH * img.height / img.width);
+    state.pdfW = COORD_WIDTH; state.pdfH = Math.round(COORD_WIDTH * img.height / img.width);
     const { cssW, cssH, canvasW, canvasH } = computeStageSize(img.width, img.height);
     state.canvasScale = canvasW / state.pdfW;
     stage.style.width = cssW + 'px'; stage.style.height = cssH + 'px';
@@ -782,73 +434,49 @@ async function loadImageFile(file) {
     ctx.drawImage(img, 0, 0, canvasW, canvasH);
     deselect(); clearLaser(); clearTransient();
     while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
-    embedLayer.innerHTML = '';
-    videoLayer.innerHTML = '';
+    embedLayer.innerHTML = ''; videoLayer.innerHTML = '';
     stageContent.style.transform = '';
-    updatePageIndicator(); updateUndoButtons();
-    emptyState.style.display = 'none';
+    updatePageIndicator(); updateUndoButtons(); emptyState.style.display = 'none';
   } catch (err) { console.error(err); alert(err.message); }
   finally { URL.revokeObjectURL(url); setLoading(false); }
 }
-
 function updatePageIndicator() {
   if (!state.totalPages) { pageIndicator.textContent = ''; return; }
   pageIndicator.textContent = state.currentPage + ' / ' + state.totalPages;
-  btnPrev.disabled = state.currentPage <= 1;
-  btnNext.disabled = state.currentPage >= state.totalPages;
+  btnPrev.disabled = state.currentPage <= 1; btnNext.disabled = state.currentPage >= state.totalPages;
 }
 
-/* ================================================================
-   RESIZE
-   ================================================================ */
+/* ===== RESIZE ===== */
 let resizeTimer = null;
 function handleResize() {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(async () => {
-    if (state.pdfDoc && state.currentPage) {
-      savePageNow();
-      await renderPage(state.currentPage);
-    }
-  }, 250);
+  resizeTimer = setTimeout(async () => { if (state.pdfDoc && state.currentPage) { savePageNow(); await renderPage(state.currentPage); } }, 250);
 }
 window.addEventListener('resize', handleResize);
 window.addEventListener('orientationchange', () => setTimeout(() => window.dispatchEvent(new Event('resize')), 300));
 
-/* ================================================================
-   NAVIGATION
-   ================================================================ */
+/* ===== NAVIGATION ===== */
 let sliding = false;
 async function goToPage(newPage, dir) {
   if (sliding || newPage < 1 || newPage > state.totalPages || newPage === state.currentPage) return;
-  sliding = true;
-  savePageNow();
+  sliding = true; savePageNow();
   const w = stage.clientWidth;
-  const outX = dir === 'next' ? -w : w;
-  const inX = dir === 'next' ? w : -w;
-  stageContent.style.transition = 'transform .22s ease-out';
-  stageContent.style.transform = `translateX(${outX}px)`;
+  const outX = dir === 'next' ? -w : w, inX = dir === 'next' ? w : -w;
+  stageContent.style.transition = 'transform .22s ease-out'; stageContent.style.transform = `translateX(${outX}px)`;
   await new Promise(r => setTimeout(r, 220));
   state.currentPage = newPage;
   if (state.pdfDoc) await renderPage(newPage);
   else { loadPageState(newPage); updatePageIndicator(); updateUndoButtons(); }
-  stageContent.style.transition = 'none';
-  stageContent.style.transform = `translateX(${inX}px)`;
+  stageContent.style.transition = 'none'; stageContent.style.transform = `translateX(${inX}px)`;
   void stageContent.offsetWidth;
-  stageContent.style.transition = 'transform .22s ease-out';
-  stageContent.style.transform = 'translateX(0)';
-  setTimeout(() => {
-    stageContent.style.transition = ''; stageContent.style.transform = '';
-    sliding = false;
-  }, 240);
+  stageContent.style.transition = 'transform .22s ease-out'; stageContent.style.transform = 'translateX(0)';
+  setTimeout(() => { stageContent.style.transition = ''; stageContent.style.transform = ''; sliding = false; }, 240);
 }
 
-/* ================================================================
-   TOOLBAR
-   ================================================================ */
+/* ===== TOOLBAR ===== */
 function setTool(tool) {
   if (tool !== 'select') deselect();
-  state.tool = tool;
-  stage.dataset.tool = tool;
+  state.tool = tool; stage.dataset.tool = tool;
   document.querySelectorAll('#toolbar button[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
   closeSubmenu();
 }
@@ -890,9 +518,7 @@ function toggleFullscreen() {
   }
 }
 
-/* ================================================================
-   SUBMENU
-   ================================================================ */
+/* ===== SUBMENU ===== */
 let submenuOwner = null;
 function closeSubmenu() { submenu.classList.remove('show'); submenu.innerHTML = ''; submenuOwner = null; }
 function repositionSubmenu() {
@@ -904,42 +530,26 @@ function repositionSubmenu() {
   submenu.style.top = top + 'px';
 }
 function openSubmenu(ownerBtn, kind) {
-  submenuOwner = ownerBtn;
-  submenu.innerHTML = renderSubmenuHTML(kind);
-  submenu.classList.add('show');
-  requestAnimationFrame(repositionSubmenu);
-  bindSubmenuHandlers();
+  submenuOwner = ownerBtn; submenu.innerHTML = renderSubmenuHTML(kind);
+  submenu.classList.add('show'); requestAnimationFrame(repositionSubmenu); bindSubmenuHandlers();
 }
 function renderSubmenuHTML(kind) {
-  if (kind === 'pen') return renderColorSize(state.penColor, state.penSize, 'pen');
+  if (kind === 'pen') return renderColorSize(state.penColor, state.penSize, 'pen', ['#000000', '#e11d48', '#2563eb', '#eab308'], [2, 5, 10]);
+  if (kind === 'highlighter') return renderColorSize(state.highlighterColor, state.highlighterSize, 'highlighter', ['#ff0000', '#2563eb', '#22c55e', '#eab308'], [8, 16, 30]);
   if (kind === 'eraser') return renderEraserSubmenu();
-  if (kind === 'laser') return renderLaserSubmenu();
+  if (kind === 'laser') return renderColorSize(state.laserColor, state.laserSize, 'laser', ['#ff0000', '#2563eb', '#22c55e', '#eab308'], [3, 6, 12]);
   if (kind === 'shape') return renderShapeSubmenu();
   return '';
 }
-function renderColorSize(color, size, kind) {
-  const colors = ['#000000', '#e11d48', '#2563eb', '#eab308'];
-  const sizes = [2, 5, 10];
+function renderColorSize(color, size, kind, colors, sizes) {
   return `
     <div class="sub-section"><div class="sub-label">اللون</div><div class="color-grid">
       ${colors.map(c => `<button type="button" class="color-btn ${c === color ? 'active' : ''}" data-kind="${kind}" data-color="${c}"><div class="swatch" style="background:${c}"></div></button>`).join('')}
     </div></div>
     <div class="sub-section"><div class="sub-label">الحجم</div><div class="size-grid">
-      ${sizes.map(s => `<button type="button" class="size-btn ${s === size ? 'active' : ''}" data-kind="${kind}" data-size="${s}"><div class="dot" style="width:${Math.max(3, s)}px;height:${Math.max(3, s)}px"></div></button>`).join('')}
+      ${sizes.map(s => `<button type="button" class="size-btn ${s === size ? 'active' : ''}" data-kind="${kind}" data-size="${s}"><div class="dot" style="width:${Math.min(20, s / (sizes[sizes.length-1] > 20 ? 1.5 : 1))}px;height:${Math.min(20, s / (sizes[sizes.length-1] > 20 ? 1.5 : 1))}px"></div></button>`).join('')}
     </div></div>`;
 }
-function renderLaserSubmenu() {
-  const colors = ['#ff0000', '#2563eb', '#22c55e', '#eab308'];
-  const sizes = [3, 6, 12];
-  return `
-    <div class="sub-section"><div class="sub-label">لون الـ Glow</div><div class="color-grid">
-      ${colors.map(c => `<button type="button" class="color-btn ${c === state.laserColor ? 'active' : ''}" data-kind="laser" data-color="${c}"><div class="swatch" style="background:${c}"></div></button>`).join('')}
-    </div></div>
-    <div class="sub-section"><div class="sub-label">الحجم</div><div class="size-grid">
-      ${sizes.map(s => `<button type="button" class="size-btn ${s === state.laserSize ? 'active' : ''}" data-kind="laser" data-size="${s}"><div class="dot" style="width:${Math.max(3, s)}px;height:${Math.max(3, s)}px"></div></button>`).join('')}
-    </div></div>`;
-}
-/* ★ الممحاة: أحجام + خيار مسح الأشكال */
 function renderEraserSubmenu() {
   const sizes = [40, 80, 140];
   return `
@@ -950,9 +560,7 @@ function renderEraserSubmenu() {
       <div class="color-input-row">
         <label><input type="checkbox" id="subEraseShapes" ${state.eraserErasesShapes ? 'checked' : ''}> امسح الأشكال</label>
       </div>
-      <div style="font-size:9px;color:#666;text-align:center;padding:2px 6px 4px;line-height:1.4">
-        عند الإلغاء تُمسح الخطوط فقط
-      </div>
+      <div style="font-size:9px;color:#666;text-align:center;padding:2px 6px 4px;line-height:1.4">عند الإلغاء تُمسح الخطوط فقط</div>
     </div>`;
 }
 function renderShapeSubmenu() {
@@ -979,6 +587,7 @@ function bindSubmenuHandlers() {
     bindPress(btn, () => {
       const kind = btn.dataset.kind, color = btn.dataset.color;
       if (kind === 'pen') state.penColor = color;
+      else if (kind === 'highlighter') state.highlighterColor = color;
       else if (kind === 'laser') state.laserColor = color;
       submenu.querySelectorAll(`.color-btn[data-kind="${kind}"]`).forEach(b => b.classList.toggle('active', b.dataset.color === color));
       updateToolbarIndicators();
@@ -988,6 +597,7 @@ function bindSubmenuHandlers() {
     bindPress(btn, () => {
       const kind = btn.dataset.kind, size = parseInt(btn.dataset.size, 10);
       if (kind === 'pen') state.penSize = size;
+      else if (kind === 'highlighter') state.highlighterSize = size;
       else if (kind === 'eraser') state.eraserSize = size;
       else if (kind === 'laser') state.laserSize = size;
       else if (kind === 'shape') state.shapeSize = size;
@@ -1008,33 +618,22 @@ submenu.addEventListener('input', e => {
     state.shapeFillNone = e.target.checked;
     const fi = submenu.querySelector('#subShapeFill'); if (fi) fi.disabled = state.shapeFillNone;
   }
-  /* ★ خيار الممحاة */
-  if (e.target.id === 'subEraseShapes') {
-    state.eraserErasesShapes = e.target.checked;
-  }
+  if (e.target.id === 'subEraseShapes') state.eraserErasesShapes = e.target.checked;
 });
 function updateToolbarIndicators() {
   const p = toolbar.querySelector('button[data-tool="pen"]');
+  const hh = toolbar.querySelector('button[data-tool="highlighter"]');
   const l = toolbar.querySelector('button[data-tool="laser"]');
   if (p) p.style.setProperty('--indicator', state.penColor);
+  if (hh) hh.style.setProperty('--indicator', state.highlighterColor);
   if (l) l.style.setProperty('--indicator', state.laserColor);
 }
 
-/* ================================================================
-   EMBED (iframe)
-   ================================================================ */
+/* ===== EMBED ===== */
 function openEmbedDialog() {
   const backdrop = document.createElement('div');
   backdrop.className = 'dialog-backdrop';
-  backdrop.innerHTML = `
-    <div class="dialog">
-      <h3>🔗 تضمين وسائط تفاعلية</h3>
-      <input type="url" id="embedUrlInput" placeholder="https://example.com/game" autofocus>
-      <div class="dialog-actions">
-        <button type="button" class="btn-secondary" data-action="cancel">إلغاء</button>
-        <button type="button" class="btn-primary" data-action="ok">تضمين</button>
-      </div>
-    </div>`;
+  backdrop.innerHTML = `<div class="dialog"><h3>🔗 تضمين وسائط تفاعلية</h3><input type="url" id="embedUrlInput" placeholder="https://example.com/game" autofocus><div class="dialog-actions"><button type="button" class="btn-secondary" data-action="cancel">إلغاء</button><button type="button" class="btn-primary" data-action="ok">تضمين</button></div></div>`;
   document.body.appendChild(backdrop);
   const input = backdrop.querySelector('#embedUrlInput');
   setTimeout(() => { try { input.focus(); } catch(_) {} }, 50);
@@ -1042,304 +641,136 @@ function openEmbedDialog() {
   function submit() {
     let url = (input.value || '').trim(); if (!url) { close(); return; }
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-    const pre = snapshot(); addEmbedElement(url); commitChange(pre);
-    close(); setTool('select');
+    const pre = snapshot(); addEmbedElement(url); commitChange(pre); close(); setTool('select');
   }
   bindPress(backdrop.querySelector('[data-action="cancel"]'), close);
   bindPress(backdrop.querySelector('[data-action="ok"]'), submit);
   backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') submit();
-    if (e.key === 'Escape') close();
-  });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') close(); });
 }
 function addEmbedElement(url, x, y, w, hh, save) {
-  const el = document.createElement('div');
-  el.className = 'embed'; el.dataset.url = url;
+  const el = document.createElement('div'); el.className = 'embed'; el.dataset.url = url;
   el.style.left = x || '30%'; el.style.top = y || '25%';
   el.style.width = w || '40%'; el.style.height = hh || '40%';
   const header = document.createElement('div'); header.className = 'embed-header';
   const title = document.createElement('span'); title.className = 'embed-title';
   try { title.textContent = new URL(url).hostname; } catch (_) { title.textContent = url; }
-  const close = document.createElement('button');
-  close.type = 'button'; close.className = 'embed-close'; close.textContent = '×'; close.title = 'حذف';
+  const close = document.createElement('button'); close.type = 'button'; close.className = 'embed-close'; close.textContent = '×'; close.title = 'حذف';
   close.addEventListener('pointerdown', e => e.stopPropagation());
-  bindPress(close, e => {
-    e.stopPropagation();
-    const pre = snapshot();
-    if (state.selected && state.selected.el === el) state.selected = null;
-    el.remove(); commitChange(pre);
-  });
+  bindPress(close, e => { e.stopPropagation(); const pre = snapshot(); if (state.selected && state.selected.el === el) state.selected = null; el.remove(); commitChange(pre); });
   header.appendChild(title); header.appendChild(close);
-  const iframe = document.createElement('iframe');
-  iframe.src = url;
+  const iframe = document.createElement('iframe'); iframe.src = url;
   iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-pointer-lock allow-downloads allow-popups-to-escape-sandbox allow-presentation');
   iframe.setAttribute('allow', 'fullscreen; autoplay; clipboard-read; clipboard-write; gamepad; microphone; camera; encrypted-media; picture-in-picture');
   iframe.setAttribute('referrerpolicy', 'no-referrer');
   const resize = document.createElement('div'); resize.className = 'embed-resize';
-  el.appendChild(header); el.appendChild(iframe); el.appendChild(resize);
-  embedLayer.appendChild(el);
-  header.addEventListener('pointerdown', e => {
-    if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    e.preventDefault(); e.stopPropagation();
-    header.setPointerCapture(e.pointerId); selectEmbed(el); startEmbedDrag(el, e, 'move');
-  });
-  resize.addEventListener('pointerdown', e => {
-    if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    e.preventDefault(); e.stopPropagation();
-    resize.setPointerCapture(e.pointerId); selectEmbed(el); startEmbedDrag(el, e, 'resize');
-  });
+  el.appendChild(header); el.appendChild(iframe); el.appendChild(resize); embedLayer.appendChild(el);
+  header.addEventListener('pointerdown', e => { if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return; e.preventDefault(); e.stopPropagation(); header.setPointerCapture(e.pointerId); selectEmbed(el); startEmbedDrag(el, e, 'move'); });
+  resize.addEventListener('pointerdown', e => { if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return; e.preventDefault(); e.stopPropagation(); resize.setPointerCapture(e.pointerId); selectEmbed(el); startEmbedDrag(el, e, 'resize'); });
+  if (save !== false) savePageNow();
   return el;
 }
 function startEmbedDrag(el, e, mode) {
-  const sr = stage.getBoundingClientRect();
-  const er = el.getBoundingClientRect();
+  const sr = stage.getBoundingClientRect(), er = el.getBoundingClientRect();
   const sX = e.clientX, sY = e.clientY;
-  const sL = er.left - sr.left, sT = er.top - sr.top;
-  const sW = er.width, sH = er.height;
+  const sL = er.left - sr.left, sT = er.top - sr.top, sW = er.width, sH = er.height;
   const pre = snapshot();
   function onMove(ev) {
     const dx = ev.clientX - sX, dy = ev.clientY - sY;
     if (mode === 'move') {
-      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx));
-      const nt = Math.max(0, Math.min(sr.height - sH, sT + dy));
-      el.style.left = (nl / sr.width * 100) + '%';
-      el.style.top = (nt / sr.height * 100) + '%';
+      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx)), nt = Math.max(0, Math.min(sr.height - sH, sT + dy));
+      el.style.left = (nl / sr.width * 100) + '%'; el.style.top = (nt / sr.height * 100) + '%';
     } else {
-      const nw = Math.max(80, Math.min(sr.width - sL, sW + dx));
-      const nh = Math.max(60, Math.min(sr.height - sT, sH + dy));
-      el.style.width = (nw / sr.width * 100) + '%';
-      el.style.height = (nh / sr.height * 100) + '%';
+      const nw = Math.max(80, Math.min(sr.width - sL, sW + dx)), nh = Math.max(60, Math.min(sr.height - sT, sH + dy));
+      el.style.width = (nw / sr.width * 100) + '%'; el.style.height = (nh / sr.height * 100) + '%';
     }
   }
-  function onUp() {
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.removeEventListener('pointercancel', onUp);
-    commitChange(pre);
-  }
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-  document.addEventListener('pointercancel', onUp);
+  function onUp() { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); document.removeEventListener('pointercancel', onUp); commitChange(pre); }
+  document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp); document.addEventListener('pointercancel', onUp);
 }
 
-/* ================================================================
-   VIDEO — من الجهاز مباشرة عبر Blob URL
-   ================================================================ */
+/* ===== VIDEO ===== */
 function openVideoPicker() {
   const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'video/*';
-  input.multiple = true;
-  input.style.display = 'none';
+  input.type = 'file'; input.accept = 'video/*'; input.multiple = true; input.style.display = 'none';
   document.body.appendChild(input);
   input.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) { input.remove(); return; }
     setLoading(true, 'جارٍ تجهيز الفيديوهات…');
-    const pre = snapshot();
-    let placed = 0;
+    const pre = snapshot(); let placed = 0;
     try {
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!/^video\//i.test(file.type)) continue;
+        const file = files[i]; if (!/^video\//i.test(file.type)) continue;
         try {
           const blobUrl = URL.createObjectURL(file);
           const dims = await getVideoDimensions(blobUrl);
           const videoId = uid();
-          /* ضع الفيديو في منتصف الصفحة بحجم معقول */
-          const targetW = state.pdfW * 0.55;
-          const ratio = dims.h / dims.w;
-          let wPct = (targetW / state.pdfW) * 100;
-          let hPct = (targetW * ratio / state.pdfH) * 100;
-          /* اجعل الارتفاع معقولاً */
+          const targetW = state.pdfW * 0.55, ratio = dims.h / dims.w;
+          let wPct = (targetW / state.pdfW) * 100, hPct = (targetW * ratio / state.pdfH) * 100;
           if (hPct > 60) { hPct = 60; wPct = (hPct / 100 * state.pdfH) / (ratio * state.pdfW) * 100; }
-          const xPct = 22 + (i % 3) * 4;
-          const yPct = 18 + (i % 3) * 4;
-          addVideoElement(videoId, blobUrl, file.name || 'فيديو',
-                          xPct + '%', yPct + '%', wPct + '%', hPct + '%', false);
+          addVideoElement(videoId, blobUrl, file.name || 'فيديو', (22 + (i%3)*4) + '%', (18 + (i%3)*4) + '%', wPct + '%', hPct + '%', false);
           placed++;
-        } catch (err) {
-          console.warn('تعذّر تحميل الفيديو:', file.name, err);
-        }
+        } catch (err) { console.warn(err); }
       }
-      if (placed > 0) {
-        commitChange(pre);
-        toast(`تمت إضافة ${placed} فيديو ✅`);
-        setTool('select');
-      } else {
-        toast('لم يتم اختيار أي فيديو صالح', 'warn');
-      }
-    } finally {
-      setLoading(false);
-      input.remove();
-    }
+      if (placed > 0) { commitChange(pre); toast(`تمت إضافة ${placed} فيديو ✅`); setTool('select'); }
+      else toast('لم يتم اختيار أي فيديو صالح');
+    } finally { setLoading(false); input.remove(); }
   });
   input.click();
 }
-
 function addVideoElement(videoId, url, title, x, y, w, h, save) {
-  const el = document.createElement('div');
-  el.className = 'video-obj';
-  el.dataset.videoId = videoId;
-  el.dataset.url = url;
-  el.dataset.title = title || '';
-
-  el.style.left = x || '25%';
-  el.style.top = y || '20%';
-  el.style.width = w || '50%';
-  el.style.height = h || '40%';
-
-  /* Header */
-  const header = document.createElement('div');
-  header.className = 'video-header';
-  const titleEl = document.createElement('span');
-  titleEl.className = 'video-title';
-  titleEl.textContent = title || 'فيديو';
-  titleEl.title = title || '';
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'video-close';
-  closeBtn.textContent = '×';
-  closeBtn.title = 'حذف';
+  const el = document.createElement('div'); el.className = 'video-obj';
+  el.dataset.videoId = videoId; el.dataset.url = url; el.dataset.title = title || '';
+  el.style.left = x || '25%'; el.style.top = y || '20%'; el.style.width = w || '50%'; el.style.height = h || '40%';
+  const header = document.createElement('div'); header.className = 'video-header';
+  const titleEl = document.createElement('span'); titleEl.className = 'video-title'; titleEl.textContent = title || 'فيديو'; titleEl.title = title || '';
+  const closeBtn = document.createElement('button'); closeBtn.type = 'button'; closeBtn.className = 'video-close'; closeBtn.textContent = '×'; closeBtn.title = 'حذف';
   closeBtn.addEventListener('pointerdown', e => e.stopPropagation());
   bindPress(closeBtn, e => {
-    e.stopPropagation();
-    const pre = snapshot();
+    e.stopPropagation(); const pre = snapshot();
     if (state.selected && state.selected.el === el) state.selected = null;
-    /* إبطال الـ blob URL لتحرير الذاكرة */
-    try {
-      const v = el.querySelector('video');
-      if (v) { v.pause(); v.src = ''; }
-      if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
-    } catch (_) {}
-    el.remove();
-    commitChange(pre);
+    try { const v = el.querySelector('video'); if (v) { v.pause(); v.src = ''; } if (url && url.startsWith('blob:')) URL.revokeObjectURL(url); } catch (_) {}
+    el.remove(); commitChange(pre);
   });
-  header.appendChild(titleEl);
-  header.appendChild(closeBtn);
-
-  /* Video */
-  const video = document.createElement('video');
-  video.src = url;
-  video.controls = false;
-  video.preload = 'metadata';
-  video.playsInline = true;
-  video.setAttribute('playsinline', '');
-  video.setAttribute('webkit-playsinline', '');
-
-  /* Play button overlay */
-  const playBtn = document.createElement('button');
-  playBtn.type = 'button';
-  playBtn.className = 'video-play-btn';
-  playBtn.innerHTML = '▶';
-  playBtn.title = 'تشغيل';
-  bindPress(playBtn, e => {
-    e.stopPropagation();
-    if (video.paused) {
-      video.play().catch(err => {
-        console.warn('فشل التشغيل:', err);
-        toast('تعذّر تشغيل الفيديو');
-      });
-    } else {
-      video.pause();
-    }
-  });
-
+  header.appendChild(titleEl); header.appendChild(closeBtn);
+  const video = document.createElement('video'); video.src = url; video.preload = 'metadata'; video.playsInline = true;
+  video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', '');
+  const playBtn = document.createElement('button'); playBtn.type = 'button'; playBtn.className = 'video-play-btn'; playBtn.innerHTML = '▶'; playBtn.title = 'تشغيل';
+  bindPress(playBtn, e => { e.stopPropagation(); if (video.paused) video.play().catch(() => toast('تعذّر تشغيل الفيديو')); else video.pause(); });
   video.addEventListener('play', () => playBtn.classList.add('hidden'));
   video.addEventListener('pause', () => playBtn.classList.remove('hidden'));
   video.addEventListener('ended', () => playBtn.classList.remove('hidden'));
-
-  /* Click on video itself = toggle (in select mode only) */
-  video.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (state.tool !== 'select') return;
-    if (video.paused) video.play().catch(()=>{});
-    else video.pause();
-  });
-
-  /* Handle missing/failed video */
-  video.addEventListener('error', () => {
-    el.classList.add('video-error');
-  });
-
-  /* Resize handle */
-  const resize = document.createElement('div');
-  resize.className = 'video-resize';
-
-  el.appendChild(header);
-  el.appendChild(video);
-  el.appendChild(playBtn);
-  el.appendChild(resize);
+  video.addEventListener('click', (e) => { e.stopPropagation(); if (state.tool !== 'select') return; if (video.paused) video.play().catch(()=>{}); else video.pause(); });
+  video.addEventListener('error', () => el.classList.add('video-error'));
+  const resize = document.createElement('div'); resize.className = 'video-resize';
+  el.appendChild(header); el.appendChild(video); el.appendChild(playBtn); el.appendChild(resize);
   videoLayer.appendChild(el);
-
-  /* Drag header */
-  header.addEventListener('pointerdown', e => {
-    if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    e.preventDefault(); e.stopPropagation();
-    try { header.setPointerCapture(e.pointerId); } catch (_) {}
-    selectVideo(el);
-    startVideoDrag(el, e, 'move');
-  });
-
-  /* Resize */
-  resize.addEventListener('pointerdown', e => {
-    if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    e.preventDefault(); e.stopPropagation();
-    try { resize.setPointerCapture(e.pointerId); } catch (_) {}
-    selectVideo(el);
-    startVideoDrag(el, e, 'resize');
-  });
-
-  /* Tap on the video-obj (outside video) = select in select mode */
-  el.addEventListener('pointerdown', e => {
-    if (state.tool !== 'select') return;
-    /* Only select if target is the container itself */
-    if (e.target === el) {
-      selectVideo(el);
-    }
-  });
-
+  header.addEventListener('pointerdown', e => { if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return; e.preventDefault(); e.stopPropagation(); try { header.setPointerCapture(e.pointerId); } catch (_) {} selectVideo(el); startVideoDrag(el, e, 'move'); });
+  resize.addEventListener('pointerdown', e => { if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return; e.preventDefault(); e.stopPropagation(); try { resize.setPointerCapture(e.pointerId); } catch (_) {} selectVideo(el); startVideoDrag(el, e, 'resize'); });
   if (save !== false) savePageNow();
   return el;
 }
-
 function startVideoDrag(el, e, mode) {
-  const sr = stage.getBoundingClientRect();
-  const er = el.getBoundingClientRect();
+  const sr = stage.getBoundingClientRect(), er = el.getBoundingClientRect();
   const sX = e.clientX, sY = e.clientY;
-  const sL = er.left - sr.left, sT = er.top - sr.top;
-  const sW = er.width, sH = er.height;
+  const sL = er.left - sr.left, sT = er.top - sr.top, sW = er.width, sH = er.height;
   const pre = snapshot();
-
   function onMove(ev) {
     const dx = ev.clientX - sX, dy = ev.clientY - sY;
     if (mode === 'move') {
-      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx));
-      const nt = Math.max(0, Math.min(sr.height - sH, sT + dy));
-      el.style.left = (nl / sr.width * 100) + '%';
-      el.style.top = (nt / sr.height * 100) + '%';
+      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx)), nt = Math.max(0, Math.min(sr.height - sH, sT + dy));
+      el.style.left = (nl / sr.width * 100) + '%'; el.style.top = (nt / sr.height * 100) + '%';
     } else {
-      const nw = Math.max(120, Math.min(sr.width - sL, sW + dx));
-      const nh = Math.max(80, Math.min(sr.height - sT, sH + dy));
-      el.style.width = (nw / sr.width * 100) + '%';
-      el.style.height = (nh / sr.height * 100) + '%';
+      const nw = Math.max(120, Math.min(sr.width - sL, sW + dx)), nh = Math.max(80, Math.min(sr.height - sT, sH + dy));
+      el.style.width = (nw / sr.width * 100) + '%'; el.style.height = (nh / sr.height * 100) + '%';
     }
   }
-  function onUp() {
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.removeEventListener('pointercancel', onUp);
-    commitChange(pre);
-  }
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-  document.addEventListener('pointercancel', onUp);
+  function onUp() { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); document.removeEventListener('pointercancel', onUp); commitChange(pre); }
+  document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp); document.addEventListener('pointercancel', onUp);
 }
 
-/* ================================================================
-   SELECTION
-   ================================================================ */
+/* ===== SELECTION ===== */
 function deselect() {
   if (state.selected) {
     if (state.selected.kind === 'svg') state.selected.el.classList.remove('selected');
@@ -1357,8 +788,7 @@ function selectVideo(el) { deselect(); state.selected = { kind: 'video', el }; e
 function getShapeBBox(el) {
   try {
     if (el.tagName === 'line') {
-      const x1 = +el.getAttribute('x1'), y1 = +el.getAttribute('y1');
-      const x2 = +el.getAttribute('x2'), y2 = +el.getAttribute('y2');
+      const x1 = +el.getAttribute('x1'), y1 = +el.getAttribute('y1'), x2 = +el.getAttribute('x2'), y2 = +el.getAttribute('y2');
       const pad = 8;
       return { x: Math.min(x1,x2)-pad, y: Math.min(y1,y2)-pad, width: Math.abs(x2-x1)+pad*2, height: Math.abs(y2-y1)+pad*2 };
     }
@@ -1370,22 +800,15 @@ function drawSelectionOverlay(el) {
   const bbox = getShapeBBox(el); if (!bbox) return;
   const g = document.createElementNS(SVG_NS, 'g'); g.setAttribute('class', 'selection-overlay');
   const rect = document.createElementNS(SVG_NS, 'rect');
-  rect.setAttribute('x', bbox.x); rect.setAttribute('y', bbox.y);
-  rect.setAttribute('width', bbox.width); rect.setAttribute('height', bbox.height);
+  rect.setAttribute('x', bbox.x); rect.setAttribute('y', bbox.y); rect.setAttribute('width', bbox.width); rect.setAttribute('height', bbox.height);
   rect.setAttribute('class', 'selection-outline'); g.appendChild(rect);
   const hs = Math.max(6, state.pdfW / 140);
   const pts = { nw: [bbox.x, bbox.y], ne: [bbox.x + bbox.width, bbox.y], se: [bbox.x + bbox.width, bbox.y + bbox.height], sw: [bbox.x, bbox.y + bbox.height] };
-  Object.keys(pts).forEach(k => {
-    const c = document.createElementNS(SVG_NS, 'circle');
-    c.setAttribute('cx', pts[k][0]); c.setAttribute('cy', pts[k][1]); c.setAttribute('r', hs);
-    c.setAttribute('class', 'handle ' + k); c.dataset.handle = k; g.appendChild(c);
-  });
+  Object.keys(pts).forEach(k => { const c = document.createElementNS(SVG_NS, 'circle'); c.setAttribute('cx', pts[k][0]); c.setAttribute('cy', pts[k][1]); c.setAttribute('r', hs); c.setAttribute('class', 'handle ' + k); c.dataset.handle = k; g.appendChild(c); });
   svgLayer.appendChild(g);
 }
 
-/* ================================================================
-   GEOMETRY HELPERS
-   ================================================================ */
+/* ===== GEOMETRY HELPERS ===== */
 function distToSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1, dy = y2 - y1, len2 = dx*dx + dy*dy;
   if (len2 === 0) return Math.hypot(px - x1, py - y1);
@@ -1395,18 +818,10 @@ function distToSegment(px, py, x1, y1, x2, y2) {
 }
 function distToEllipse(px, py, cx, cy, rx, ry) {
   let minD = Infinity;
-  for (let i = 0; i < 48; i++) {
-    const t = (i / 48) * Math.PI * 2;
-    const x = cx + rx * Math.cos(t), y = cy + ry * Math.sin(t);
-    const d = Math.hypot(px - x, py - y); if (d < minD) minD = d;
-  }
+  for (let i = 0; i < 48; i++) { const t = (i / 48) * Math.PI * 2; const x = cx + rx * Math.cos(t), y = cy + ry * Math.sin(t); const d = Math.hypot(px - x, py - y); if (d < minD) minD = d; }
   return minD;
 }
-function getTranslate(el) {
-  const t = el.getAttribute('transform'); if (!t) return { tx: 0, ty: 0 };
-  const m = t.match(/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)/);
-  return m ? { tx: parseFloat(m[1]), ty: parseFloat(m[2]) } : { tx: 0, ty: 0 };
-}
+function getTranslate(el) { const t = el.getAttribute('transform'); if (!t) return { tx: 0, ty: 0 }; const m = t.match(/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)/); return m ? { tx: parseFloat(m[1]), ty: parseFloat(m[2]) } : { tx: 0, ty: 0 }; }
 function isPointNearShape(p, el, tol) {
   const tag = el.tagName;
   if (tag === 'line') return distToSegment(p.x, p.y, +el.getAttribute('x1'), +el.getAttribute('y1'), +el.getAttribute('x2'), +el.getAttribute('y2')) <= tol;
@@ -1414,42 +829,47 @@ function isPointNearShape(p, el, tol) {
     const x = +el.getAttribute('x'), y = +el.getAttribute('y'), w = +el.getAttribute('width'), h = +el.getAttribute('height');
     return distToSegment(p.x, p.y, x, y, x+w, y) <= tol || distToSegment(p.x, p.y, x+w, y, x+w, y+h) <= tol || distToSegment(p.x, p.y, x+w, y+h, x, y+h) <= tol || distToSegment(p.x, p.y, x, y+h, x, y) <= tol;
   }
-  if (tag === 'ellipse') {
-    const cx = +el.getAttribute('cx'), cy = +el.getAttribute('cy'), rx = +el.getAttribute('rx'), ry = +el.getAttribute('ry');
-    return distToEllipse(p.x, p.y, cx, cy, rx, ry) <= tol;
-  }
+  if (tag === 'ellipse') { const cx = +el.getAttribute('cx'), cy = +el.getAttribute('cy'), rx = +el.getAttribute('rx'), ry = +el.getAttribute('ry'); return distToEllipse(p.x, p.y, cx, cy, rx, ry) <= tol; }
   if (tag === 'path') {
     const d = el.getAttribute('d'); if (!d) return false;
-    const { tx, ty } = getTranslate(el);
-    const lx = p.x - tx, ly = p.y - ty;
-    const re = /([ML])\s*([-\d.]+)\s+([-\d.]+)/g;
-    const pts = []; let m;
+    const { tx, ty } = getTranslate(el); const lx = p.x - tx, ly = p.y - ty;
+    const re = /([ML])\s*([-\d.]+)\s+([-\d.]+)/g; const pts = []; let m;
     while ((m = re.exec(d))) pts.push({ x: parseFloat(m[2]), y: parseFloat(m[3]) });
-    for (let i = 1; i < pts.length; i++) {
-      if (distToSegment(lx, ly, pts[i-1].x, pts[i-1].y, pts[i].x, pts[i].y) <= tol) return true;
-    }
+    for (let i = 1; i < pts.length; i++) if (distToSegment(lx, ly, pts[i-1].x, pts[i-1].y, pts[i].x, pts[i].y) <= tol) return true;
     return false;
   }
   return false;
 }
 
-/* ================================================================
-   CREATE ANNOTATIONS
-   ================================================================ */
-function addAnnotation(el) {
-  el.dataset.annot = '1'; if (!el.dataset.id) el.dataset.id = uid();
-  el.classList.add('annot'); svgLayer.appendChild(el);
-}
-function commitPen(points) {
+/* ===== CREATE ANNOTATIONS ===== */
+function addAnnotation(el) { el.dataset.annot = '1'; if (!el.dataset.id) el.dataset.id = uid(); el.classList.add('annot'); svgLayer.appendChild(el); }
+
+/* ★ بناء مسار من نقاط — مع خيارات للقلم/الهايلايتر */
+function buildPathFromPoints(points, kind) {
   if (!points || points.length < 2) return null;
   let d = 'M ' + points[0].x.toFixed(1) + ' ' + points[0].y.toFixed(1);
   for (let i = 1; i < points.length; i++) d += ' L ' + points[i].x.toFixed(1) + ' ' + points[i].y.toFixed(1);
   const path = document.createElementNS(SVG_NS, 'path');
-  path.setAttribute('d', d); path.setAttribute('stroke', state.penColor);
-  path.setAttribute('stroke-width', state.penSize);
-  path.setAttribute('stroke-linecap', 'round'); path.setAttribute('stroke-linejoin', 'round');
-  path.setAttribute('fill', 'none'); path.dataset.type = 'path';
-  addAnnotation(path); return path;
+  path.setAttribute('d', d);
+  if (kind === 'pen') {
+    path.setAttribute('stroke', state.penColor);
+    path.setAttribute('stroke-width', state.penSize);
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('fill', 'none');
+    path.dataset.type = 'path';
+  } else if (kind === 'highlighter') {
+    path.setAttribute('stroke', state.highlighterColor);
+    path.setAttribute('stroke-width', state.highlighterSize);
+    path.setAttribute('stroke-linecap', 'square');
+    path.setAttribute('stroke-linejoin', 'miter');
+    path.setAttribute('stroke-opacity', '0.4');
+    path.setAttribute('fill', 'none');
+    path.style.mixBlendMode = 'multiply';
+    path.dataset.type = 'highlighter';
+  }
+  addAnnotation(path);
+  return path;
 }
 function createShapeElement(kind) {
   const el = document.createElementNS(SVG_NS, kind === 'circle' ? 'ellipse' : kind);
@@ -1461,26 +881,162 @@ function createShapeElement(kind) {
   return el;
 }
 
-/* ================================================================
-   PEN PREVIEW
-   ================================================================ */
-function drawPenPreview(points) {
-  const k = state.canvasScale;
-  transCtx.setTransform(1, 0, 0, 1, 0, 0);
-  transCtx.clearRect(0, 0, transientCanvas.width, transientCanvas.height);
-  if (!points || points.length < 2) return;
-  transCtx.strokeStyle = state.penColor; transCtx.lineWidth = state.penSize * k;
-  transCtx.lineCap = 'round'; transCtx.lineJoin = 'round';
-  transCtx.beginPath(); transCtx.moveTo(points[0].x * k, points[0].y * k);
-  for (let i = 1; i < points.length; i++) transCtx.lineTo(points[i].x * k, points[i].y * k);
-  transCtx.stroke();
-}
-
-/* ================================================================
-   INTERACTION
-   ================================================================ */
+/* ===== UNIFIED STROKE HANDLING (pen / highlighter / eraser) ===== */
 let interaction = null, handDrag = null;
 
+function startStroke(kind, p) {
+  const rect = stage.getBoundingClientRect();
+  const inter = {
+    type: 'stroke', kind, points: [p], rect,
+    lastDrawnIdx: 0,
+    pre: snapshot(),
+  };
+  clearTransient();
+  if (kind === 'highlighter') transientCanvas.style.opacity = '0.4';
+  else transientCanvas.style.opacity = '1';
+  interaction = inter;
+  drawStrokeIncremental();
+}
+
+/* ★ الرسم التدريجي — يرسم فقط المقاطع الجديدة */
+function drawStrokeIncremental() {
+  const inter = interaction;
+  if (!inter || inter.type !== 'stroke') return;
+  const k = state.canvasScale;
+  const pts = inter.points;
+  const fromIdx = Math.max(0, inter.lastDrawnIdx - 1);
+  if (pts.length - fromIdx < 2 && inter.lastDrawnIdx > 0) return;
+
+  let strokeColor, lineWidth, cap, join;
+  if (inter.kind === 'pen') {
+    strokeColor = state.penColor; lineWidth = state.penSize * k;
+    cap = 'round'; join = 'round';
+  } else if (inter.kind === 'highlighter') {
+    strokeColor = state.highlighterColor; lineWidth = state.highlighterSize * k;
+    cap = 'square'; join = 'miter';
+  } else { /* eraser */
+    strokeColor = '#ffffff'; lineWidth = state.eraserSize * k;
+    cap = 'round'; join = 'round';
+  }
+
+  transCtx.strokeStyle = strokeColor;
+  transCtx.lineWidth = lineWidth;
+  transCtx.lineCap = cap;
+  transCtx.lineJoin = join;
+
+  if (inter.kind === 'eraser') {
+    /* للممحاة: ظل خفيف ليظهر على خلفية بيضاء */
+    transCtx.shadowColor = 'rgba(0,0,0,0.28)';
+    transCtx.shadowBlur = 4 * k;
+  }
+
+  if (pts.length === 1) {
+    /* نقطة واحدة: دائرة صغيرة للممحاة، أو لا شيء للقلم */
+    if (inter.kind === 'eraser') {
+      transCtx.beginPath();
+      transCtx.arc(pts[0].x * k, pts[0].y * k, lineWidth / 2, 0, Math.PI * 2);
+      transCtx.fillStyle = strokeColor;
+      transCtx.fill();
+    }
+  } else {
+    transCtx.beginPath();
+    transCtx.moveTo(pts[fromIdx].x * k, pts[fromIdx].y * k);
+    for (let i = fromIdx + 1; i < pts.length; i++) {
+      transCtx.lineTo(pts[i].x * k, pts[i].y * k);
+    }
+    transCtx.stroke();
+  }
+
+  if (inter.kind === 'eraser') { transCtx.shadowBlur = 0; transCtx.shadowColor = 'transparent'; }
+  inter.lastDrawnIdx = pts.length;
+}
+
+/* ★ التقاط الأحداث المُجمّعة (coalesced) لسلاسة عالية */
+function appendStrokePoints(e) {
+  const inter = interaction;
+  if (!inter || inter.type !== 'stroke') return;
+  const events = (typeof e.getCoalescedEvents === 'function') ? (e.getCoalescedEvents() || [e]) : [e];
+  let added = 0;
+  const r = inter.rect;
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i]; if (!ev) continue;
+    const p = {
+      x: ((ev.clientX - r.left) / r.width) * state.pdfW,
+      y: ((ev.clientY - r.top) / r.height) * state.pdfH,
+    };
+    const last = inter.points[inter.points.length - 1];
+    const dx = p.x - last.x, dy = p.y - last.y;
+    if (dx*dx + dy*dy > 1) { inter.points.push(p); added++; }
+  }
+  if (added > 0) {
+    drawStrokeIncremental();
+    if (inter.kind === 'eraser') eraserEraseAlongPath();
+  }
+}
+
+/* ★ محو على طول المقطع الجديد فقط */
+function eraserEraseAlongPath() {
+  const inter = interaction;
+  if (!inter || inter.type !== 'stroke' || inter.kind !== 'eraser') return;
+  const pts = inter.points;
+  const tol = Math.max(state.eraserSize / 2, 6);
+  const startIdx = Math.max(1, inter.lastDrawnIdx - 1);
+  for (let i = startIdx; i < pts.length; i++) {
+    const a = pts[i-1], b = pts[i];
+    const dist = Math.hypot(b.x - a.x, b.y - a.y);
+    const step = Math.max(state.eraserSize / 3, 4);
+    const n = Math.max(1, Math.ceil(dist / step));
+    for (let j = 0; j <= n; j++) {
+      const t = j / n;
+      const pp = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+      eraseAt(pp, tol);
+    }
+  }
+}
+function eraseAt(p, tol) {
+  const toRemove = [];
+  svgLayer.querySelectorAll('[data-annot]').forEach(el => {
+    if (el.tagName.toLowerCase() === 'g') return;
+    if (!state.eraserErasesShapes) {
+      const tag = el.tagName;
+      if (tag === 'rect' || tag === 'ellipse') return;
+    }
+    if (isPointNearShape(p, el, tol)) toRemove.push(el);
+  });
+  toRemove.forEach(el => {
+    if (state.selected && state.selected.el === el) state.selected = null;
+    el.remove();
+  });
+  return toRemove.length;
+}
+
+function endStroke() {
+  const inter = interaction;
+  if (!inter || inter.type !== 'stroke') return;
+  interaction = null;
+  clearTransient();
+
+  if (inter.kind === 'pen') {
+    if (inter.points.length >= 2) {
+      const p = buildPathFromPoints(inter.points, 'pen');
+      if (p) commitChange(inter.pre);
+    }
+  } else if (inter.kind === 'highlighter') {
+    if (inter.points.length >= 2) {
+      const p = buildPathFromPoints(inter.points, 'highlighter');
+      if (p) commitChange(inter.pre);
+    }
+  } else if (inter.kind === 'eraser') {
+    /* الممحاة: commit فقط إذا تم حذف شيء فعلاً */
+    if (inter.pre) {
+      const before = JSON.stringify(inter.pre.annotations.map(a => a.dataId));
+      const after = JSON.stringify(snapshot().annotations.map(a => a.dataId));
+      if (before !== after) commitChange(inter.pre);
+    }
+  }
+}
+
+/* ===== POINTER EVENTS ===== */
 stage.addEventListener('pointerdown', e => {
   if (!state.pdfW) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -1508,22 +1064,16 @@ stage.addEventListener('pointerdown', e => {
     }
     deselect(); return;
   }
-  if (tool === 'pen') { interaction = { type: 'pen', points: [p], pre: snapshot() }; drawPenPreview(interaction.points); e.preventDefault(); return; }
+  if (tool === 'pen') { startStroke('pen', p); e.preventDefault(); return; }
+  if (tool === 'highlighter') { startStroke('highlighter', p); e.preventDefault(); return; }
+  if (tool === 'eraser') { startStroke('eraser', p); e.preventDefault(); return; }
   if (tool === 'laser') { laserStart(p); interaction = { type: 'laser' }; e.preventDefault(); return; }
-  if (tool === 'eraser') { eraserBegin(p); interaction = { type: 'eraser' }; e.preventDefault(); return; }
   if (tool === 'shape') {
     const pre = snapshot();
     const el = createShapeElement(state.shapeKind);
-    if (state.shapeKind === 'rect') {
-      el.setAttribute('x', p.x); el.setAttribute('y', p.y);
-      el.setAttribute('width', 0); el.setAttribute('height', 0);
-    } else if (state.shapeKind === 'circle') {
-      el.setAttribute('cx', p.x); el.setAttribute('cy', p.y);
-      el.setAttribute('rx', 0); el.setAttribute('ry', 0);
-    } else {
-      el.setAttribute('x1', p.x); el.setAttribute('y1', p.y);
-      el.setAttribute('x2', p.x); el.setAttribute('y2', p.y);
-    }
+    if (state.shapeKind === 'rect') { el.setAttribute('x', p.x); el.setAttribute('y', p.y); el.setAttribute('width', 0); el.setAttribute('height', 0); }
+    else if (state.shapeKind === 'circle') { el.setAttribute('cx', p.x); el.setAttribute('cy', p.y); el.setAttribute('rx', 0); el.setAttribute('ry', 0); }
+    else { el.setAttribute('x1', p.x); el.setAttribute('y1', p.y); el.setAttribute('x2', p.x); el.setAttribute('y2', p.y); }
     svgLayer.appendChild(el);
     interaction = { type: 'shapeDraw', kind: state.shapeKind, start: p, el, pre };
     e.preventDefault(); return;
@@ -1532,6 +1082,7 @@ stage.addEventListener('pointerdown', e => {
 
 stage.addEventListener('pointermove', e => {
   if (!interaction) return;
+  if (interaction.type === 'stroke') { appendStrokePoints(e); return; }
   const p = getStagePoint(e);
   if (interaction.type === 'hand' && handDrag) {
     handDrag.dx = e.clientX - handDrag.startX;
@@ -1539,34 +1090,16 @@ stage.addEventListener('pointermove', e => {
     stageContent.style.transform = `translateX(${handDrag.dx}px)`;
     return;
   }
-  if (interaction.type === 'pen') {
-    const last = interaction.points[interaction.points.length - 1];
-    if (Math.hypot(p.x - last.x, p.y - last.y) > 1.5) { interaction.points.push(p); drawPenPreview(interaction.points); }
-    return;
-  }
   if (interaction.type === 'laser') { laserAdd(p); return; }
-  if (interaction.type === 'eraser') { eraserMoveTo(p); return; }
   if (interaction.type === 'shapeDraw') {
     const el = interaction.el, s = interaction.start;
-    if (interaction.kind === 'rect') {
-      el.setAttribute('x', Math.min(s.x, p.x)); el.setAttribute('y', Math.min(s.y, p.y));
-      el.setAttribute('width', Math.abs(p.x - s.x)); el.setAttribute('height', Math.abs(p.y - s.y));
-    } else if (interaction.kind === 'circle') {
-      el.setAttribute('cx', (s.x + p.x) / 2); el.setAttribute('cy', (s.y + p.y) / 2);
-      el.setAttribute('rx', Math.abs(p.x - s.x) / 2); el.setAttribute('ry', Math.abs(p.y - s.y) / 2);
-    } else {
-      el.setAttribute('x2', p.x); el.setAttribute('y2', p.y);
-    }
+    if (interaction.kind === 'rect') { el.setAttribute('x', Math.min(s.x, p.x)); el.setAttribute('y', Math.min(s.y, p.y)); el.setAttribute('width', Math.abs(p.x - s.x)); el.setAttribute('height', Math.abs(p.y - s.y)); }
+    else if (interaction.kind === 'circle') { el.setAttribute('cx', (s.x + p.x) / 2); el.setAttribute('cy', (s.y + p.y) / 2); el.setAttribute('rx', Math.abs(p.x - s.x) / 2); el.setAttribute('ry', Math.abs(p.y - s.y) / 2); }
+    else { el.setAttribute('x2', p.x); el.setAttribute('y2', p.y); }
     return;
   }
-  if (interaction.type === 'moveSvg') {
-    applySvgGeom(interaction.el, interaction.orig, p.x - interaction.start.x, p.y - interaction.start.y);
-    drawSelectionOverlay(interaction.el); return;
-  }
-  if (interaction.type === 'resizeSvg') {
-    resizeSvg(interaction.el, interaction.handle, interaction.start, p);
-    drawSelectionOverlay(interaction.el); return;
-  }
+  if (interaction.type === 'moveSvg') { applySvgGeom(interaction.el, interaction.orig, p.x - interaction.start.x, p.y - interaction.start.y); drawSelectionOverlay(interaction.el); return; }
+  if (interaction.type === 'resizeSvg') { resizeSvg(interaction.el, interaction.handle, interaction.start, p); drawSelectionOverlay(interaction.el); return; }
 });
 
 stage.addEventListener('pointerup', onStageUp);
@@ -1574,8 +1107,12 @@ stage.addEventListener('pointercancel', onStageUp);
 
 function onStageUp(e) {
   if (!interaction) return;
-  const inter = interaction; interaction = null;
+  const inter = interaction;
   try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
+
+  if (inter.type === 'stroke') { endStroke(); return; }
+
+  interaction = null;
 
   if (inter.type === 'hand' && handDrag) {
     stage.classList.remove('dragging');
@@ -1584,45 +1121,29 @@ function onStageUp(e) {
     if (dx < -thr && state.currentPage < state.totalPages) goToPage(state.currentPage + 1, 'next');
     else if (dx > thr && state.currentPage > 1) goToPage(state.currentPage - 1, 'prev');
     else {
-      stageContent.style.transition = 'transform .2s ease';
-      stageContent.style.transform = 'translateX(0)';
+      stageContent.style.transition = 'transform .2s ease'; stageContent.style.transform = 'translateX(0)';
       setTimeout(() => { stageContent.style.transition = ''; stageContent.style.transform = ''; }, 220);
     }
     return;
   }
-  if (inter.type === 'pen') {
-    if (inter.points.length >= 2) { const p = commitPen(inter.points); if (p) commitChange(inter.pre); }
-    clearTransient(); return;
-  }
   if (inter.type === 'laser') { laserEnd(); return; }
-  if (inter.type === 'eraser') { eraserEnd(); return; }
   if (inter.type === 'shapeDraw') {
     const el = inter.el, kind = inter.kind;
     let tooSmall = false;
     if (kind === 'rect') { if (+el.getAttribute('width') < 15 || +el.getAttribute('height') < 15) tooSmall = true; }
     else if (kind === 'circle') { if (+el.getAttribute('rx') < 10 || +el.getAttribute('ry') < 10) tooSmall = true; }
-    else {
-      const d = Math.hypot(+el.getAttribute('x2') - +el.getAttribute('x1'), +el.getAttribute('y2') - +el.getAttribute('y1'));
-      if (d < 20) tooSmall = true;
-    }
-    if (tooSmall) { el.remove(); }
-    else {
-      el.dataset.annot = '1'; el.dataset.id = uid(); el.dataset.type = kind;
-      commitChange(inter.pre);
-    }
+    else { if (Math.hypot(+el.getAttribute('x2') - +el.getAttribute('x1'), +el.getAttribute('y2') - +el.getAttribute('y1')) < 20) tooSmall = true; }
+    if (tooSmall) el.remove();
+    else { el.dataset.annot = '1'; el.dataset.id = uid(); el.dataset.type = kind; commitChange(inter.pre); }
     return;
   }
   if (inter.type === 'moveSvg' || inter.type === 'resizeSvg') commitChange(inter.pre);
 }
 
-/* ================================================================
-   SVG GEOMETRY
-   ================================================================ */
+/* ===== SVG GEOMETRY ===== */
 function captureSvgGeom(el) {
   const g = {};
-  ['x','y','width','height','cx','cy','rx','ry','x1','y1','x2','y2'].forEach(a => {
-    const v = el.getAttribute(a); if (v !== null) g[a] = parseFloat(v);
-  });
+  ['x','y','width','height','cx','cy','rx','ry','x1','y1','x2','y2'].forEach(a => { const v = el.getAttribute(a); if (v !== null) g[a] = parseFloat(v); });
   const t = el.getAttribute('transform');
   if (t) { const m = t.match(/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)/); if (m) { g.tx = parseFloat(m[1]); g.ty = parseFloat(m[2]); } }
   g._tag = el.tagName; return g;
@@ -1631,12 +1152,8 @@ function applySvgGeom(el, orig, dx, dy) {
   const t = orig._tag;
   if (t === 'rect') { el.setAttribute('x', orig.x + dx); el.setAttribute('y', orig.y + dy); }
   else if (t === 'ellipse') { el.setAttribute('cx', orig.cx + dx); el.setAttribute('cy', orig.cy + dy); }
-  else if (t === 'line') {
-    el.setAttribute('x1', orig.x1 + dx); el.setAttribute('y1', orig.y1 + dy);
-    el.setAttribute('x2', orig.x2 + dx); el.setAttribute('y2', orig.y2 + dy);
-  } else if (t === 'path') {
-    el.setAttribute('transform', `translate(${(orig.tx||0) + dx}, ${(orig.ty||0) + dy})`);
-  }
+  else if (t === 'line') { el.setAttribute('x1', orig.x1 + dx); el.setAttribute('y1', orig.y1 + dy); el.setAttribute('x2', orig.x2 + dx); el.setAttribute('y2', orig.y2 + dy); }
+  else if (t === 'path') { el.setAttribute('transform', `translate(${(orig.tx||0) + dx}, ${(orig.ty||0) + dy})`); }
 }
 function resizeSvg(el, handle, startPt, p) {
   const tag = el.tagName, g = captureSvgGeom(el);
@@ -1659,9 +1176,13 @@ function resizeSvg(el, handle, startPt, p) {
   }
 }
 
-/* ================================================================
-   NAV + KEYBOARD + FILES
-   ================================================================ */
+/* ===== GET STAGE POINT (once-per-event only; strokes use cached rect) ===== */
+function getStagePoint(e) {
+  const r = stage.getBoundingClientRect();
+  return { x: ((e.clientX - r.left) / r.width) * state.pdfW, y: ((e.clientY - r.top) / r.height) * state.pdfH };
+}
+
+/* ===== NAV + KEYBOARD + FILES ===== */
 bindPress(btnPrev, () => goToPage(state.currentPage - 1, 'prev'));
 bindPress(btnNext, () => goToPage(state.currentPage + 1, 'next'));
 
@@ -1676,22 +1197,16 @@ document.addEventListener('keydown', e => {
       if (sel.kind === 'svg') sel.el.remove();
       if (sel.kind === 'embed') sel.el.remove();
       if (sel.kind === 'video') {
-        try {
-          const v = sel.el.querySelector('video');
-          if (v) { v.pause(); v.src = ''; }
-          const url = sel.el.dataset.url;
-          if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
-        } catch (_) {}
+        try { const v = sel.el.querySelector('video'); if (v) { v.pause(); v.src = ''; } const url = sel.el.dataset.url; if (url && url.startsWith('blob:')) URL.revokeObjectURL(url); } catch (_) {}
         sel.el.remove();
       }
-      state.selected = null;
-      svgLayer.querySelectorAll('.selection-overlay').forEach(n => n.remove());
+      state.selected = null; svgLayer.querySelectorAll('.selection-overlay').forEach(n => n.remove());
       commitChange(pre); e.preventDefault();
     }
     return;
   }
   if (e.key === 'Escape') { deselect(); closeSubmenu(); return; }
-  const map = { h: 'hand', v: 'select', p: 'pen', e: 'eraser', a: 'laser', s: 'shape' };
+  const map = { h: 'hand', v: 'select', p: 'pen', m: 'highlighter', e: 'eraser', a: 'laser', s: 'shape' };
   const t = map[e.key.toLowerCase()]; if (t) setTool(t);
   if (e.key === 'ArrowRight') goToPage(state.currentPage + 1, 'next');
   if (e.key === 'ArrowLeft') goToPage(state.currentPage - 1, 'prev');
@@ -1714,14 +1229,11 @@ document.addEventListener('pointerdown', e => {
   if (submenu.classList.contains('show') && !submenu.contains(e.target) && !toolbar.contains(e.target)) closeSubmenu();
 }, true);
 
-/* ================================================================
-   INIT
-   ================================================================ */
+/* ===== INIT ===== */
 setTool('select');
 updateToolbarIndicators();
 updateUndoButtons();
 updatePageIndicator();
-
 </script>
 </body>
 </html>
