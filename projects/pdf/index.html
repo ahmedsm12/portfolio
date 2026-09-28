@@ -21,8 +21,9 @@
   #pdfCanvas { z-index: 1; pointer-events: none; }
   #svgLayer  { z-index: 2; pointer-events: none; }
   #embedLayer { z-index: 3; pointer-events: none; }
-  #transientCanvas { z-index: 4; pointer-events: none; }
-  #laserCanvas { z-index: 5; pointer-events: none; }
+  #videoLayer { z-index: 4; pointer-events: none; }
+  #transientCanvas { z-index: 5; pointer-events: none; }
+  #laserCanvas { z-index: 6; pointer-events: none; }
 
   #stage[data-tool="hand"]   { cursor: grab; }
   #stage[data-tool="hand"].dragging { cursor: grabbing; }
@@ -32,7 +33,6 @@
   #stage[data-tool="circle"],
   #stage[data-tool="line"] { cursor: crosshair; }
 
-  /* ★ مؤشر الممحاة المخصص (دائرة بيضاء بحدود سوداء) */
   #stage[data-tool="eraser"] {
     cursor: url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"%3E%3Ccircle cx="16" cy="16" r="12" fill="%23ffffff" fill-opacity="0.85" stroke="%23000000" stroke-width="2"/%3E%3Ccircle cx="16" cy="16" r="8" fill="none" stroke="%23666666" stroke-width="1" stroke-dasharray="2 2"/%3E%3C/svg%3E') 16 16, cell;
   }
@@ -46,6 +46,7 @@
   .handle.nw, .handle.se { cursor: nwse-resize; }
   .handle.ne, .handle.sw { cursor: nesw-resize; }
 
+  /* ===== EMBED (iframe) ===== */
   #embedLayer .embed { position: absolute; pointer-events: auto; display: flex; flex-direction: column; background: #fff; border: 1px solid #4a7eff; border-radius: 3px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.12); transition: box-shadow .15s; }
   #embedLayer .embed.selected { box-shadow: 0 0 0 2px rgba(74,126,255,.35), 0 2px 8px rgba(0,0,0,.2); }
   .embed-header { height: 22px; background: #4a7eff; color: #fff; padding: 0 5px; font-size: 10px; display: flex; justify-content: space-between; align-items: center; gap: 4px; cursor: move; user-select: none; flex-shrink: 0; opacity: 0; transition: opacity .15s; }
@@ -60,6 +61,119 @@
   .embed-resize { position: absolute; width: 14px; height: 14px; background: #4a7eff; border: 2px solid #fff; border-radius: 50%; bottom: -7px; right: -7px; cursor: nwse-resize; z-index: 10; display: none; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
   #stage[data-tool="select"] .embed.selected .embed-resize { display: block; }
 
+  /* ===== VIDEO OBJECT ===== */
+  #videoLayer .video-obj {
+    position: absolute; pointer-events: auto;
+    display: flex; flex-direction: column;
+    background: #000;
+    border: 1px solid #4a7eff;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,.35);
+    transition: box-shadow .15s;
+  }
+  #videoLayer .video-obj.selected {
+    box-shadow: 0 0 0 3px rgba(74,126,255,.4), 0 6px 20px rgba(0,0,0,.4);
+  }
+  .video-obj .video-header {
+    height: 24px;
+    background: linear-gradient(180deg, #4a7eff, #3b6ee0);
+    color: #fff;
+    padding: 0 6px;
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+    cursor: move;
+    user-select: none;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  #stage[data-tool="select"] .video-obj:hover .video-header,
+  #stage[data-tool="select"] .video-obj.selected .video-header { opacity: 1; }
+  #stage:not([data-tool="select"]) .video-header { pointer-events: none; }
+  .video-obj .video-title {
+    flex: 1; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; direction: ltr; text-align: left;
+    font-weight: 500;
+  }
+  .video-obj .video-close {
+    background: rgba(0,0,0,.25); border: none; color: #fff;
+    width: 18px; height: 18px; border-radius: 3px; cursor: pointer;
+    font-size: 13px; line-height: 1; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .video-obj .video-close:hover { background: rgba(0,0,0,.5); }
+  .video-obj video {
+    flex: 1; width: 100%; min-height: 0;
+    background: #000; display: block;
+    object-fit: contain;
+  }
+  #stage:not([data-tool="select"]) .video-obj video { pointer-events: none; }
+
+  /* ★ زر التشغيل في المنتصف */
+  .video-obj .video-play-btn {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 68px; height: 68px;
+    border-radius: 50%;
+    background: rgba(0,0,0,.55);
+    border: 2.5px solid rgba(255,255,255,.9);
+    color: #fff;
+    font-size: 26px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 0 0 5px;
+    transition: opacity .2s, transform .15s, background .15s;
+    z-index: 5;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 6px 22px rgba(0,0,0,.4);
+    font-family: Arial, sans-serif;
+    line-height: 1;
+  }
+  .video-obj .video-play-btn:hover {
+    background: rgba(0,0,0,.75);
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+  .video-obj .video-play-btn:active {
+    transform: translate(-50%, -50%) scale(.94);
+  }
+  .video-obj .video-play-btn.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .video-obj .video-resize {
+    position: absolute;
+    width: 14px; height: 14px;
+    background: #4a7eff;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    bottom: -7px; right: -7px;
+    cursor: nwse-resize;
+    z-index: 10;
+    display: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,.3);
+  }
+  #stage[data-tool="select"] .video-obj.selected .video-resize { display: block; }
+
+  .video-obj.video-error::after {
+    content: '⚠ تعذّر تحميل الفيديو — أعد رفع الملف';
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    background: rgba(0,0,0,.85);
+    font-size: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+
+  /* ===== TOOLBAR ===== */
   #toolbar { position: fixed; right: 10px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 3px; padding: 5px 4px; background: rgba(28,32,40,.94); backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.5); z-index: 1000; touch-action: manipulation; }
   #toolbar button { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #d4d9e2; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; transition: background .14s, transform .1s, color .14s; position: relative; touch-action: manipulation; }
   #toolbar button:hover { background: rgba(255,255,255,.09); }
@@ -70,6 +184,10 @@
   #toolbar button[data-tool="pen"]::after,
   #toolbar button[data-tool="laser"]::after { content: ''; position: absolute; bottom: 4px; right: 5px; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid #1c2028; background: var(--indicator, transparent); }
 
+  /* SVG icon in toolbar */
+  #toolbar button svg { width: 20px; height: 20px; fill: currentColor; display: block; }
+
+  /* ===== SUBMENU ===== */
   #submenu { position: fixed; right: 58px; display: none; flex-direction: column; min-width: 60px; padding: 7px 5px; background: rgba(28,32,40,.96); backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.5); z-index: 1001; animation: subIn .15s ease-out; touch-action: manipulation; }
   @keyframes subIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
   #submenu.show { display: flex; }
@@ -90,17 +208,19 @@
   .shape-btn { width: 30px; height: 30px; background: rgba(255,255,255,.04); border: 1px solid transparent; border-radius: 6px; color: #d4d9e2; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; transition: all .12s; touch-action: manipulation; }
   .shape-btn:active { background: rgba(255,255,255,.14); }
   .shape-btn.active { border-color: #4a7eff; background: rgba(74,126,255,.15); }
-  .color-input-row { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 3px 0; }
+  .color-input-row { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 6px; }
   .color-input-row input[type="color"] { width: 32px; height: 26px; border: 1px solid rgba(255,255,255,.15); border-radius: 6px; padding: 1px; background: transparent; cursor: pointer; }
-  .color-input-row label { font-size: 10px; color: #8a94a6; cursor: pointer; display: flex; align-items: center; gap: 3px; }
-  .color-input-row input[type="checkbox"] { accent-color: #4a7eff; cursor: pointer; width: 13px; height: 13px; }
+  .color-input-row label { font-size: 10px; color: #b8c0cc; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .color-input-row input[type="checkbox"] { accent-color: #4a7eff; cursor: pointer; width: 14px; height: 14px; }
 
+  /* ===== NAV BTNS ===== */
   .nav-btn { position: fixed; bottom: 20px; width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; background: rgba(28,32,40,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.1); border-radius: 50%; color: #d4d9e2; font-size: 22px; cursor: pointer; z-index: 1000; box-shadow: 0 8px 24px rgba(0,0,0,.5); transition: background .15s, transform .1s, opacity .15s; touch-action: manipulation; user-select: none; }
   .nav-btn:active:not(:disabled) { transform: scale(.9); background: rgba(74,126,255,.4); }
   .nav-btn:disabled { opacity: .25; cursor: not-allowed; }
   #btnPrev { left: 20px; }
   #btnNext { right: 20px; }
 
+  /* ===== DIALOG ===== */
   .dialog-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(10,12,16,.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; animation: fadeIn .16s ease; }
   @keyframes fadeIn { from{opacity:0} to{opacity:1} }
   .dialog { background: #1c2028; border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: 20px; width: 90%; max-width: 420px; box-shadow: 0 30px 80px rgba(0,0,0,.6); animation: dlgIn .2s cubic-bezier(.2,.9,.3,1.3); }
@@ -134,10 +254,12 @@
   @media (max-width: 600px) {
     #toolbar { right: 6px; padding: 4px 3px; gap: 2px; }
     #toolbar button { width: 36px; height: 36px; font-size: 16px; }
+    #toolbar button svg { width: 18px; height: 18px; }
     #submenu { right: 50px; }
     .nav-btn { width: 48px; height: 48px; font-size: 20px; bottom: 16px; }
     #btnPrev { left: 12px; }
     #btnNext { right: 12px; }
+    .video-obj .video-play-btn { width: 56px; height: 56px; font-size: 22px; }
   }
 </style>
 </head>
@@ -149,6 +271,7 @@
       <canvas id="pdfCanvas"></canvas>
       <svg id="svgLayer" xmlns="http://www.w3.org/2000/svg"></svg>
       <div id="embedLayer"></div>
+      <div id="videoLayer"></div>
       <canvas id="transientCanvas"></canvas>
       <canvas id="laserCanvas"></canvas>
     </div>
@@ -174,8 +297,14 @@
   <button data-tool="eraser" data-submenu="eraser" title="ممحاة">🧽</button>
   <button data-tool="laser" data-submenu="laser" title="ليزر" style="--indicator:#ff0000">🔴</button>
   <button data-tool="shape" data-submenu="shape" title="أشكال">▭</button>
-  <button data-tool="embed" title="تضمين HTML">🔗</button>
-  <button data-tool="select" title="تحديد">🖱️</button>
+  <button data-tool="embed" title="تضمين صفحة ويب">🔗</button>
+  <button data-tool="video" title="إضافة فيديو من الجهاز">🎬</button>
+  <button data-tool="select" title="تحديد / تحريك (V)">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5.5 3.2 L18.8 12.2 L12.4 13.1 L15.6 20.2 L13.3 21.2 L10.2 14.2 L5.5 18.4 Z"
+            stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="currentColor"/>
+    </svg>
+  </button>
   <div class="tb-divider"></div>
   <button id="btnUndo" title="تراجع">↶</button>
   <button id="btnRedo" title="إعادة">↷</button>
@@ -208,8 +337,8 @@ try {
 /* ================================================================
    CONSTANTS
    ================================================================ */
-const LASER_LIFE_MS = 5000;    // ★ 5 ثوان بعد آخر نشاط
-const LASER_FADE_MS = 1500;    // مدة التلاشي
+const LASER_LIFE_MS = 5000;
+const LASER_FADE_MS = 1500;
 const UNDO_LIMIT = 50;
 const COORD_WIDTH = 2000;
 
@@ -219,6 +348,7 @@ const COORD_WIDTH = 2000;
 const $ = id => document.getElementById(id);
 const stage = $('stage'), stageWrapper = $('stageWrapper'), stageContent = $('stageContent');
 const pdfCanvas = $('pdfCanvas'), svgLayer = $('svgLayer'), embedLayer = $('embedLayer');
+const videoLayer = $('videoLayer');
 const transientCanvas = $('transientCanvas'), laserCanvas = $('laserCanvas');
 const emptyState = $('emptyState'), loadingEl = $('loading'), loadingText = $('loadingText');
 const pageIndicator = $('pageIndicator'), toolbar = $('toolbar'), submenu = $('submenu');
@@ -236,7 +366,9 @@ const state = {
   pdfDoc: null, currentPage: 1, totalPages: 0,
   pdfW: 0, pdfH: 0, canvasScale: 1,
   tool: 'select',
-  penColor: '#000000', penSize: 3, eraserSize: 60,
+  penColor: '#000000', penSize: 3,
+  eraserSize: 60,
+  eraserErasesShapes: true,     // ★ خيار الممحاة: مسح الأشكال أيضاً
   laserColor: '#ff0000', laserSize: 4,
   shapeKind: 'rect', shapeStroke: '#000000', shapeFill: '#ffffff',
   shapeFillNone: true, shapeSize: 3,
@@ -278,6 +410,19 @@ function computeStageSize(naturalW, naturalH) {
   }
   return { cssW, cssH, canvasW, canvasH };
 }
+function getVideoDimensions(url) {
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.src = url;
+    const done = (res) => { v.src = ''; resolve(res); };
+    v.onloadedmetadata = () => {
+      done({ w: v.videoWidth || 1280, h: v.videoHeight || 720 });
+    };
+    v.onerror = () => done({ w: 1280, h: 720 });
+    setTimeout(() => done({ w: 1280, h: 720 }), 3000);
+  });
+}
 
 /* ================================================================
    SERIALIZATION
@@ -303,6 +448,16 @@ function deserializeSvgElement(spec) {
 function serializeEmbed(el) {
   return { kind: 'embed', url: el.dataset.url, x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height };
 }
+function serializeVideo(el) {
+  return {
+    kind: 'video',
+    videoId: el.dataset.videoId,
+    url: el.dataset.url,
+    title: el.dataset.title || '',
+    x: el.style.left, y: el.style.top,
+    w: el.style.width, h: el.style.height,
+  };
+}
 function snapshot() {
   const annotations = [];
   svgLayer.querySelectorAll('[data-annot]').forEach(el => {
@@ -312,16 +467,20 @@ function snapshot() {
   });
   const embeds = [];
   embedLayer.querySelectorAll('.embed').forEach(el => embeds.push(serializeEmbed(el)));
-  return { annotations, embeds };
+  const videos = [];
+  videoLayer.querySelectorAll('.video-obj').forEach(el => videos.push(serializeVideo(el)));
+  return { annotations, embeds, videos };
 }
 function applySnapshot(s) {
   deselect();
   while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
   embedLayer.innerHTML = '';
+  videoLayer.innerHTML = '';
   (s.annotations || []).forEach(spec => {
     try { svgLayer.appendChild(deserializeSvgElement(spec)); } catch (e) { console.warn(e); }
   });
   (s.embeds || []).forEach(spec => addEmbedElement(spec.url, spec.x, spec.y, spec.w, spec.h, false));
+  (s.videos || []).forEach(spec => addVideoElement(spec.videoId, spec.url, spec.title, spec.x, spec.y, spec.w, spec.h, false));
 }
 
 /* ================================================================
@@ -332,7 +491,7 @@ function savePageNow() { if (state.currentPage) state.pages[state.currentPage] =
 function commitChange(pre) {
   if (!state.currentPage) return;
   const h = getHistory();
-  h.past.push(pre || { annotations: [], embeds: [] });
+  h.past.push(pre || { annotations: [], embeds: [], videos: [] });
   if (h.past.length > UNDO_LIMIT) h.past.shift();
   h.future.length = 0; savePageNow(); updateUndoButtons();
 }
@@ -360,12 +519,11 @@ function redo() {
 
 /* ================================================================
    LASER STATE
-   ★ مؤقت عام واحد لكل الخطوط + ليزر أبيض مع glow ملوّن
    ================================================================ */
-const laserStrokes = [];      // [{ points, color, width }]
+const laserStrokes = [];
 let currentLaserStroke = null;
 let laserRAF = null;
-let laserLastActivity = 0;    // ★ الوقت الأخير لأي نشاط ليزر
+let laserLastActivity = 0;
 
 function clearLaser() {
   laserStrokes.length = 0;
@@ -379,38 +537,26 @@ function loadPageState(pageNum) {
   deselect(); clearLaser(); clearTransient();
   while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
   embedLayer.innerHTML = '';
+  videoLayer.innerHTML = '';
   const s = state.pages[pageNum]; if (s) applySnapshot(s);
 }
 
 function startLaserRAF() { if (laserRAF) return; laserRAF = requestAnimationFrame(laserTick); }
 
-/* ★ الليزر: خط أبيض مع glow ملوّن + مؤقت عام */
 function laserTick() {
   const now = performance.now();
   const k = state.canvasScale;
 
-  if (laserStrokes.length === 0) {
-    laserRAF = null;
-    return;
-  }
+  if (laserStrokes.length === 0) { laserRAF = null; return; }
 
-  /* ★ العمر محسوب من النشاط الأخير (أي لمسة) — يعيد الجميع للبداية */
   const age = now - laserLastActivity;
   let alpha = 1;
-  if (age > LASER_LIFE_MS) {
-    alpha = Math.max(0, 1 - (age - LASER_LIFE_MS) / LASER_FADE_MS);
-  }
+  if (age > LASER_LIFE_MS) alpha = Math.max(0, 1 - (age - LASER_LIFE_MS) / LASER_FADE_MS);
 
   laserCtx.setTransform(1, 0, 0, 1, 0, 0);
   laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height);
 
-  if (alpha <= 0) {
-    /* انتهى التلاشي — نظّف الكل */
-    laserStrokes.length = 0;
-    currentLaserStroke = null;
-    laserRAF = null;
-    return;
-  }
+  if (alpha <= 0) { laserStrokes.length = 0; currentLaserStroke = null; laserRAF = null; return; }
 
   laserCtx.globalAlpha = alpha;
   laserCtx.lineCap = 'round';
@@ -419,54 +565,33 @@ function laserTick() {
   for (let i = 0; i < laserStrokes.length; i++) {
     const s = laserStrokes[i];
     if (!s.points || s.points.length < 1) continue;
-
-    /* glow خارجي بلون الليزر المختار */
     laserCtx.shadowColor = s.color;
     laserCtx.shadowBlur = s.width * k * 2.5;
-    /* الخط نفسه أبيض */
     laserCtx.strokeStyle = '#ffffff';
     laserCtx.lineWidth = s.width * k;
-
     laserCtx.beginPath();
     laserCtx.moveTo(s.points[0].x * k, s.points[0].y * k);
-    if (s.points.length === 1) {
-      /* نقطة واحدة: نرسم دائرة صغيرة */
-      laserCtx.lineTo(s.points[0].x * k + 0.01, s.points[0].y * k);
-    } else {
-      for (let j = 1; j < s.points.length; j++) {
-        laserCtx.lineTo(s.points[j].x * k, s.points[j].y * k);
-      }
-    }
+    if (s.points.length === 1) laserCtx.lineTo(s.points[0].x * k + 0.01, s.points[0].y * k);
+    else for (let j = 1; j < s.points.length; j++) laserCtx.lineTo(s.points[j].x * k, s.points[j].y * k);
     laserCtx.stroke();
 
-    /* رسم ثانٍ بدون ظل لتقوية بياض الخط */
     laserCtx.shadowBlur = 0;
     laserCtx.shadowColor = 'transparent';
     laserCtx.strokeStyle = '#ffffff';
     laserCtx.lineWidth = Math.max(1, s.width * k * 0.5);
     laserCtx.beginPath();
     laserCtx.moveTo(s.points[0].x * k, s.points[0].y * k);
-    for (let j = 1; j < s.points.length; j++) {
-      laserCtx.lineTo(s.points[j].x * k, s.points[j].y * k);
-    }
+    for (let j = 1; j < s.points.length; j++) laserCtx.lineTo(s.points[j].x * k, s.points[j].y * k);
     laserCtx.stroke();
   }
-
-  laserCtx.shadowBlur = 0;
-  laserCtx.shadowColor = 'transparent';
+  laserCtx.shadowBlur = 0; laserCtx.shadowColor = 'transparent';
   laserCtx.globalAlpha = 1;
-
   laserRAF = requestAnimationFrame(laserTick);
 }
 
 function laserStart(p) {
-  /* ★ أي بداية جديدة تعيد المؤقت للصفر لكل الخطوط */
   laserLastActivity = performance.now();
-  currentLaserStroke = {
-    points: [p],
-    color: state.laserColor,
-    width: state.laserSize,
-  };
+  currentLaserStroke = { points: [p], color: state.laserColor, width: state.laserSize };
   laserStrokes.push(currentLaserStroke);
   startLaserRAF();
 }
@@ -475,17 +600,12 @@ function laserAdd(p) {
   const last = currentLaserStroke.points[currentLaserStroke.points.length - 1];
   if (Math.hypot(p.x - last.x, p.y - last.y) < 1.5) return;
   currentLaserStroke.points.push(p);
-  /* ★ كل نقطة جديدة تُعيد المؤقت لكل الخطوط */
   laserLastActivity = performance.now();
 }
-function laserEnd() {
-  currentLaserStroke = null;
-  /* ★ حتى رفع الإصبع يُعتبر نشاطاً */
-  laserLastActivity = performance.now();
-}
+function laserEnd() { currentLaserStroke = null; laserLastActivity = performance.now(); }
 
 /* ================================================================
-   ★ ERASER — يرسم خطاً أبيض ويمسح ما يلامسه
+   ERASER
    ================================================================ */
 let eraserPoints = null;
 let eraserPreSnapshot = null;
@@ -498,7 +618,6 @@ function eraserBegin(p) {
   eraserDraw();
   eraserEraseAt(p);
 }
-
 function eraserMoveTo(p) {
   if (!eraserActive) return;
   const last = eraserPoints[eraserPoints.length - 1];
@@ -506,36 +625,26 @@ function eraserMoveTo(p) {
   eraserDraw();
   eraserEraseSegment(last, p);
 }
-
 function eraserEnd() {
   if (!eraserActive) return;
   eraserActive = false;
   eraserPoints = null;
   clearTransient();
-  if (eraserPreSnapshot) {
-    commitChange(eraserPreSnapshot);
-    eraserPreSnapshot = null;
-  }
+  if (eraserPreSnapshot) { commitChange(eraserPreSnapshot); eraserPreSnapshot = null; }
 }
-
-/* ★ ارسم خط الممحاة الأبيض مع ظل خفيف ليظهر حتى على خلفية بيضاء */
 function eraserDraw() {
   const k = state.canvasScale;
   const size = state.eraserSize;
   transCtx.setTransform(1, 0, 0, 1, 0, 0);
   transCtx.clearRect(0, 0, transientCanvas.width, transientCanvas.height);
   if (!eraserPoints || eraserPoints.length < 1) return;
-
   transCtx.lineCap = 'round';
   transCtx.lineJoin = 'round';
-
-  /* مرور أول: ظل رمادي خفيف */
   transCtx.shadowColor = 'rgba(0,0,0,0.28)';
   transCtx.shadowBlur = 5 * k;
   transCtx.strokeStyle = '#ffffff';
   transCtx.fillStyle = '#ffffff';
   transCtx.lineWidth = size * k;
-
   if (eraserPoints.length === 1) {
     const p0 = eraserPoints[0];
     transCtx.beginPath();
@@ -544,22 +653,26 @@ function eraserDraw() {
   } else {
     transCtx.beginPath();
     transCtx.moveTo(eraserPoints[0].x * k, eraserPoints[0].y * k);
-    for (let i = 1; i < eraserPoints.length; i++) {
-      transCtx.lineTo(eraserPoints[i].x * k, eraserPoints[i].y * k);
-    }
+    for (let i = 1; i < eraserPoints.length; i++) transCtx.lineTo(eraserPoints[i].x * k, eraserPoints[i].y * k);
     transCtx.stroke();
   }
-
   transCtx.shadowBlur = 0;
   transCtx.shadowColor = 'transparent';
 }
-
-/* ★ امسح أي شكل SVG يلامس النقطة */
+function isErasable(el) {
+  /* ★ الخيار: هل تمسح الممحاة الأشكال (rect/ellipse) أم الخطوط فقط؟ */
+  if (!state.eraserErasesShapes) {
+    const tag = el.tagName;
+    if (tag === 'rect' || tag === 'ellipse') return false;
+  }
+  return true;
+}
 function eraserEraseAt(p) {
   const tol = Math.max(state.eraserSize / 2, 6);
   const toRemove = [];
   svgLayer.querySelectorAll('[data-annot]').forEach(el => {
     if (el.tagName.toLowerCase() === 'g') return;
+    if (!isErasable(el)) return;
     if (isPointNearShape(p, el, tol)) toRemove.push(el);
   });
   toRemove.forEach(el => {
@@ -568,8 +681,6 @@ function eraserEraseAt(p) {
   });
   return toRemove.length;
 }
-
-/* ★ امسح على طول المقطع (نُعيّن نقاط وسيطة) */
 function eraserEraseSegment(a, b) {
   const dist = Math.hypot(b.x - a.x, b.y - a.y);
   const step = Math.max(state.eraserSize / 3, 4);
@@ -589,34 +700,23 @@ async function renderPage(pageNum) {
   try {
     const page = await state.pdfDoc.getPage(pageNum);
     const vp1 = page.getViewport({ scale: 1 });
-
     state.pdfW = COORD_WIDTH;
     state.pdfH = Math.round(vp1.height * (COORD_WIDTH / vp1.width));
-
     const { cssW, cssH, canvasW, canvasH } = computeStageSize(vp1.width, vp1.height);
     state.canvasScale = canvasW / state.pdfW;
-
     stage.style.width = cssW + 'px';
     stage.style.height = cssH + 'px';
-
-    [pdfCanvas, transientCanvas, laserCanvas].forEach(c => {
-      c.width = canvasW; c.height = canvasH;
-    });
+    [pdfCanvas, transientCanvas, laserCanvas].forEach(c => { c.width = canvasW; c.height = canvasH; });
     svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
-
     const ctx = pdfCanvas.getContext('2d', { alpha: false });
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvasW, canvasH);
-
     const renderScale = canvasW / vp1.width;
     const viewport = page.getViewport({ scale: renderScale });
-
     await page.render({ canvasContext: ctx, viewport, background: '#ffffff' }).promise;
-
     stageContent.style.transition = 'none';
     stageContent.style.transform = '';
-
     loadPageState(pageNum);
     updatePageIndicator(); updateUndoButtons();
     emptyState.style.display = 'none';
@@ -645,7 +745,6 @@ async function loadPdfFile(file) {
       fontExtraProperties: true,
       verbosity: 0,
     }).promise;
-
     state.pdfDoc = doc;
     state.totalPages = doc.numPages;
     state.currentPage = 1;
@@ -684,6 +783,7 @@ async function loadImageFile(file) {
     deselect(); clearLaser(); clearTransient();
     while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
     embedLayer.innerHTML = '';
+    videoLayer.innerHTML = '';
     stageContent.style.transform = '';
     updatePageIndicator(); updateUndoButtons();
     emptyState.style.display = 'none';
@@ -771,6 +871,7 @@ toolbar.querySelectorAll('button').forEach(btn => {
     if (btn.id === 'btnOpen') { fileInput.click(); return; }
     const tool = btn.dataset.tool; if (!tool) return;
     if (tool === 'embed') { openEmbedDialog(); return; }
+    if (tool === 'video') { openVideoPicker(); return; }
     const wasActive = btn.classList.contains('active');
     const hasSub = btn.dataset.submenu;
     if (wasActive && hasSub && submenu.classList.contains('show')) { closeSubmenu(); return; }
@@ -811,7 +912,7 @@ function openSubmenu(ownerBtn, kind) {
 }
 function renderSubmenuHTML(kind) {
   if (kind === 'pen') return renderColorSize(state.penColor, state.penSize, 'pen');
-  if (kind === 'eraser') return renderEraserSizes(state.eraserSize);
+  if (kind === 'eraser') return renderEraserSubmenu();
   if (kind === 'laser') return renderLaserSubmenu();
   if (kind === 'shape') return renderShapeSubmenu();
   return '';
@@ -828,7 +929,6 @@ function renderColorSize(color, size, kind) {
     </div></div>`;
 }
 function renderLaserSubmenu() {
-  /* ★ ألوان الليزر هي ألوان الـ glow */
   const colors = ['#ff0000', '#2563eb', '#22c55e', '#eab308'];
   const sizes = [3, 6, 12];
   return `
@@ -839,13 +939,21 @@ function renderLaserSubmenu() {
       ${sizes.map(s => `<button type="button" class="size-btn ${s === state.laserSize ? 'active' : ''}" data-kind="laser" data-size="${s}"><div class="dot" style="width:${Math.max(3, s)}px;height:${Math.max(3, s)}px"></div></button>`).join('')}
     </div></div>`;
 }
-function renderEraserSizes(size) {
-  /* ★ أحجام أكبر تناسب اللمس */
+/* ★ الممحاة: أحجام + خيار مسح الأشكال */
+function renderEraserSubmenu() {
   const sizes = [40, 80, 140];
   return `
     <div class="sub-section"><div class="sub-label">الحجم</div><div class="size-grid">
-      ${sizes.map(s => `<button type="button" class="size-btn ${s === size ? 'active' : ''}" data-kind="eraser" data-size="${s}"><div class="dot" style="width:${Math.min(20, s / 4)}px;height:${Math.min(20, s / 4)}px"></div></button>`).join('')}
-    </div></div>`;
+      ${sizes.map(s => `<button type="button" class="size-btn ${s === state.eraserSize ? 'active' : ''}" data-kind="eraser" data-size="${s}"><div class="dot" style="width:${Math.min(20, s / 4)}px;height:${Math.min(20, s / 4)}px"></div></button>`).join('')}
+    </div></div>
+    <div class="sub-section">
+      <div class="color-input-row">
+        <label><input type="checkbox" id="subEraseShapes" ${state.eraserErasesShapes ? 'checked' : ''}> امسح الأشكال</label>
+      </div>
+      <div style="font-size:9px;color:#666;text-align:center;padding:2px 6px 4px;line-height:1.4">
+        عند الإلغاء تُمسح الخطوط فقط
+      </div>
+    </div>`;
 }
 function renderShapeSubmenu() {
   const kinds = [{ k: 'rect', label: '▭' }, { k: 'circle', label: '◯' }, { k: 'line', label: '╱' }];
@@ -900,6 +1008,10 @@ submenu.addEventListener('input', e => {
     state.shapeFillNone = e.target.checked;
     const fi = submenu.querySelector('#subShapeFill'); if (fi) fi.disabled = state.shapeFillNone;
   }
+  /* ★ خيار الممحاة */
+  if (e.target.id === 'subEraseShapes') {
+    state.eraserErasesShapes = e.target.checked;
+  }
 });
 function updateToolbarIndicators() {
   const p = toolbar.querySelector('button[data-tool="pen"]');
@@ -909,7 +1021,7 @@ function updateToolbarIndicators() {
 }
 
 /* ================================================================
-   EMBED
+   EMBED (iframe)
    ================================================================ */
 function openEmbedDialog() {
   const backdrop = document.createElement('div');
@@ -941,7 +1053,7 @@ function openEmbedDialog() {
     if (e.key === 'Escape') close();
   });
 }
-function addEmbedElement(url, x, y, w, hh) {
+function addEmbedElement(url, x, y, w, hh, save) {
   const el = document.createElement('div');
   el.className = 'embed'; el.dataset.url = url;
   el.style.left = x || '30%'; el.style.top = y || '25%';
@@ -1012,19 +1124,236 @@ function startEmbedDrag(el, e, mode) {
 }
 
 /* ================================================================
+   VIDEO — من الجهاز مباشرة عبر Blob URL
+   ================================================================ */
+function openVideoPicker() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'video/*';
+  input.multiple = true;
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  input.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) { input.remove(); return; }
+    setLoading(true, 'جارٍ تجهيز الفيديوهات…');
+    const pre = snapshot();
+    let placed = 0;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!/^video\//i.test(file.type)) continue;
+        try {
+          const blobUrl = URL.createObjectURL(file);
+          const dims = await getVideoDimensions(blobUrl);
+          const videoId = uid();
+          /* ضع الفيديو في منتصف الصفحة بحجم معقول */
+          const targetW = state.pdfW * 0.55;
+          const ratio = dims.h / dims.w;
+          let wPct = (targetW / state.pdfW) * 100;
+          let hPct = (targetW * ratio / state.pdfH) * 100;
+          /* اجعل الارتفاع معقولاً */
+          if (hPct > 60) { hPct = 60; wPct = (hPct / 100 * state.pdfH) / (ratio * state.pdfW) * 100; }
+          const xPct = 22 + (i % 3) * 4;
+          const yPct = 18 + (i % 3) * 4;
+          addVideoElement(videoId, blobUrl, file.name || 'فيديو',
+                          xPct + '%', yPct + '%', wPct + '%', hPct + '%', false);
+          placed++;
+        } catch (err) {
+          console.warn('تعذّر تحميل الفيديو:', file.name, err);
+        }
+      }
+      if (placed > 0) {
+        commitChange(pre);
+        toast(`تمت إضافة ${placed} فيديو ✅`);
+        setTool('select');
+      } else {
+        toast('لم يتم اختيار أي فيديو صالح', 'warn');
+      }
+    } finally {
+      setLoading(false);
+      input.remove();
+    }
+  });
+  input.click();
+}
+
+function addVideoElement(videoId, url, title, x, y, w, h, save) {
+  const el = document.createElement('div');
+  el.className = 'video-obj';
+  el.dataset.videoId = videoId;
+  el.dataset.url = url;
+  el.dataset.title = title || '';
+
+  el.style.left = x || '25%';
+  el.style.top = y || '20%';
+  el.style.width = w || '50%';
+  el.style.height = h || '40%';
+
+  /* Header */
+  const header = document.createElement('div');
+  header.className = 'video-header';
+  const titleEl = document.createElement('span');
+  titleEl.className = 'video-title';
+  titleEl.textContent = title || 'فيديو';
+  titleEl.title = title || '';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'video-close';
+  closeBtn.textContent = '×';
+  closeBtn.title = 'حذف';
+  closeBtn.addEventListener('pointerdown', e => e.stopPropagation());
+  bindPress(closeBtn, e => {
+    e.stopPropagation();
+    const pre = snapshot();
+    if (state.selected && state.selected.el === el) state.selected = null;
+    /* إبطال الـ blob URL لتحرير الذاكرة */
+    try {
+      const v = el.querySelector('video');
+      if (v) { v.pause(); v.src = ''; }
+      if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
+    } catch (_) {}
+    el.remove();
+    commitChange(pre);
+  });
+  header.appendChild(titleEl);
+  header.appendChild(closeBtn);
+
+  /* Video */
+  const video = document.createElement('video');
+  video.src = url;
+  video.controls = false;
+  video.preload = 'metadata';
+  video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
+
+  /* Play button overlay */
+  const playBtn = document.createElement('button');
+  playBtn.type = 'button';
+  playBtn.className = 'video-play-btn';
+  playBtn.innerHTML = '▶';
+  playBtn.title = 'تشغيل';
+  bindPress(playBtn, e => {
+    e.stopPropagation();
+    if (video.paused) {
+      video.play().catch(err => {
+        console.warn('فشل التشغيل:', err);
+        toast('تعذّر تشغيل الفيديو');
+      });
+    } else {
+      video.pause();
+    }
+  });
+
+  video.addEventListener('play', () => playBtn.classList.add('hidden'));
+  video.addEventListener('pause', () => playBtn.classList.remove('hidden'));
+  video.addEventListener('ended', () => playBtn.classList.remove('hidden'));
+
+  /* Click on video itself = toggle (in select mode only) */
+  video.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (state.tool !== 'select') return;
+    if (video.paused) video.play().catch(()=>{});
+    else video.pause();
+  });
+
+  /* Handle missing/failed video */
+  video.addEventListener('error', () => {
+    el.classList.add('video-error');
+  });
+
+  /* Resize handle */
+  const resize = document.createElement('div');
+  resize.className = 'video-resize';
+
+  el.appendChild(header);
+  el.appendChild(video);
+  el.appendChild(playBtn);
+  el.appendChild(resize);
+  videoLayer.appendChild(el);
+
+  /* Drag header */
+  header.addEventListener('pointerdown', e => {
+    if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault(); e.stopPropagation();
+    try { header.setPointerCapture(e.pointerId); } catch (_) {}
+    selectVideo(el);
+    startVideoDrag(el, e, 'move');
+  });
+
+  /* Resize */
+  resize.addEventListener('pointerdown', e => {
+    if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault(); e.stopPropagation();
+    try { resize.setPointerCapture(e.pointerId); } catch (_) {}
+    selectVideo(el);
+    startVideoDrag(el, e, 'resize');
+  });
+
+  /* Tap on the video-obj (outside video) = select in select mode */
+  el.addEventListener('pointerdown', e => {
+    if (state.tool !== 'select') return;
+    /* Only select if target is the container itself */
+    if (e.target === el) {
+      selectVideo(el);
+    }
+  });
+
+  if (save !== false) savePageNow();
+  return el;
+}
+
+function startVideoDrag(el, e, mode) {
+  const sr = stage.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  const sX = e.clientX, sY = e.clientY;
+  const sL = er.left - sr.left, sT = er.top - sr.top;
+  const sW = er.width, sH = er.height;
+  const pre = snapshot();
+
+  function onMove(ev) {
+    const dx = ev.clientX - sX, dy = ev.clientY - sY;
+    if (mode === 'move') {
+      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx));
+      const nt = Math.max(0, Math.min(sr.height - sH, sT + dy));
+      el.style.left = (nl / sr.width * 100) + '%';
+      el.style.top = (nt / sr.height * 100) + '%';
+    } else {
+      const nw = Math.max(120, Math.min(sr.width - sL, sW + dx));
+      const nh = Math.max(80, Math.min(sr.height - sT, sH + dy));
+      el.style.width = (nw / sr.width * 100) + '%';
+      el.style.height = (nh / sr.height * 100) + '%';
+    }
+  }
+  function onUp() {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    commitChange(pre);
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onUp);
+}
+
+/* ================================================================
    SELECTION
    ================================================================ */
 function deselect() {
   if (state.selected) {
     if (state.selected.kind === 'svg') state.selected.el.classList.remove('selected');
     if (state.selected.kind === 'embed') state.selected.el.classList.remove('selected');
+    if (state.selected.kind === 'video') state.selected.el.classList.remove('selected');
   }
   state.selected = null;
   svgLayer.querySelectorAll('.selection-overlay').forEach(n => n.remove());
   embedLayer.querySelectorAll('.embed').forEach(e => e.classList.remove('selected'));
+  videoLayer.querySelectorAll('.video-obj').forEach(e => e.classList.remove('selected'));
 }
 function selectAnnotation(el) { deselect(); state.selected = { kind: 'svg', el }; el.classList.add('selected'); drawSelectionOverlay(el); }
 function selectEmbed(el) { deselect(); state.selected = { kind: 'embed', el }; el.classList.add('selected'); }
+function selectVideo(el) { deselect(); state.selected = { kind: 'video', el }; el.classList.add('selected'); }
 function getShapeBBox(el) {
   try {
     if (el.tagName === 'line') {
@@ -1055,7 +1384,7 @@ function drawSelectionOverlay(el) {
 }
 
 /* ================================================================
-   GEOMETRY HELPERS (للممحاة)
+   GEOMETRY HELPERS
    ================================================================ */
 function distToSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1, dy = y2 - y1, len2 = dx*dx + dy*dy;
@@ -1122,8 +1451,6 @@ function commitPen(points) {
   path.setAttribute('fill', 'none'); path.dataset.type = 'path';
   addAnnotation(path); return path;
 }
-
-/* ★ دالة موحّدة لإنشاء عنصر شكل (يُستخدم أثناء الرسم) */
 function createShapeElement(kind) {
   const el = document.createElementNS(SVG_NS, kind === 'circle' ? 'ellipse' : kind);
   el.setAttribute('stroke', state.shapeStroke);
@@ -1157,7 +1484,7 @@ let interaction = null, handDrag = null;
 stage.addEventListener('pointerdown', e => {
   if (!state.pdfW) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
-  if (e.target.closest && e.target.closest('.embed')) return;
+  if (e.target.closest && (e.target.closest('.embed') || e.target.closest('.video-obj'))) return;
   try { stage.setPointerCapture(e.pointerId); } catch (_) {}
   const p = getStagePoint(e), tool = state.tool;
   closeSubmenu();
@@ -1183,14 +1510,8 @@ stage.addEventListener('pointerdown', e => {
   }
   if (tool === 'pen') { interaction = { type: 'pen', points: [p], pre: snapshot() }; drawPenPreview(interaction.points); e.preventDefault(); return; }
   if (tool === 'laser') { laserStart(p); interaction = { type: 'laser' }; e.preventDefault(); return; }
-  if (tool === 'eraser') {
-    /* ★ ابدأ مسح مستمر */
-    eraserBegin(p);
-    interaction = { type: 'eraser' };
-    e.preventDefault(); return;
-  }
+  if (tool === 'eraser') { eraserBegin(p); interaction = { type: 'eraser' }; e.preventDefault(); return; }
   if (tool === 'shape') {
-    /* ★ إنشاء الشكل مباشرة في اللوحة، مع لقطة "قبل" صحيحة */
     const pre = snapshot();
     const el = createShapeElement(state.shapeKind);
     if (state.shapeKind === 'rect') {
@@ -1276,24 +1597,17 @@ function onStageUp(e) {
   if (inter.type === 'laser') { laserEnd(); return; }
   if (inter.type === 'eraser') { eraserEnd(); return; }
   if (inter.type === 'shapeDraw') {
-    /* ★ تحقّق من الحجم، إن كان صغيراً جداً احذفه */
     const el = inter.el, kind = inter.kind;
     let tooSmall = false;
-    if (kind === 'rect') {
-      if (+el.getAttribute('width') < 15 || +el.getAttribute('height') < 15) tooSmall = true;
-    } else if (kind === 'circle') {
-      if (+el.getAttribute('rx') < 10 || +el.getAttribute('ry') < 10) tooSmall = true;
-    } else {
+    if (kind === 'rect') { if (+el.getAttribute('width') < 15 || +el.getAttribute('height') < 15) tooSmall = true; }
+    else if (kind === 'circle') { if (+el.getAttribute('rx') < 10 || +el.getAttribute('ry') < 10) tooSmall = true; }
+    else {
       const d = Math.hypot(+el.getAttribute('x2') - +el.getAttribute('x1'), +el.getAttribute('y2') - +el.getAttribute('y1'));
       if (d < 20) tooSmall = true;
     }
-    if (tooSmall) {
-      el.remove();
-    } else {
-      /* ★ ثبّت الشكل كـ annotation دائم */
-      el.dataset.annot = '1';
-      el.dataset.id = uid();
-      el.dataset.type = kind;
+    if (tooSmall) { el.remove(); }
+    else {
+      el.dataset.annot = '1'; el.dataset.id = uid(); el.dataset.type = kind;
       commitChange(inter.pre);
     }
     return;
@@ -1358,8 +1672,18 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Delete' || e.key === 'Backspace') {
     if (state.selected) {
       const pre = snapshot();
-      if (state.selected.kind === 'svg') state.selected.el.remove();
-      if (state.selected.kind === 'embed') state.selected.el.remove();
+      const sel = state.selected;
+      if (sel.kind === 'svg') sel.el.remove();
+      if (sel.kind === 'embed') sel.el.remove();
+      if (sel.kind === 'video') {
+        try {
+          const v = sel.el.querySelector('video');
+          if (v) { v.pause(); v.src = ''; }
+          const url = sel.el.dataset.url;
+          if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
+        } catch (_) {}
+        sel.el.remove();
+      }
       state.selected = null;
       svgLayer.querySelectorAll('.selection-overlay').forEach(n => n.remove());
       commitChange(pre); e.preventDefault();
