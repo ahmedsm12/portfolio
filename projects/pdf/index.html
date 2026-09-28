@@ -6,10 +6,25 @@
 <meta name="theme-color" content="#0e1117" />
 <title>لوحة تعديل الـ PDF والوسائط التفاعلية</title>
 
-<!-- أنماط tldraw من CDN -->
+<!-- ============================================================
+     Import Map: توحيد نسخ React بين التطبيق و tldraw
+     هذا هو المفتاح لحل مشكلة "Failed to resolve module specifier react"
+     ============================================================ -->
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "tldraw": "https://esm.sh/tldraw@2.4.4?external=react,react-dom"
+  }
+}
+</script>
+
+<!-- أنماط tldraw -->
 <link rel="stylesheet"
-      href="https://esm.sh/tldraw@2.4.4/tldraw.css"
-      onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/tldraw@2.4.4/dist/tldraw.css';" />
+      href="https://cdn.jsdelivr.net/npm/tldraw@2.4.4/dist/tldraw.css" />
 
 <style>
   :root{
@@ -21,20 +36,14 @@
     --ipb-muted:#9aa7bd;
     --ipb-accent:#4f8cff;
     --ipb-accent-2:#7c5cff;
-    --ipb-ok:#22c55e;
-    --ipb-warn:#f59e0b;
-    --ipb-err:#ef4444;
     --ipb-radius:16px;
   }
-
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body,#root{ height:100%; margin:0; padding:0; }
   body{
     font-family:"Segoe UI", Tahoma, "Noto Kufi Arabic", "Helvetica Neue", system-ui, sans-serif;
     background:var(--ipb-bg); color:var(--ipb-text); overflow:hidden;
   }
-
-  /* ===== شاشة التحميل ===== */
   .ipb-boot{
     position:fixed; inset:0; display:flex; flex-direction:column; gap:18px;
     align-items:center; justify-content:center; color:var(--ipb-muted);
@@ -50,11 +59,9 @@
   .ipb-boot-error{ color:#ffb4b4; max-width:620px; line-height:1.8; font-size:14px; }
   .ipb-boot code{ background:#000; padding:2px 6px; border-radius:6px; direction:ltr; display:inline-block; }
 
-  /* ===== حاوية اللوحة ===== */
   #ipb-root{ position:fixed; inset:0; }
   .ipb-canvas{ position:absolute; inset:0; direction:ltr; }
 
-  /* ===== الشريط العائم ===== */
   .ipb-toolbar-wrap{
     position:fixed; top:12px; left:50%; transform:translateX(-50%);
     z-index:1200; pointer-events:none; max-width:calc(100vw - 16px);
@@ -75,7 +82,6 @@
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
   .ipb-sep{ width:1px; height:24px; background:var(--ipb-border); margin:0 3px; }
-
   .ipb-btn{
     display:inline-flex; align-items:center; gap:7px;
     font-family:inherit; font-size:13.5px; font-weight:600; color:var(--ipb-text);
@@ -91,12 +97,11 @@
     border-color:transparent; color:#fff;
     box-shadow:0 6px 18px rgba(79,140,255,.32);
   }
-  .ipb-btn.ipb-primary:hover:not(:disabled){ filter:brightness(1.08); background:linear-gradient(135deg,var(--ipb-accent),var(--ipb-accent-2)); }
+  .ipb-btn.ipb-primary:hover:not(:disabled){ filter:brightness(1.08); }
   .ipb-btn.ipb-ghost{ background:transparent; color:var(--ipb-muted); }
   .ipb-btn.ipb-ghost:hover:not(:disabled){ color:var(--ipb-text); }
   .ipb-ico{ font-size:15px; line-height:1; }
 
-  /* ===== شريط الحالة / التقدم ===== */
   .ipb-progress{
     position:fixed; top:78px; left:50%; transform:translateX(-50%);
     z-index:1150; display:flex; align-items:center; gap:10px;
@@ -110,8 +115,6 @@
     border:2px solid rgba(255,255,255,.2); border-top-color:var(--ipb-accent);
     animation:ipb-spin .8s linear infinite;
   }
-
-  /* ===== التنبيهات ===== */
   .ipb-toast{
     position:fixed; bottom:26px; left:50%; transform:translateX(-50%);
     z-index:1300; padding:11px 20px; border-radius:12px; font-size:13.5px; font-weight:600;
@@ -119,12 +122,11 @@
     box-shadow:0 14px 40px rgba(0,0,0,.5); animation:ipb-rise .22s ease; max-width:min(92vw,520px);
     text-align:center; line-height:1.6;
   }
-  .ipb-toast.ok{ border-color:rgba(34,197,94,.5); box-shadow:0 0 0 1px rgba(34,197,94,.18),0 14px 40px rgba(0,0,0,.5); }
+  .ipb-toast.ok{ border-color:rgba(34,197,94,.5); }
   .ipb-toast.error{ border-color:rgba(239,68,68,.55); }
   .ipb-toast.warn{ border-color:rgba(245,158,11,.5); }
   @keyframes ipb-rise{ from{ opacity:0; transform:translate(-50%,14px); } to{ opacity:1; transform:translate(-50%,0); } }
 
-  /* ===== النافذة المنبثقة ===== */
   .ipb-overlay{
     position:fixed; inset:0; z-index:1400; background:rgba(6,9,14,.62);
     backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px);
@@ -155,7 +157,6 @@
   }
   .ipb-chip:hover{ color:var(--ipb-text); border-color:var(--ipb-accent); }
 
-  /* على الشاشات الصغيرة */
   @media (max-width:640px){
     .ipb-brand{ display:none; }
     .ipb-btn{ font-size:12.5px; padding:7px 10px; }
@@ -172,724 +173,540 @@
   </div>
 </div>
 
+<!-- pdf.js يُحمَّل كسكربت كلاسيكي (قبل الموديول) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+        onerror="console.warn('تعذّر تحميل pdf.js — ميزة معالجة PDF ستكون معطّلة');"></script>
+
 <script type="module">
 /* ============================================================================
    لوحة تعديل الـ PDF والوسائط التفاعلية
-   Frontend-only SPA  |  React 18 + tldraw v2 (ESM) + pdf.js  |  Global UMD
+   React 18 + tldraw 2.4.4 (ESM عبر Import Map) + pdf.js (UMD)
    ============================================================================ */
-(async function bootstrap() {
-  'use strict';
 
-  const rootEl = document.getElementById('root');
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
+import * as TL from 'tldraw';
 
-  /* ------------------------------------------------------------------
-     1) مُحمِّل السكربتات الكلاسيكية (Global Scripts) مع مسارات احتياطية
-     ------------------------------------------------------------------ */
-  const TL_VERSION = '2.4.4';
-  const PDFJS_VERSION = '3.11.174';
+const { createElement: h, Fragment } = React;
+const rootEl = document.getElementById('root');
 
-  const CDN = {
-    react: [
-      'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
-      'https://unpkg.com/react@18.2.0/umd/react.production.min.js',
-      'https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js'
-    ],
-    reactDom: [
-      'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js',
-      'https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js',
-      'https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js'
-    ],
-    pdfjs: [
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + PDFJS_VERSION + '/pdf.min.js',
-      'https://unpkg.com/pdfjs-dist@' + PDFJS_VERSION + '/build/pdf.min.js',
-      'https://cdn.jsdelivr.net/npm/pdfjs-dist@' + PDFJS_VERSION + '/build/pdf.min.js'
-    ]
-  };
+function showFatal(msg) {
+  rootEl.innerHTML =
+    '<div class="ipb-boot">' +
+      '<div style="font-size:38px">⚠️</div>' +
+      '<div class="ipb-boot-error">' + msg + '</div>' +
+      '<div class="ipb-boot-error" style="font-size:12.5px">' +
+        'تأكّد من اتصالك بالإنترنت، ومن أن الشبكة لا تحجب esm.sh أو jsdelivr.' +
+      '</div>' +
+    '</div>';
+}
 
-  /* مسارات tldraw كوحدة ESM (لأنها لا توفّر UMD builds) */
-  const TLDRAW_ESM_SOURCES = [
-    'https://esm.sh/tldraw@' + TL_VERSION + '?external=react,react-dom',
-    'https://cdn.skypack.dev/tldraw@' + TL_VERSION,
-    'https://esm.run/tldraw@' + TL_VERSION
-  ];
+/* ===== التحقق من وجود المكوّنات الأساسية في tldraw ===== */
+if (!TL || !TL.Tldraw || !TL.Editor) {
+  showFatal('تم استيراد tldraw لكن الكائنات المطلوبة <code>Tldraw</code> / <code>Editor</code> غير موجودة.');
+  throw new Error('tldraw exports missing');
+}
 
-  const PDF_WORKER_SRC = [
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + PDFJS_VERSION + '/pdf.worker.min.js',
-    'https://unpkg.com/pdfjs-dist@' + PDFJS_VERSION + '/build/pdf.worker.min.js',
-    'https://cdn.jsdelivr.net/npm/pdfjs-dist@' + PDFJS_VERSION + '/build/pdf.worker.min.js'
-  ];
+/* ===== ثوابت ===== */
+const SANDBOX_PERMS = [
+  'allow-scripts',
+  'allow-same-origin',
+  'allow-forms',
+  'allow-popups',
+  'allow-modals',
+  'allow-pointer-lock',
+  'allow-downloads',
+  'allow-popups-to-escape-sandbox',
+  'allow-presentation',
+  'allow-top-navigation-by-user-activation'
+].join(' ');
 
-  function loadScript(src) {
-    return new Promise(function (resolve, reject) {
-      const s = document.createElement('script');
-      s.src = src;
-      s.async = false;
-      s.onload = function () { resolve(src); };
-      s.onerror = function () { reject(new Error('فشل تحميل: ' + src)); };
-      document.head.appendChild(s);
-    });
-  }
+const IFRAME_ALLOW =
+  'fullscreen; autoplay; clipboard-read; clipboard-write; gamepad; ' +
+  'microphone; camera; encrypted-media; picture-in-picture';
 
-  async function loadFirst(urls) {
-    let lastErr = null;
-    for (let i = 0; i < urls.length; i++) {
-      try { return await loadScript(urls[i]); }
-      catch (e) { lastErr = e; }
-    }
-    throw lastErr || new Error('تعذّر تحميل المصدر');
-  }
+const DEFAULT_GAME_URL = 'https://username.github.io/my-interactive-game/';
+const PDF_RENDER_TARGET_W = 1500;
+const DISPLAY_PAGE_W = 1000;
+const PAGE_GAP = 40;
 
-  /* تحميل tldraw عبر ESM (Dynamic Import) مع مسارات احتياطية */
-  async function loadTldrawESM() {
-    let lastErr = null;
-    for (let i = 0; i < TLDRAW_ESM_SOURCES.length; i++) {
-      const src = TLDRAW_ESM_SOURCES[i];
-      try {
-        const mod = await import(/* @vite-ignore */ src);
-        if (mod && (mod.Tldraw || mod.Editor)) return mod;
-        if (mod && mod.default && (mod.default.Tldraw || mod.default.Editor)) return mod.default;
-        throw new Error('الوحدة المستوردة لا تحتوي على Tldraw.');
-      } catch (e) {
-        console.warn('فشل تحميل tldraw من: ' + src, e);
-        lastErr = e;
-      }
-    }
-    throw lastErr || new Error('تعذّر تحميل tldraw من جميع المصادر');
-  }
-
-  function showFatal(msg) {
-    rootEl.innerHTML =
-      '<div class="ipb-boot">' +
-        '<div style="font-size:38px">⚠️</div>' +
-        '<div class="ipb-boot-error">' + msg + '</div>' +
-        '<div class="ipb-boot-error" style="font-size:12.5px">' +
-          'تأكّد من اتصالك بالإنترنت، ومن أن الشبكة لا تحجب شبكات الـ CDN.' +
-        '</div>' +
-      '</div>';
-  }
-
-  /* ------------------------------------------------------------------
-     2) تحميل الاعتماديات بالترتيب الصحيح
-     ------------------------------------------------------------------ */
+/* تهيئة عامل pdf.js */
+if (window.pdfjsLib) {
   try {
-    await loadFirst(CDN.react);
-    await loadFirst(CDN.reactDom);
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  } catch (e) { console.warn(e); }
+}
 
-    // pdf.js مطلوب فقط لمعالجة ملفات الـ PDF
-    try { await loadFirst(CDN.pdfjs); } catch (e) { console.warn('pdf.js غير متاح:', e); }
+/* ===== تعريف تضمين مخصّص (لتجاوز قيود tldraw على النطاقات) ===== */
+const INTERACTIVE_EMBED_DEFINITION = {
+  type: 'interactive-html',
+  title: 'وسائط تفاعلية (HTML/لعبة)',
+  hostnames: [
+    '', 'github.io', 'githubusercontent.com',
+    'netlify.app', 'vercel.app', 'pages.dev',
+    'surge.sh', 'glitch.me', 'replit.app', 'repl.co',
+    'codepen.io', 'jsfiddle.net', 'codesandbox.io',
+    'stackblitz.com', 'itch.io', 'localhost', '127.0.0.1'
+  ],
+  width: 900,
+  height: 640,
+  minWidth: 180,
+  minHeight: 140,
+  doesResize: true,
+  toEmbedUrl: (url) => url,
+  fromEmbedUrl: (url) => url
+};
 
-    // tldraw كوحدة ESM
-    const tldrawModule = await loadTldrawESM();
-    window.tldraw = tldrawModule;
-  } catch (err) {
-    console.error(err);
-    showFatal('تعذّر تحميل المكتبات الأساسية.<br><code>' + String(err.message || err) + '</code>');
-    return;
-  }
-
-  if (!window.React || !window.ReactDOM || !window.tldraw) {
-    showFatal('تم تحميل المكتبات لكن الكائنات العامة <code>React</code> / <code>tldraw</code> غير موجودة.');
-    return;
-  }
-
-  /* تهيئة عامل pdf.js */
-  if (window.pdfjsLib) {
-    try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_WORKER_SRC[0]; }
-    catch (e) { console.warn(e); }
-  }
-
-  /* ------------------------------------------------------------------
-     3) بدء التطبيق
-     ------------------------------------------------------------------ */
-  const React = window.React;
-  const ReactDOM = window.ReactDOM;
-  const TL = window.tldraw;
-  const { useState, useRef, useEffect, useCallback } = React;
-  const h = React.createElement;
-
-  /* ===== ثوابت ===== */
-  const SANDBOX_PERMS = [
-    'allow-scripts',
-    'allow-same-origin',
-    'allow-forms',
-    'allow-popups',
-    'allow-modals',
-    'allow-pointer-lock',
-    'allow-downloads',
-    'allow-popups-to-escape-sandbox',
-    'allow-presentation',
-    'allow-top-navigation-by-user-activation'
-  ].join(' ');
-
-  const IFRAME_ALLOW = 'fullscreen; autoplay; clipboard-read; clipboard-write; gamepad; microphone; camera; encrypted-media; picture-in-picture';
-
-  const DEFAULT_GAME_URL = 'https://username.github.io/my-interactive-game/';
-
-  const PDF_RENDER_TARGET_W = 1500; // دقة الرسم الداخلية
-  const DISPLAY_PAGE_W = 1000;      // عرض الصفحة على اللوحة (وحدات الصفحة)
-  const PAGE_GAP = 40;              // المسافة بين الصفحات
-
-  /* ===== تعريف التضمين المخصّص (customEmbedDefinitions) ===== */
-  const INTERACTIVE_EMBED_DEFINITION = {
-    type: 'interactive-html',
-    title: 'وسائط تفاعلية (HTML/لعبة)',
-    hostnames: [
-      '', // يطابق أي نطاق
-      'github.io',
-      'githubusercontent.com',
-      'netlify.app',
-      'vercel.app',
-      'pages.dev',
-      'surge.sh',
-      'glitch.me',
-      'replit.app',
-      'repl.co',
-      'codepen.io',
-      'jsfiddle.net',
-      'codesandbox.io',
-      'stackblitz.com',
-      'itch.io',
-      'localhost',
-      '127.0.0.1'
-    ],
-    width: 900,
-    height: 640,
-    minWidth: 180,
-    minHeight: 140,
-    doesResize: true,
-    toEmbedUrl: function (url) { return url; },
-    fromEmbedUrl: function (url) { return url; }
-  };
-
-  /* ===== بناء shapeUtils مع تعريف التضمين المخصّص ===== */
-  function buildShapeUtils() {
-    try {
-      if (!TL.EmbedShapeUtil || !TL.defaultShapeUtils) return undefined;
-      const defaults = TL.defaultEmbedDefinitions || [];
-      const CustomEmbedShapeUtil = TL.EmbedShapeUtil.configure({
-        embedDefinitions: defaults.concat([INTERACTIVE_EMBED_DEFINITION])
-      });
-      const utils = TL.defaultShapeUtils.map(function (u) {
-        return u === TL.EmbedShapeUtil ? CustomEmbedShapeUtil : u;
-      });
-      if (utils.indexOf(CustomEmbedShapeUtil) === -1) utils.push(CustomEmbedShapeUtil);
-      return utils;
-    } catch (e) {
-      console.warn('تعذّر تخصيص EmbedShapeUtil، سيتم استخدام الافتراضي:', e);
-      return undefined;
+/* ===== بناء shapeUtils مع تعريف التضمين المخصّص (بأمان) ===== */
+let CUSTOM_SHAPE_UTILS = null;
+try {
+  const { EmbedShapeUtil, defaultShapeUtils, defaultEmbedDefinitions } = TL;
+  if (EmbedShapeUtil && typeof EmbedShapeUtil.configure === 'function' && Array.isArray(defaultShapeUtils)) {
+    const CustomEmbedShapeUtil = EmbedShapeUtil.configure({
+      embedDefinitions: (defaultEmbedDefinitions || []).concat([INTERACTIVE_EMBED_DEFINITION])
+    });
+    CUSTOM_SHAPE_UTILS = defaultShapeUtils.map(function (u) {
+      return u === EmbedShapeUtil ? CustomEmbedShapeUtil : u;
+    });
+    if (CUSTOM_SHAPE_UTILS.indexOf(CustomEmbedShapeUtil) === -1) {
+      CUSTOM_SHAPE_UTILS.push(CustomEmbedShapeUtil);
     }
+    console.log('[IPB] تم تفعيل customEmbedDefinitions بنجاح.');
+  } else {
+    console.warn('[IPB] EmbedShapeUtil.configure غير متاح — سيُستخدم الافتراضي. sandbox bypass سيعمل عبر DOM.');
   }
+} catch (e) {
+  console.warn('[IPB] تعذّر بناء shapeUtils المخصّص:', e);
+}
 
-  const SHAPE_UTILS = buildShapeUtils();
+/* ===== أدوات مساعدة ===== */
+function newAssetId() {
+  try {
+    if (TL.AssetRecordType && TL.AssetRecordType.createId) return TL.AssetRecordType.createId();
+  } catch (e) {}
+  return 'asset:' + Math.random().toString(36).slice(2, 12);
+}
 
-  /* ===== أدوات مساعدة ===== */
-  function newAssetId() {
-    try {
-      if (TL.AssetRecordType && TL.AssetRecordType.createId) return TL.AssetRecordType.createId();
-    } catch (e) { /* تجاهل */ }
-    return 'asset:' + Math.random().toString(36).slice(2, 12);
-  }
+function readAsDataURL(file) {
+  return new Promise(function (resolve, reject) {
+    const fr = new FileReader();
+    fr.onload = function () { resolve(fr.result); };
+    fr.onerror = function () { reject(new Error('تعذّر قراءة الملف: ' + file.name)); };
+    fr.readAsDataURL(file);
+  });
+}
 
-  function readAsDataURL(file) {
-    return new Promise(function (resolve, reject) {
-      const fr = new FileReader();
-      fr.onload = function () { resolve(fr.result); };
-      fr.onerror = function () { reject(new Error('تعذّر قراءة الملف: ' + file.name)); };
-      fr.readAsDataURL(file);
-    });
-  }
+function loadImageSize(dataUrl) {
+  return new Promise(function (resolve, reject) {
+    const img = new Image();
+    img.onload = function () { resolve({ w: img.naturalWidth, h: img.naturalHeight }); };
+    img.onerror = function () { reject(new Error('صورة غير صالحة')); };
+    img.src = dataUrl;
+  });
+}
 
-  function loadImageSize(dataUrl) {
-    return new Promise(function (resolve, reject) {
-      const img = new Image();
-      img.onload = function () { resolve({ w: img.naturalWidth, h: img.naturalHeight }); };
-      img.onerror = function () { reject(new Error('صورة غير صالحة')); };
-      img.src = dataUrl;
-    });
-  }
+function isPdf(file) {
+  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+}
 
-  function isPdf(file) {
-    return file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
-  }
-
-  /* تحويل صفحات الـ PDF إلى صور نقطية عالية الدقة */
-  async function renderPdfToImages(file, onProgress) {
-    const pdfjsLib = window.pdfjsLib;
-    if (!pdfjsLib) throw new Error('محرّك pdf.js غير متاح (تحقّق من الاتصال بالشبكة).');
-
-    const buffer = await file.arrayBuffer();
-    const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
-    const pages = [];
-
-    try {
-      for (let i = 1; i <= doc.numPages; i++) {
-        if (onProgress) onProgress(i, doc.numPages);
-        const page = await doc.getPage(i);
-        const base = page.getViewport({ scale: 1 });
-        const scale = Math.min(2.2, Math.max(1, PDF_RENDER_TARGET_W / base.width));
-        const viewport = page.getViewport({ scale: scale });
-
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.floor(viewport.width));
-        canvas.height = Math.max(1, Math.floor(viewport.height));
-
-        const ctx = canvas.getContext('2d', { alpha: false });
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-
-        pages.push({
-          dataUrl: canvas.toDataURL('image/jpeg', 0.92),
-          w: canvas.width,
-          h: canvas.height,
-          name: (file.name || 'document') + ' — صفحة ' + i
-        });
-
-        page.cleanup();
-      }
-    } finally {
-      try { await doc.destroy(); } catch (e) { /* تجاهل */ }
+async function renderPdfToImages(file, onProgress) {
+  const pdfjsLib = window.pdfjsLib;
+  if (!pdfjsLib) throw new Error('محرّك pdf.js غير متاح.');
+  const buffer = await file.arrayBuffer();
+  const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
+  const pages = [];
+  try {
+    for (let i = 1; i <= doc.numPages; i++) {
+      if (onProgress) onProgress(i, doc.numPages);
+      const page = await doc.getPage(i);
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(2.2, Math.max(1, PDF_RENDER_TARGET_W / base.width));
+      const viewport = page.getViewport({ scale: scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.floor(viewport.width));
+      canvas.height = Math.max(1, Math.floor(viewport.height));
+      const ctx = canvas.getContext('2d', { alpha: false });
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      pages.push({
+        dataUrl: canvas.toDataURL('image/jpeg', 0.92),
+        w: canvas.width,
+        h: canvas.height,
+        name: (file.name || 'document') + ' — صفحة ' + i
+      });
+      page.cleanup();
     }
-    return pages;
+  } finally {
+    try { await doc.destroy(); } catch (e) {}
   }
+  return pages;
+}
 
-  /* إنشاء عنصر صورة (Asset + Shape) على اللوحة */
-  function createImageOnBoard(editor, opts) {
-    const assetId = newAssetId();
-    editor.createAssets([{
-      id: assetId,
-      typeName: 'asset',
-      type: 'image',
-      meta: {},
-      props: {
-        name: opts.name || 'asset',
-        src: opts.dataUrl,
-        w: opts.w,
-        h: opts.h,
-        mimeType: opts.mimeType || 'image/jpeg',
-        isAnimated: false
-      }
-    }]);
-
-    return editor.createShape({
-      type: 'image',
-      x: opts.x,
-      y: opts.y,
-      props: { assetId: assetId, w: opts.w, h: opts.h }
-    });
-  }
-
-  /* توزيع الصفحات/الصور كعمود مركزي حول نقطة معيّنة */
-  function placeStack(editor, items, origin) {
-    if (!items.length) return;
-    const layout = items.map(function (it) {
-      const w = Math.min(DISPLAY_PAGE_W, it.w);
-      const ratio = it.h / it.w;
-      return { item: it, w: w, h: Math.round(w * ratio) };
-    });
-
-    const totalH = layout.reduce(function (a, p) { return a + p.h; }, 0)
-                 + PAGE_GAP * (layout.length - 1);
-    let y = origin.y - totalH / 2;
-
-    layout.forEach(function (p) {
-      createImageOnBoard(editor, {
-        dataUrl: p.item.dataUrl,
-        w: p.w,
-        h: p.h,
-        x: origin.x - p.w / 2,
-        y: y,
-        name: p.item.name,
-        mimeType: p.item.mimeType
-      });
-      y += p.h + PAGE_GAP;
-    });
-  }
-
-  /* ==================================================================
-     المكوّنات
-     ================================================================== */
-
-  /* --- الشريط العائم --- */
-  function Toolbar(props) {
-    const disabled = !props.ready || props.busy;
-    return h('div', { className: 'ipb-toolbar-wrap' },
-      h('div', { className: 'ipb-toolbar' },
-        h('div', { className: 'ipb-brand' }, '🎨 لوحة PDF التفاعلية'),
-        h('div', { className: 'ipb-sep' }),
-        h('button', {
-          className: 'ipb-btn ipb-primary',
-          onClick: props.onPickFiles,
-          disabled: disabled,
-          title: 'رفع ملفات PDF أو صور وإسقاطها في منتصف الشاشة'
-        }, h('span', { className: 'ipb-ico' }, '📄'), 'رفع مستند'),
-        h('button', {
-          className: 'ipb-btn ipb-primary',
-          onClick: props.onInjectGame,
-          disabled: disabled,
-          title: 'حقن لعبة / نموذج HTML تفاعلي عبر iframe'
-        }, h('span', { className: 'ipb-ico' }, '🎮'), 'حقن لعبة تفاعلية'),
-        h('div', { className: 'ipb-sep' }),
-        h('button', {
-          className: 'ipb-btn ipb-ghost',
-          onClick: props.onZoomFit,
-          disabled: !props.ready,
-          title: 'ملاءمة العرض لكل العناصر'
-        }, '🔍 ملاءمة'),
-        h('button', {
-          className: 'ipb-btn ipb-ghost',
-          onClick: props.onClear,
-          disabled: !props.ready,
-          title: 'حذف كل عناصر الصفحة الحالية'
-        }, '🧹 تفريغ')
-      )
-    );
-  }
-
-  /* --- نافذة حقن الرابط --- */
-  function GameModal(props) {
-    const [url, setUrl] = useState(props.initial || '');
-
-    useEffect(function () {
-      if (props.open) setUrl(props.initial || '');
-    }, [props.open, props.initial]);
-
-    if (!props.open) return null;
-
-    function submit() {
-      const value = (url || '').trim();
-      if (!value) return;
-      props.onSubmit(value);
+function createImageOnBoard(editor, opts) {
+  const assetId = newAssetId();
+  editor.createAssets([{
+    id: assetId,
+    typeName: 'asset',
+    type: 'image',
+    meta: {},
+    props: {
+      name: opts.name || 'asset',
+      src: opts.dataUrl,
+      w: opts.w,
+      h: opts.h,
+      mimeType: opts.mimeType || 'image/jpeg',
+      isAnimated: false
     }
+  }]);
+  return editor.createShape({
+    type: 'image',
+    x: opts.x,
+    y: opts.y,
+    props: { assetId: assetId, w: opts.w, h: opts.h }
+  });
+}
 
-    const samples = [
-      'https://username.github.io/game/',
-      'https://quiz-app.netlify.app',
-      'https://codepen.io/pen/embed/...'
-    ];
+function placeStack(editor, items, origin) {
+  if (!items.length) return;
+  const layout = items.map(function (it) {
+    const w = Math.min(DISPLAY_PAGE_W, it.w);
+    const ratio = it.h / it.w;
+    return { item: it, w: w, h: Math.round(w * ratio) };
+  });
+  const totalH = layout.reduce(function (a, p) { return a + p.h; }, 0) +
+                 PAGE_GAP * (layout.length - 1);
+  let y = origin.y - totalH / 2;
+  layout.forEach(function (p) {
+    createImageOnBoard(editor, {
+      dataUrl: p.item.dataUrl,
+      w: p.w, h: p.h,
+      x: origin.x - p.w / 2,
+      y: y,
+      name: p.item.name,
+      mimeType: p.item.mimeType
+    });
+    y += p.h + PAGE_GAP;
+  });
+}
 
-    return h('div', { className: 'ipb-overlay', onClick: props.onClose },
-      h('div', {
-        className: 'ipb-modal',
-        onClick: function (e) { e.stopPropagation(); }
-      },
-        h('h3', null, '🎮 حقن وسائط تفاعلية'),
-        h('p', { className: 'ipb-hint' },
-          'ألصق رابط اللعبة أو النموذج التفاعلي (GitHub Pages، Netlify، CodePen…). ' +
-          'سيتم إنشاء عنصر Embed حيّ يعمل مباشرة فوق اللوحة دون أي قيود على الـ iframe.'
-        ),
-        h('input', {
-          className: 'ipb-input',
-          value: url,
-          autoFocus: true,
-          spellCheck: false,
-          placeholder: DEFAULT_GAME_URL,
-          onChange: function (e) { setUrl(e.target.value); },
-          onKeyDown: function (e) {
-            if (e.key === 'Enter') submit();
-            if (e.key === 'Escape') props.onClose();
-          }
-        }),
-        h('div', { className: 'ipb-chips' },
-          samples.map(function (s) {
-            return h('span', {
-              key: s,
-              className: 'ipb-chip',
-              onClick: function () { setUrl(s); }
-            }, s);
-          })
-        ),
-        h('div', { className: 'ipb-modal-actions' },
-          h('button', { className: 'ipb-btn ipb-primary', onClick: submit }, 'حقن الآن'),
-          h('button', { className: 'ipb-btn ipb-ghost', onClick: props.onClose }, 'إلغاء')
-        )
-      )
-    );
+/* ==================================================================
+   المكوّنات
+   ================================================================== */
+
+function Toolbar(props) {
+  const disabled = !props.ready || props.busy;
+  return h('div', { className: 'ipb-toolbar-wrap' },
+    h('div', { className: 'ipb-toolbar' },
+      h('div', { className: 'ipb-brand' }, '🎨 لوحة PDF التفاعلية'),
+      h('div', { className: 'ipb-sep' }),
+      h('button', {
+        className: 'ipb-btn ipb-primary',
+        onClick: props.onPickFiles,
+        disabled: disabled
+      }, h('span', { className: 'ipb-ico' }, '📄'), 'رفع مستند'),
+      h('button', {
+        className: 'ipb-btn ipb-primary',
+        onClick: props.onInjectGame,
+        disabled: disabled
+      }, h('span', { className: 'ipb-ico' }, '🎮'), 'حقن لعبة تفاعلية'),
+      h('div', { className: 'ipb-sep' }),
+      h('button', {
+        className: 'ipb-btn ipb-ghost',
+        onClick: props.onZoomFit,
+        disabled: !props.ready
+      }, '🔍 ملاءمة'),
+      h('button', {
+        className: 'ipb-btn ipb-ghost',
+        onClick: props.onClear,
+        disabled: !props.ready
+      }, '🧹 تفريغ')
+    )
+  );
+}
+
+function GameModal(props) {
+  const [url, setUrl] = useState(props.initial || '');
+  useEffect(function () {
+    if (props.open) setUrl(props.initial || '');
+  }, [props.open, props.initial]);
+  if (!props.open) return null;
+  function submit() {
+    const value = (url || '').trim();
+    if (!value) return;
+    props.onSubmit(value);
   }
-
-  /* --- التطبيق --- */
-  function App() {
-    const [editor, setEditor] = useState(null);
-    const [busy, setBusy] = useState(false);
-    const [progress, setProgress] = useState('');
-    const [toast, setToast] = useState(null);
-    const [modalOpen, setModalOpen] = useState(false);
-
-    const fileRef = useRef(null);
-    const toastTimer = useRef(null);
-
-    const notify = useCallback(function (msg, type) {
-      setToast({ msg: msg, type: type || 'info' });
-      clearTimeout(toastTimer.current);
-      toastTimer.current = setTimeout(function () { setToast(null); }, 4500);
-    }, []);
-
-    useEffect(function () {
-      return function () { clearTimeout(toastTimer.current); };
-    }, []);
-
-    /* ==============================================================
-       محرّك تجاوز الـ Sandbox (Sandbox Bypass Engine)
-       ============================================================== */
-    useEffect(function () {
-      function patchIframe(iframe) {
-        if (!(iframe instanceof HTMLIFrameElement)) return;
-        if (iframe.getAttribute('sandbox') !== SANDBOX_PERMS) {
-          iframe.setAttribute('sandbox', SANDBOX_PERMS);
-        }
-        if (iframe.getAttribute('allow') !== IFRAME_ALLOW) {
-          iframe.setAttribute('allow', IFRAME_ALLOW);
-        }
-        iframe.style.pointerEvents = iframe.style.pointerEvents || 'auto';
-      }
-
-      function scan(root) {
-        if (!root || !root.querySelectorAll) return;
-        const frames = root.querySelectorAll('iframe');
-        for (let i = 0; i < frames.length; i++) patchIframe(frames[i]);
-      }
-
-      scan(document);
-
-      const observer = new MutationObserver(function (mutations) {
-        for (let i = 0; i < mutations.length; i++) {
-          const m = mutations[i];
-          if (m.type === 'attributes') {
-            patchIframe(m.target);
-          } else if (m.addedNodes && m.addedNodes.length) {
-            for (let j = 0; j < m.addedNodes.length; j++) {
-              const node = m.addedNodes[j];
-              if (node.nodeType !== 1) continue;
-              if (node instanceof HTMLIFrameElement) patchIframe(node);
-              else scan(node);
-            }
-          }
-        }
-      });
-
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['sandbox', 'allow']
-      });
-
-      return function () { observer.disconnect(); };
-    }, []);
-
-    /* ==============================================================
-       معالجة الملفات (PDF + صور)
-       ============================================================== */
-    const handleFiles = useCallback(async function (files) {
-      if (!editor || !files || !files.length) return;
-
-      const list = Array.prototype.slice.call(files);
-      const pdfs = list.filter(isPdf);
-      const images = list.filter(function (f) {
-        return !isPdf(f) && /^image\//i.test(f.type || '');
-      });
-      const skipped = list.length - pdfs.length - images.length;
-
-      setBusy(true);
-      setProgress('جارٍ التحضير…');
-
-      try {
-        const items = [];
-
-        for (let i = 0; i < pdfs.length; i++) {
-          const file = pdfs[i];
-          setProgress('تحويل «' + file.name + '» …');
-          const pages = await renderPdfToImages(file, function (current, total) {
-            setProgress('«' + file.name + '» — صفحة ' + current + ' من ' + total);
-          });
-          items.push.apply(items, pages);
-        }
-
-        for (let i = 0; i < images.length; i++) {
-          const file = images[i];
-          setProgress('تحميل الصورة «' + file.name + '» …');
-          const dataUrl = await readAsDataURL(file);
-          const size = await loadImageSize(dataUrl);
-          items.push({
-            dataUrl: dataUrl,
-            w: size.w,
-            h: size.h,
-            name: file.name,
-            mimeType: file.type || 'image/png'
-          });
-        }
-
-        if (!items.length) {
-          notify('لم يتم العثور على ملفات PDF أو صور صالحة.', 'warn');
-          return;
-        }
-
-        setProgress('إسقاط العناصر على اللوحة…');
-
-        const bounds = typeof editor.getViewportPageBounds === 'function'
-          ? editor.getViewportPageBounds()
-          : null;
-        const center = bounds && bounds.center
-          ? bounds.center
-          : editor.getViewportPageCenter();
-
-        placeStack(editor, items, center);
-
-        notify('تمت إضافة ' + items.length + ' عنصر إلى اللوحة ✅', 'ok');
-
-        if (skipped > 0) {
-          notify('تم تجاهل ' + skipped + ' ملف غير مدعوم.', 'warn');
-        }
-      } catch (err) {
-        console.error(err);
-        notify('تعذّرت المعالجة: ' + (err && err.message ? err.message : err), 'error');
-      } finally {
-        setBusy(false);
-        setProgress('');
-        if (fileRef.current) fileRef.current.value = '';
-      }
-    }, [editor, notify]);
-
-    /* السحب والإفلات: نعترض ملفات الـ PDF فقط ونترك الصور لـ tldraw */
-    useEffect(function () {
-      if (!editor) return;
-
-      function onDropCapture(e) {
-        const dt = e.dataTransfer;
-        if (!dt || !dt.files || !dt.files.length) return;
-        const files = Array.prototype.slice.call(dt.files);
-        if (files.some(isPdf)) {
-          e.preventDefault();
-          e.stopPropagation();
-          handleFiles(files);
-        }
-      }
-
-      document.addEventListener('drop', onDropCapture, true);
-      return function () { document.removeEventListener('drop', onDropCapture, true); };
-    }, [editor, handleFiles]);
-
-    /* ==============================================================
-       حقن الوسائط التفاعلية
-       ============================================================== */
-    const injectEmbed = useCallback(function (rawUrl) {
-      if (!editor) return;
-
-      let url = String(rawUrl).trim();
-      if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-
-      const w = 900;
-      const hh = 640;
-
-      const bounds = typeof editor.getViewportPageBounds === 'function'
-        ? editor.getViewportPageBounds()
-        : null;
-      const center = bounds && bounds.center
-        ? bounds.center
-        : editor.getViewportPageCenter();
-
-      const id = editor.createShape({
-        type: 'embed',
-        x: center.x - w / 2,
-        y: center.y - hh / 2,
-        props: { url: url, w: w, h: hh }
-      });
-
-      if (id && editor.setSelectedShapes) editor.setSelectedShapes([id]);
-
-      setModalOpen(false);
-      notify('تم حقن الوسائط التفاعلية 🎮', 'ok');
-    }, [editor, notify]);
-
-    /* ==============================================================
-       أدوات إضافية
-       ============================================================== */
-    const zoomFit = useCallback(function () {
-      if (!editor) return;
-      try { editor.zoomToFit({ animation: { duration: 220 } }); }
-      catch (e) { try { editor.zoomToFit(); } catch (e2) {} }
-    }, [editor]);
-
-    const clearBoard = useCallback(function () {
-      if (!editor) return;
-      const ids = Array.from(editor.getCurrentPageShapeIds());
-      if (!ids.length) { notify('اللوحة فارغة أصلاً.', 'info'); return; }
-      editor.deleteShapes(ids);
-      notify('تم تفريغ اللوحة 🧹', 'ok');
-    }, [editor, notify]);
-
-    /* ==============================================================
-       الواجهة
-       ============================================================== */
-    return h(React.Fragment, null,
-
-      h('div', { id: 'ipb-root' },
-        h('div', { className: 'ipb-canvas' },
-          h(TL.Tldraw, {
-            persistenceKey: 'interactive-pdf-board-v1',
-            onMount: function (ed) { setEditor(ed); },
-            shapeUtils: SHAPE_UTILS,
-            unmountOnBlur: false,
-            autoFocus: true,
-            inferDarkMode: true
-          })
-        )
+  const samples = [
+    'https://username.github.io/game/',
+    'https://quiz-app.netlify.app',
+    'https://codepen.io/pen/embed/...'
+  ];
+  return h('div', { className: 'ipb-overlay', onClick: props.onClose },
+    h('div', {
+      className: 'ipb-modal',
+      onClick: function (e) { e.stopPropagation(); }
+    },
+      h('h3', null, '🎮 حقن وسائط تفاعلية'),
+      h('p', { className: 'ipb-hint' },
+        'ألصق رابط اللعبة أو النموذج التفاعلي (GitHub Pages، Netlify، CodePen…). ' +
+        'سيتم إنشاء عنصر Embed حيّ يعمل مباشرة فوق اللوحة دون قيود على الـ iframe.'
       ),
-
-      h(Toolbar, {
-        ready: !!editor,
-        busy: busy,
-        onPickFiles: function () { if (fileRef.current) fileRef.current.click(); },
-        onInjectGame: function () { setModalOpen(true); },
-        onZoomFit: zoomFit,
-        onClear: clearBoard
-      }),
-
       h('input', {
-        ref: fileRef,
-        type: 'file',
-        multiple: true,
-        accept: 'application/pdf,image/*',
-        style: { display: 'none' },
-        onChange: function (e) {
-          const files = e.target.files;
-          if (files && files.length) handleFiles(files);
+        className: 'ipb-input',
+        value: url,
+        autoFocus: true,
+        spellCheck: false,
+        placeholder: DEFAULT_GAME_URL,
+        onChange: function (e) { setUrl(e.target.value); },
+        onKeyDown: function (e) {
+          if (e.key === 'Enter') submit();
+          if (e.key === 'Escape') props.onClose();
         }
       }),
+      h('div', { className: 'ipb-chips' },
+        samples.map(function (s) {
+          return h('span', {
+            key: s,
+            className: 'ipb-chip',
+            onClick: function () { setUrl(s); }
+          }, s);
+        })
+      ),
+      h('div', { className: 'ipb-modal-actions' },
+        h('button', { className: 'ipb-btn ipb-primary', onClick: submit }, 'حقن الآن'),
+        h('button', { className: 'ipb-btn ipb-ghost', onClick: props.onClose }, 'إلغاء')
+      )
+    )
+  );
+}
 
-      busy && progress
-        ? h('div', { className: 'ipb-progress' },
-            h('div', { className: 'ipb-mini-spin' }),
-            h('span', null, progress)
-          )
-        : null,
+function App() {
+  const [editor, setEditor] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState('');
+  const [toast, setToast] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
-      toast
-        ? h('div', { className: 'ipb-toast ' + (toast.type || 'info') }, toast.msg)
-        : null,
+  const fileRef = useRef(null);
+  const toastTimer = useRef(null);
 
-      h(GameModal, {
-        open: modalOpen,
-        initial: DEFAULT_GAME_URL,
-        onClose: function () { setModalOpen(false); },
-        onSubmit: injectEmbed
-      })
-    );
-  }
+  const notify = useCallback(function (msg, type) {
+    setToast({ msg: msg, type: type || 'info' });
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(function () { setToast(null); }, 4500);
+  }, []);
 
-  /* ==================================================================
-     الإقلاع
-     ================================================================== */
-  try {
-    const root = ReactDOM.createRoot(rootEl);
-    root.render(h(App));
-  } catch (err) {
-    console.error(err);
-    showFatal('حدث خطأ أثناء إقلاع الواجهة:<br><code>' + String(err && err.message ? err.message : err) + '</code>');
-  }
+  useEffect(function () {
+    return function () { clearTimeout(toastTimer.current); };
+  }, []);
 
-})();
+  /* ===== Sandbox Bypass Engine (على مستوى DOM) ===== */
+  useEffect(function () {
+    function patchIframe(iframe) {
+      if (!(iframe instanceof HTMLIFrameElement)) return;
+      if (iframe.getAttribute('sandbox') !== SANDBOX_PERMS) {
+        iframe.setAttribute('sandbox', SANDBOX_PERMS);
+      }
+      if (iframe.getAttribute('allow') !== IFRAME_ALLOW) {
+        iframe.setAttribute('allow', IFRAME_ALLOW);
+      }
+      if (iframe.style.pointerEvents === 'none') {
+        iframe.style.pointerEvents = 'auto';
+      }
+    }
+    function scan(root) {
+      if (!root || !root.querySelectorAll) return;
+      const frames = root.querySelectorAll('iframe');
+      for (let i = 0; i < frames.length; i++) patchIframe(frames[i]);
+    }
+    scan(document);
+    const observer = new MutationObserver(function (mutations) {
+      for (let i = 0; i < mutations.length; i++) {
+        const m = mutations[i];
+        if (m.type === 'attributes') {
+          patchIframe(m.target);
+        } else if (m.addedNodes && m.addedNodes.length) {
+          for (let j = 0; j < m.addedNodes.length; j++) {
+            const node = m.addedNodes[j];
+            if (node.nodeType !== 1) continue;
+            if (node instanceof HTMLIFrameElement) patchIframe(node);
+            else scan(node);
+          }
+        }
+      }
+    });
+    observer.observe(document.documentElement, {
+      childList: true, subtree: true,
+      attributes: true, attributeFilter: ['sandbox', 'allow']
+    });
+    return function () { observer.disconnect(); };
+  }, []);
+
+  /* ===== معالجة الملفات ===== */
+  const handleFiles = useCallback(async function (files) {
+    if (!editor || !files || !files.length) return;
+    const list = Array.prototype.slice.call(files);
+    const pdfs = list.filter(isPdf);
+    const images = list.filter(function (f) {
+      return !isPdf(f) && /^image\//i.test(f.type || '');
+    });
+    const skipped = list.length - pdfs.length - images.length;
+
+    setBusy(true);
+    setProgress('جارٍ التحضير…');
+    try {
+      const items = [];
+      for (let i = 0; i < pdfs.length; i++) {
+        const file = pdfs[i];
+        setProgress('تحويل «' + file.name + '» …');
+        const pages = await renderPdfToImages(file, function (current, total) {
+          setProgress('«' + file.name + '» — صفحة ' + current + ' من ' + total);
+        });
+        items.push.apply(items, pages);
+      }
+      for (let i = 0; i < images.length; i++) {
+        const file = images[i];
+        setProgress('تحميل الصورة «' + file.name + '» …');
+        const dataUrl = await readAsDataURL(file);
+        const size = await loadImageSize(dataUrl);
+        items.push({
+          dataUrl: dataUrl, w: size.w, h: size.h,
+          name: file.name, mimeType: file.type || 'image/png'
+        });
+      }
+      if (!items.length) {
+        notify('لم يتم العثور على ملفات PDF أو صور صالحة.', 'warn');
+        return;
+      }
+      setProgress('إسقاط العناصر على اللوحة…');
+      const bounds = typeof editor.getViewportPageBounds === 'function'
+        ? editor.getViewportPageBounds() : null;
+      const center = bounds && bounds.center
+        ? bounds.center : editor.getViewportPageCenter();
+      placeStack(editor, items, center);
+      notify('تمت إضافة ' + items.length + ' عنصر إلى اللوحة ✅', 'ok');
+      if (skipped > 0) notify('تم تجاهل ' + skipped + ' ملف غير مدعوم.', 'warn');
+    } catch (err) {
+      console.error(err);
+      notify('تعذّرت المعالجة: ' + (err && err.message ? err.message : err), 'error');
+    } finally {
+      setBusy(false);
+      setProgress('');
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }, [editor, notify]);
+
+  /* السحب والإفلات لملفات PDF */
+  useEffect(function () {
+    if (!editor) return;
+    function onDropCapture(e) {
+      const dt = e.dataTransfer;
+      if (!dt || !dt.files || !dt.files.length) return;
+      const files = Array.prototype.slice.call(dt.files);
+      if (files.some(isPdf)) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleFiles(files);
+      }
+    }
+    document.addEventListener('drop', onDropCapture, true);
+    return function () { document.removeEventListener('drop', onDropCapture, true); };
+  }, [editor, handleFiles]);
+
+  /* ===== حقن الوسائط ===== */
+  const injectEmbed = useCallback(function (rawUrl) {
+    if (!editor) return;
+    let url = String(rawUrl).trim();
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    const w = 900, hh = 640;
+    const bounds = typeof editor.getViewportPageBounds === 'function'
+      ? editor.getViewportPageBounds() : null;
+    const center = bounds && bounds.center
+      ? bounds.center : editor.getViewportPageCenter();
+    const id = editor.createShape({
+      type: 'embed',
+      x: center.x - w / 2,
+      y: center.y - hh / 2,
+      props: { url: url, w: w, h: hh }
+    });
+    if (id && editor.setSelectedShapes) editor.setSelectedShapes([id]);
+    setModalOpen(false);
+    notify('تم حقن الوسائط التفاعلية 🎮', 'ok');
+  }, [editor, notify]);
+
+  const zoomFit = useCallback(function () {
+    if (!editor) return;
+    try { editor.zoomToFit({ animation: { duration: 220 } }); }
+    catch (e) { try { editor.zoomToFit(); } catch (e2) {} }
+  }, [editor]);
+
+  const clearBoard = useCallback(function () {
+    if (!editor) return;
+    const ids = Array.from(editor.getCurrentPageShapeIds());
+    if (!ids.length) { notify('اللوحة فارغة أصلاً.', 'info'); return; }
+    editor.deleteShapes(ids);
+    notify('تم تفريغ اللوحة 🧹', 'ok');
+  }, [editor, notify]);
+
+  /* ===== الواجهة ===== */
+  return h(Fragment, null,
+    h('div', { id: 'ipb-root' },
+      h('div', { className: 'ipb-canvas' },
+        h(TL.Tldraw, {
+          persistenceKey: 'interactive-pdf-board-v1',
+          onMount: function (ed) { setEditor(ed); },
+          shapeUtils: CUSTOM_SHAPE_UTILS || undefined,
+          unmountOnBlur: false,
+          autoFocus: true
+        })
+      )
+    ),
+    h(Toolbar, {
+      ready: !!editor,
+      busy: busy,
+      onPickFiles: function () { if (fileRef.current) fileRef.current.click(); },
+      onInjectGame: function () { setModalOpen(true); },
+      onZoomFit: zoomFit,
+      onClear: clearBoard
+    }),
+    h('input', {
+      ref: fileRef,
+      type: 'file',
+      multiple: true,
+      accept: 'application/pdf,image/*',
+      style: { display: 'none' },
+      onChange: function (e) {
+        const files = e.target.files;
+        if (files && files.length) handleFiles(files);
+      }
+    }),
+    busy && progress
+      ? h('div', { className: 'ipb-progress' },
+          h('div', { className: 'ipb-mini-spin' }),
+          h('span', null, progress))
+      : null,
+    toast
+      ? h('div', { className: 'ipb-toast ' + (toast.type || 'info') }, toast.msg)
+      : null,
+    h(GameModal, {
+      open: modalOpen,
+      initial: DEFAULT_GAME_URL,
+      onClose: function () { setModalOpen(false); },
+      onSubmit: injectEmbed
+    })
+  );
+}
+
+/* ===== الإقلاع ===== */
+try {
+  const root = createRoot(rootEl);
+  root.render(h(App));
+} catch (err) {
+  console.error(err);
+  showFatal('حدث خطأ أثناء إقلاع الواجهة:<br><code>' +
+    String(err && err.message ? err.message : err) + '</code>');
+}
 </script>
 </body>
 </html>
