@@ -28,6 +28,7 @@
   }
   #svgLayer [data-annot] { pointer-events: none; }
   #stage[data-tool="select"] #svgLayer [data-annot] { pointer-events: auto; cursor: move; }
+  /* ★ الخطوط بوحدات CSS px (لا تتغير عند تغيير حجم الشاشة) */
   .annot { vector-effect: non-scaling-stroke; }
   .selection-outline { fill: none; stroke: #4a7eff; stroke-width: 1.5; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
   .handle { fill: #fff; stroke: #4a7eff; stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; pointer-events: auto; }
@@ -59,67 +60,60 @@
   .video-obj .video-close:hover { background: rgba(0,0,0,.5); }
   .video-obj video { flex: 1; width: 100%; min-height: 0; background: #000; display: block; object-fit: contain; }
   #stage:not([data-tool="select"]) .video-obj video { pointer-events: none; }
-  .video-obj .video-play-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 68px; height: 68px; border-radius: 50%; background: rgba(0,0,0,.55); border: 2.5px solid rgba(255,255,255,.9); color: #fff; font-size: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 0 0 5px; transition: opacity .2s, transform .15s, background .15s; z-index: 5; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 6px 22px rgba(0,0,0,.4); font-family: Arial, sans-serif; line-height: 1; }
-  .video-obj .video-play-btn:hover { background: rgba(0,0,0,.75); transform: translate(-50%, -50%) scale(1.06); }
-  .video-obj .video-play-btn:active { transform: translate(-50%, -50%) scale(.94); }
+  .video-obj .video-play-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 68px; height: 68px; border-radius: 50%; background: rgba(0,0,0,.55); border: 2.5px solid rgba(255,255,255,.9); color: #fff; font-size: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 0 0 5px; z-index: 5; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 6px 22px rgba(0,0,0,.4); font-family: Arial, sans-serif; line-height: 1; }
+  .video-obj .video-play-btn:hover { background: rgba(0,0,0,.75); }
   .video-obj .video-play-btn.hidden { opacity: 0; pointer-events: none; }
   .video-obj .video-resize { position: absolute; width: 14px; height: 14px; background: #4a7eff; border: 2px solid #fff; border-radius: 50%; bottom: -7px; right: -7px; cursor: nwse-resize; z-index: 10; display: none; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
   #stage[data-tool="select"] .video-obj.selected .video-resize { display: block; }
   .video-obj.video-error::after { content: '⚠ تعذّر تحميل الفيديو'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,.85); font-size: 12px; padding: 20px; text-align: center; }
 
-  #toolbar { position: fixed; right: 10px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 3px; padding: 5px 4px; background: rgba(28,32,40,.94); backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.5); z-index: 1000; touch-action: manipulation; }
-  #toolbar button { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #d4d9e2; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; transition: background .14s, transform .1s, color .14s; position: relative; touch-action: manipulation; }
+  #toolbar { position: fixed; right: 10px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 3px; padding: 5px 4px; background: rgba(28,32,40,.94); backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.5); z-index: 1000; touch-action: manipulation; max-height: 96vh; overflow-y: auto; }
+  #toolbar button { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #d4d9e2; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; transition: background .14s, transform .1s, color .14s; position: relative; touch-action: manipulation; flex-shrink: 0; }
   #toolbar button:hover { background: rgba(255,255,255,.09); }
   #toolbar button:active { transform: scale(.92); }
   #toolbar button.active { background: #4a7eff; color: #fff; }
   #toolbar button:disabled { opacity: .3; cursor: not-allowed; }
-  #toolbar .tb-divider { height: 1px; background: rgba(255,255,255,.08); margin: 3px 6px; }
+  #toolbar .tb-divider { height: 1px; background: rgba(255,255,255,.08); margin: 3px 6px; flex-shrink: 0; }
   #toolbar button[data-tool="pen"]::after,
   #toolbar button[data-tool="highlighter"]::after,
   #toolbar button[data-tool="laser"]::after { content: ''; position: absolute; bottom: 4px; right: 5px; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid #1c2028; background: var(--indicator, transparent); }
   #toolbar button svg { width: 20px; height: 20px; fill: currentColor; display: block; }
 
-  #submenu { position: fixed; right: 58px; display: none; flex-direction: column; min-width: 60px; padding: 7px 5px; background: rgba(28,32,40,.96); backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.5); z-index: 1001; animation: subIn .15s ease-out; touch-action: manipulation; }
-  @keyframes subIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+  #submenu { position: fixed; right: 58px; display: none; flex-direction: column; min-width: 60px; padding: 7px 5px; background: rgba(28,32,40,.96); backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.5); z-index: 1001; touch-action: manipulation; }
   #submenu.show { display: flex; }
   .sub-label { font-size: 9px; color: #8a94a6; text-align: center; padding: 2px 0 4px; letter-spacing: .5px; font-weight: 600; }
   .sub-section { padding: 4px 0; }
   .sub-section + .sub-section { border-top: 1px solid rgba(255,255,255,.06); }
   .color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 0 2px; }
-  .color-btn { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; margin: 2px auto; transition: transform .12s; touch-action: manipulation; }
+  .color-btn { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; margin: 2px auto; touch-action: manipulation; }
   .color-btn .swatch { width: 100%; height: 100%; border-radius: 50%; border: 1px solid rgba(0,0,0,.3); }
-  .color-btn:active { transform: scale(1.15); }
   .color-btn.active { border-color: #4a7eff; }
   .size-grid { display: flex; flex-direction: column; gap: 3px; align-items: center; padding: 2px 0; }
-  .size-btn { width: 34px; height: 24px; background: rgba(255,255,255,.04); border: 1px solid transparent; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .12s; touch-action: manipulation; }
-  .size-btn:active { background: rgba(255,255,255,.14); }
+  .size-btn { width: 34px; height: 24px; background: rgba(255,255,255,.04); border: 1px solid transparent; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
   .size-btn.active { border-color: #4a7eff; background: rgba(74,126,255,.15); }
   .size-btn .dot { border-radius: 50%; background: #d4d9e2; }
   .shape-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px; padding: 0 2px; }
-  .shape-btn { width: 30px; height: 30px; background: rgba(255,255,255,.04); border: 1px solid transparent; border-radius: 6px; color: #d4d9e2; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; transition: all .12s; touch-action: manipulation; }
-  .shape-btn:active { background: rgba(255,255,255,.14); }
+  .shape-btn { width: 30px; height: 30px; background: rgba(255,255,255,.04); border: 1px solid transparent; border-radius: 6px; color: #d4d9e2; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
   .shape-btn.active { border-color: #4a7eff; background: rgba(74,126,255,.15); }
   .color-input-row { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 6px; }
   .color-input-row input[type="color"] { width: 32px; height: 26px; border: 1px solid rgba(255,255,255,.15); border-radius: 6px; padding: 1px; background: transparent; cursor: pointer; }
   .color-input-row label { font-size: 10px; color: #b8c0cc; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
   .color-input-row input[type="checkbox"] { accent-color: #4a7eff; cursor: pointer; width: 14px; height: 14px; }
 
-  .nav-btn { position: fixed; bottom: 20px; width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; background: rgba(28,32,40,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.1); border-radius: 50%; color: #d4d9e2; font-size: 22px; cursor: pointer; z-index: 1000; box-shadow: 0 8px 24px rgba(0,0,0,.5); transition: background .15s, transform .1s, opacity .15s; touch-action: manipulation; user-select: none; }
-  .nav-btn:active:not(:disabled) { transform: scale(.9); background: rgba(74,126,255,.4); }
+  .nav-btn { position: fixed; bottom: 20px; width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; background: rgba(28,32,40,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.1); border-radius: 50%; color: #d4d9e2; font-size: 22px; cursor: pointer; z-index: 1000; box-shadow: 0 8px 24px rgba(0,0,0,.5); touch-action: manipulation; user-select: none; }
   .nav-btn:disabled { opacity: .25; cursor: not-allowed; }
   #btnPrev { left: 20px; }
   #btnNext { right: 20px; }
 
-  .dialog-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(10,12,16,.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; animation: fadeIn .16s ease; }
-  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-  .dialog { background: #1c2028; border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: 20px; width: 90%; max-width: 420px; box-shadow: 0 30px 80px rgba(0,0,0,.6); animation: dlgIn .2s cubic-bezier(.2,.9,.3,1.3); }
-  @keyframes dlgIn { from { opacity: 0; transform: scale(.94) translateY(8px); } to { opacity: 1; transform: none; } }
+  .dialog-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(10,12,16,.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; }
+  .dialog { background: #1c2028; border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: 20px; width: 90%; max-width: 420px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
   .dialog h3 { font-size: 15px; margin-bottom: 12px; color: #fff; font-weight: 700; }
+  .dialog p { font-size: 13px; color: #b8c0cc; line-height: 1.7; margin-bottom: 12px; }
   .dialog input[type="url"] { width: 100%; padding: 12px 14px; background: #0f1115; color: #eee; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; font-size: 15px; direction: ltr; text-align: left; outline: none; font-family: inherit; }
-  .dialog input[type="url"]:focus { border-color: #4a7eff; box-shadow: 0 0 0 3px rgba(74,126,255,.2); }
   .dialog-actions { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
   .dialog-actions button { padding: 11px 18px; border-radius: 9px; font-size: 14px; font-family: inherit; cursor: pointer; font-weight: 600; border: 1px solid transparent; touch-action: manipulation; }
   .dialog-actions .btn-primary { background: #4a7eff; color: #fff; }
+  .dialog-actions .btn-danger { background: #ef4444; color: #fff; }
   .dialog-actions .btn-secondary { background: transparent; color: #8a94a6; border-color: rgba(255,255,255,.12); }
 
   #emptyState { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: #666; pointer-events: none; z-index: 20; font-size: 14px; }
@@ -135,6 +129,12 @@
   #pageIndicator:empty { display: none; }
 
   .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 10px; background: rgba(28,32,40,.95); border: 1px solid rgba(255,255,255,.1); color: #fff; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.5); z-index: 3000; pointer-events: none; }
+  .toast.ok { border-color: rgba(34,197,94,.5); }
+  .toast.warn { border-color: rgba(245,158,11,.5); }
+  .toast.error { border-color: rgba(239,68,68,.55); }
+
+  #saveStatus { position: fixed; top: 14px; right: 68px; padding: 5px 12px; background: rgba(28,32,40,.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.08); border-radius: 999px; font-size: 10.5px; color: #8a94a6; z-index: 999; pointer-events: none; opacity: 0; transition: opacity .25s; }
+  #saveStatus.show { opacity: 1; }
 
   @media (max-width: 600px) {
     #toolbar { right: 6px; padding: 4px 3px; gap: 2px; }
@@ -144,6 +144,7 @@
     .nav-btn { width: 48px; height: 48px; font-size: 20px; bottom: 16px; }
     #btnPrev { left: 12px; }
     #btnNext { right: 12px; }
+    #saveStatus { right: 54px; font-size: 9.5px; }
   }
 </style>
 </head>
@@ -169,17 +170,18 @@
 </div>
 
 <div id="pageIndicator"></div>
+<div id="saveStatus"></div>
 
 <div id="toolbar">
   <button data-tool="hand" title="يد">🖐️</button>
   <button data-tool="pen" data-submenu="pen" title="قلم" style="--indicator:#000000">✏️</button>
-  <button data-tool="highlighter" data-submenu="highlighter" title="قلم تحديد" style="--indicator:#ffff00">🖍️</button>
+  <button data-tool="highlighter" data-submenu="highlighter" title="قلم تحديد" style="--indicator:#eab308">🖍️</button>
   <button data-tool="eraser" data-submenu="eraser" title="ممحاة">🧽</button>
   <button data-tool="laser" data-submenu="laser" title="ليزر" style="--indicator:#ff0000">🔴</button>
   <button data-tool="shape" data-submenu="shape" title="أشكال">▭</button>
   <button data-tool="embed" title="تضمين صفحة ويب">🔗</button>
   <button data-tool="video" title="إضافة فيديو">🎬</button>
-  <button data-tool="select" title="تحديد / تحريك (V)">
+  <button data-tool="select" title="تحديد / تحريك">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 3.2 L18.8 12.2 L12.4 13.1 L15.6 20.2 L13.3 21.2 L10.2 14.2 L5.5 18.4 Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="currentColor"/></svg>
   </button>
   <div class="tb-divider"></div>
@@ -188,6 +190,9 @@
   <div class="tb-divider"></div>
   <button id="btnFullscreen" title="ملء الشاشة">⛶</button>
   <button id="btnOpen" title="فتح ملف">📂</button>
+  <div class="tb-divider"></div>
+  <button id="btnSave" title="حفظ المشروع يدوياً">💾</button>
+  <button id="btnClearSaved" title="حذف المشروع المحفوظ">🗑️</button>
 </div>
 
 <div id="submenu"></div>
@@ -196,6 +201,9 @@
 <input type="file" id="fileInput" accept="application/pdf,image/*" style="display:none">
 
 <script type="module">
+/* ================================================================
+   pdf.js v4.7.76
+   ================================================================ */
 const PDFJS_VERSION = '4.7.76';
 const PDFJS_BASE = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}`;
 let pdfjsLib;
@@ -204,11 +212,21 @@ try {
   pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_BASE}/build/pdf.worker.min.mjs`;
 } catch (err) { console.error('فشل تحميل pdf.js:', err); throw err; }
 
+/* ================================================================
+   CONSTANTS
+   ================================================================ */
 const LASER_LIFE_MS = 5000;
 const LASER_FADE_MS = 1500;
 const UNDO_LIMIT = 50;
 const COORD_WIDTH = 2000;
+const DB_NAME = 'interactive-pdf-board';
+const DB_VERSION = 1;
+const STORE_NAME = 'projects';
+const PROJECT_KEY = 'current';
 
+/* ================================================================
+   DOM
+   ================================================================ */
 const $ = id => document.getElementById(id);
 const stage = $('stage'), stageWrapper = $('stageWrapper'), stageContent = $('stageContent');
 const pdfCanvas = $('pdfCanvas'), svgLayer = $('svgLayer'), embedLayer = $('embedLayer');
@@ -218,14 +236,24 @@ const emptyState = $('emptyState'), loadingEl = $('loading'), loadingText = $('l
 const pageIndicator = $('pageIndicator'), toolbar = $('toolbar'), submenu = $('submenu');
 const fileInput = $('fileInput'), btnUndo = $('btnUndo'), btnRedo = $('btnRedo');
 const btnPrev = $('btnPrev'), btnNext = $('btnNext');
+const saveStatusEl = $('saveStatus');
 
 const transCtx = transientCanvas.getContext('2d');
 const laserCtx = laserCanvas.getContext('2d');
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+/* ================================================================
+   STATE
+   ================================================================ */
 const state = {
   pdfDoc: null, currentPage: 1, totalPages: 0,
-  pdfW: 0, pdfH: 0, canvasScale: 1,
+  pdfW: 0, pdfH: 0,
+  canvasScale: 1,    // canvas px per PDF unit
+  dpr: 1,            // canvas px per CSS px
+  cssW: 0,           // stage's CSS width in px
+  pdfBlob: null,     // original file (for save/reload)
+  pdfName: '',
+  pdfIsImage: false,
   tool: 'select',
   penColor: '#000000', penSize: 3,
   highlighterColor: '#eab308', highlighterSize: 16,
@@ -236,9 +264,74 @@ const state = {
   selected: null, pages: {}, history: {},
 };
 
+/* ================================================================
+   INDEXEDDB
+   ================================================================ */
+let _db = null;
+function openDB() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+    };
+    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbPut(key, value) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+async function idbGet(key) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbDelete(key) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/* ================================================================
+   VIDEO BLOBS REGISTRY (videoId → Blob)
+   ================================================================ */
+const videoBlobs = new Map();
+
+/* ================================================================
+   HELPERS
+   ================================================================ */
 function uid() { return 'a' + Math.random().toString(36).slice(2, 9); }
 function setLoading(on, text) { loadingEl.classList.toggle('show', !!on); if (text) loadingText.textContent = text; }
-function toast(msg) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg; document.body.appendChild(el); setTimeout(() => el.remove(), 2200); }
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2400);
+}
+function showSaveStatus(text) {
+  saveStatusEl.textContent = text;
+  saveStatusEl.classList.add('show');
+  clearTimeout(showSaveStatus._t);
+  showSaveStatus._t = setTimeout(() => saveStatusEl.classList.remove('show'), 1600);
+}
 function computeStageSize(naturalW, naturalH) {
   const wrap = stageWrapper.getBoundingClientRect();
   const availW = Math.max(80, wrap.width - 24 - 66);
@@ -255,14 +348,16 @@ function computeStageSize(naturalW, naturalH) {
 function getVideoDimensions(url) {
   return new Promise((resolve) => {
     const v = document.createElement('video'); v.preload = 'metadata'; v.src = url;
-    const done = (res) => { v.src = ''; resolve(res); };
+    const done = (res) => { try { v.src = ''; } catch (_) {} resolve(res); };
     v.onloadedmetadata = () => done({ w: v.videoWidth || 1280, h: v.videoHeight || 720 });
     v.onerror = () => done({ w: 1280, h: 720 });
     setTimeout(() => done({ w: 1280, h: 720 }), 3000);
   });
 }
 
-/* ===== SERIALIZATION ===== */
+/* ================================================================
+   SERIALIZATION
+   ================================================================ */
 function serializeSvgElement(el) {
   const tag = el.tagName.toLowerCase(); const attrs = {};
   for (let i = 0; i < el.attributes.length; i++) {
@@ -277,7 +372,8 @@ function deserializeSvgElement(spec) {
   Object.keys(spec.attrs || {}).forEach(k => el.setAttribute(k, spec.attrs[k]));
   el.dataset.annot = '1'; el.dataset.id = spec.dataId;
   if (spec.shapeType) el.dataset.type = spec.shapeType;
-  el.classList.add('annot'); return el;
+  el.classList.add('annot');
+  return el;
 }
 function serializeEmbed(el) { return { kind: 'embed', url: el.dataset.url, x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height }; }
 function serializeVideo(el) { return { kind: 'video', videoId: el.dataset.videoId, url: el.dataset.url, title: el.dataset.title || '', x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height }; }
@@ -301,7 +397,9 @@ function applySnapshot(s) {
   (s.videos || []).forEach(spec => addVideoElement(spec.videoId, spec.url, spec.title, spec.x, spec.y, spec.w, spec.h, false));
 }
 
-/* ===== HISTORY ===== */
+/* ================================================================
+   HISTORY
+   ================================================================ */
 function getHistory() { return state.history[state.currentPage] || (state.history[state.currentPage] = { past: [], future: [] }); }
 function savePageNow() { if (state.currentPage) state.pages[state.currentPage] = snapshot(); }
 function commitChange(pre) {
@@ -310,6 +408,7 @@ function commitChange(pre) {
   h.past.push(pre || { annotations: [], embeds: [], videos: [] });
   if (h.past.length > UNDO_LIMIT) h.past.shift();
   h.future.length = 0; savePageNow(); updateUndoButtons();
+  scheduleSave();
 }
 function updateUndoButtons() {
   const h = state.history[state.currentPage] || { past: [], future: [] };
@@ -319,16 +418,83 @@ function undo() {
   if (!state.currentPage) return;
   const h = getHistory(); if (!h.past.length) return;
   h.future.push(snapshot()); const p = h.past.pop();
-  state.pages[state.currentPage] = p; applySnapshot(p); updateUndoButtons();
+  state.pages[state.currentPage] = p; applySnapshot(p); updateUndoButtons(); scheduleSave();
 }
 function redo() {
   if (!state.currentPage) return;
   const h = getHistory(); if (!h.future.length) return;
   h.past.push(snapshot()); const n = h.future.pop();
-  state.pages[state.currentPage] = n; applySnapshot(n); updateUndoButtons();
+  state.pages[state.currentPage] = n; applySnapshot(n); updateUndoButtons(); scheduleSave();
 }
 
-/* ===== LASER ===== */
+/* ================================================================
+   AUTO SAVE
+   ================================================================ */
+let saveTimer = null;
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { saveProject().catch(e => console.warn('auto-save failed', e)); }, 800);
+}
+async function saveProject() {
+  if (!state.pdfBlob) return false;
+  savePageNow();
+  const videoBlobsObj = {};
+  videoBlobs.forEach((blob, id) => { videoBlobsObj[id] = blob; });
+  const project = {
+    pdfBlob: state.pdfBlob,
+    pdfName: state.pdfName,
+    pdfIsImage: state.pdfIsImage,
+    totalPages: state.totalPages,
+    currentPage: state.currentPage,
+    pages: state.pages,
+    videoBlobs: videoBlobsObj,
+    savedAt: Date.now(),
+    version: 1,
+  };
+  try {
+    await idbPut(PROJECT_KEY, project);
+    showSaveStatus('✓ محفوظ ' + new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }));
+    return true;
+  } catch (err) {
+    console.error('save error', err);
+    toast('فشل الحفظ: ' + err.message, 'error');
+    return false;
+  }
+}
+async function loadProject() {
+  let project;
+  try { project = await idbGet(PROJECT_KEY); } catch (e) { console.warn(e); return false; }
+  if (!project || !project.pdfBlob) return false;
+  videoBlobs.clear();
+  Object.keys(project.videoBlobs || {}).forEach(id => { videoBlobs.set(id, project.videoBlobs[id]); });
+  state.pages = project.pages || {};
+  state.history = {};
+  state.currentPage = project.currentPage || 1;
+  state.pdfName = project.pdfName || 'document.pdf';
+  state.pdfIsImage = !!project.pdfIsImage;
+  try {
+    const file = new File([project.pdfBlob], state.pdfName, { type: project.pdfBlob.type || 'application/pdf' });
+    if (state.pdfIsImage) {
+      await loadImageFile(file, { keepPages: true, skipRender: true });
+    } else {
+      await loadPdfFile(file, { keepPages: true, skipRender: true });
+    }
+    state.currentPage = project.currentPage || 1;
+    await renderPage(state.currentPage);
+    return true;
+  } catch (err) {
+    console.error('loadProject restore failed', err);
+    return false;
+  }
+}
+async function clearSavedProject() {
+  try { await idbDelete(PROJECT_KEY); toast('تم حذف المشروع المحفوظ', 'ok'); }
+  catch (e) { toast('تعذّر الحذف: ' + e.message, 'error'); }
+}
+
+/* ================================================================
+   LASER
+   ================================================================ */
 const laserStrokes = []; let currentLaserStroke = null; let laserRAF = null; let laserLastActivity = 0;
 function clearLaser() { laserStrokes.length = 0; currentLaserStroke = null; laserLastActivity = 0; laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height); }
 function clearTransient() { transCtx.clearRect(0, 0, transientCanvas.width, transientCanvas.height); transientCanvas.style.opacity = '1'; }
@@ -340,7 +506,7 @@ function loadPageState(pageNum) {
 }
 function startLaserRAF() { if (laserRAF) return; laserRAF = requestAnimationFrame(laserTick); }
 function laserTick() {
-  const now = performance.now(), k = state.canvasScale;
+  const now = performance.now(), dpr = state.dpr;
   if (laserStrokes.length === 0) { laserRAF = null; return; }
   const age = now - laserLastActivity;
   let alpha = 1;
@@ -351,6 +517,8 @@ function laserTick() {
   laserCtx.globalAlpha = alpha; laserCtx.lineCap = 'round'; laserCtx.lineJoin = 'round';
   for (let i = 0; i < laserStrokes.length; i++) {
     const s = laserStrokes[i]; if (!s.points || s.points.length < 1) continue;
+    /* ★ استخدام canvasScale للرسم على canvas (وحدات PDF → canvas px) */
+    const k = state.canvasScale;
     laserCtx.shadowColor = s.color; laserCtx.shadowBlur = s.width * k * 2.5;
     laserCtx.strokeStyle = '#ffffff'; laserCtx.lineWidth = s.width * k;
     laserCtx.beginPath(); laserCtx.moveTo(s.points[0].x * k, s.points[0].y * k);
@@ -375,7 +543,9 @@ function laserAdd(p) {
 }
 function laserEnd() { currentLaserStroke = null; laserLastActivity = performance.now(); }
 
-/* ===== PDF RENDER ===== */
+/* ================================================================
+   PDF RENDER
+   ================================================================ */
 async function renderPage(pageNum) {
   if (!state.pdfDoc) return;
   setLoading(true, 'جارٍ عرض الصفحة…');
@@ -385,7 +555,9 @@ async function renderPage(pageNum) {
     state.pdfW = COORD_WIDTH;
     state.pdfH = Math.round(vp1.height * (COORD_WIDTH / vp1.width));
     const { cssW, cssH, canvasW, canvasH } = computeStageSize(vp1.width, vp1.height);
-    state.canvasScale = canvasW / state.pdfW;
+    state.canvasScale = canvasW / state.pdfW;   // canvas px per PDF unit
+    state.cssW = cssW;
+    state.dpr = canvasW / cssW;                 // canvas px per CSS px
     stage.style.width = cssW + 'px'; stage.style.height = cssH + 'px';
     [pdfCanvas, transientCanvas, laserCanvas].forEach(c => { c.width = canvasW; c.height = canvasH; });
     svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
@@ -398,10 +570,10 @@ async function renderPage(pageNum) {
     stageContent.style.transition = 'none'; stageContent.style.transform = '';
     loadPageState(pageNum);
     updatePageIndicator(); updateUndoButtons(); emptyState.style.display = 'none';
-  } catch (err) { console.error(err); toast('تعذّر عرض الصفحة'); }
+  } catch (err) { console.error(err); toast('تعذّر عرض الصفحة', 'error'); }
   finally { setLoading(false); }
 }
-async function loadPdfFile(file) {
+async function loadPdfFile(file, opts = {}) {
   setLoading(true, 'جارٍ قراءة الملف…');
   try {
     const buf = await file.arrayBuffer();
@@ -411,33 +583,48 @@ async function loadPdfFile(file) {
       useSystemFonts: false, disableFontFace: false, isEvalSupported: false,
       fontExtraProperties: true, verbosity: 0,
     }).promise;
-    state.pdfDoc = doc; state.totalPages = doc.numPages; state.currentPage = 1;
-    state.pages = {}; state.history = {}; state.selected = null;
-    updateUndoButtons(); await renderPage(1);
-  } catch (err) { console.error(err); setLoading(false); alert('تعذّر فتح PDF: ' + err.message); }
+    state.pdfDoc = doc; state.totalPages = doc.numPages;
+    state.pdfBlob = file; state.pdfName = file.name; state.pdfIsImage = false;
+    if (!opts.keepPages) {
+      state.pages = {}; state.history = {}; state.currentPage = 1; state.selected = null;
+    }
+    if (!opts.skipRender) {
+      updateUndoButtons();
+      await renderPage(state.currentPage || 1);
+      scheduleSave();
+    }
+  } catch (err) { console.error(err); setLoading(false); alert('تعذّر فتح PDF: ' + err.message); throw err; }
 }
-async function loadImageFile(file) {
+async function loadImageFile(file, opts = {}) {
   setLoading(true, 'جارٍ تحميل الصورة…');
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('صورة غير صالحة')); i.src = url; });
-    state.pdfDoc = null; state.totalPages = 1; state.currentPage = 1;
-    state.pages = {}; state.history = {};
+    state.pdfDoc = null; state.totalPages = 1;
+    state.pdfBlob = file; state.pdfName = file.name; state.pdfIsImage = true;
     state.pdfW = COORD_WIDTH; state.pdfH = Math.round(COORD_WIDTH * img.height / img.width);
     const { cssW, cssH, canvasW, canvasH } = computeStageSize(img.width, img.height);
     state.canvasScale = canvasW / state.pdfW;
+    state.cssW = cssW;
+    state.dpr = canvasW / cssW;
     stage.style.width = cssW + 'px'; stage.style.height = cssH + 'px';
     [pdfCanvas, transientCanvas, laserCanvas].forEach(c => { c.width = canvasW; c.height = canvasH; });
     svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
     const ctx = pdfCanvas.getContext('2d');
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvasW, canvasH);
     ctx.drawImage(img, 0, 0, canvasW, canvasH);
-    deselect(); clearLaser(); clearTransient();
-    while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
-    embedLayer.innerHTML = ''; videoLayer.innerHTML = '';
-    stageContent.style.transform = '';
-    updatePageIndicator(); updateUndoButtons(); emptyState.style.display = 'none';
-  } catch (err) { console.error(err); alert(err.message); }
+    if (!opts.keepPages) {
+      state.pages = {}; state.history = {}; state.currentPage = 1;
+    }
+    if (!opts.skipRender) {
+      deselect(); clearLaser(); clearTransient();
+      while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
+      embedLayer.innerHTML = ''; videoLayer.innerHTML = '';
+      stageContent.style.transform = '';
+      updatePageIndicator(); updateUndoButtons(); emptyState.style.display = 'none';
+      scheduleSave();
+    }
+  } catch (err) { console.error(err); alert(err.message); throw err; }
   finally { URL.revokeObjectURL(url); setLoading(false); }
 }
 function updatePageIndicator() {
@@ -446,20 +633,52 @@ function updatePageIndicator() {
   btnPrev.disabled = state.currentPage <= 1; btnNext.disabled = state.currentPage >= state.totalPages;
 }
 
-/* ===== RESIZE ===== */
+/* ================================================================
+   RESIZE
+   ================================================================ */
 let resizeTimer = null;
 function handleResize() {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(async () => { if (state.pdfDoc && state.currentPage) { savePageNow(); await renderPage(state.currentPage); } }, 250);
+  resizeTimer = setTimeout(async () => {
+    if ((state.pdfDoc || state.pdfIsImage) && state.currentPage) {
+      savePageNow();
+      if (state.pdfDoc) await renderPage(state.currentPage);
+      else {
+        /* إعادة رسم الصورة */
+        const blob = state.pdfBlob;
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          try {
+            const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('x')); i.src = url; });
+            const { cssW, cssH, canvasW, canvasH } = computeStageSize(img.width, img.height);
+            state.canvasScale = canvasW / state.pdfW;
+            state.cssW = cssW; state.dpr = canvasW / cssW;
+            stage.style.width = cssW + 'px'; stage.style.height = cssH + 'px';
+            [pdfCanvas, transientCanvas, laserCanvas].forEach(c => { c.width = canvasW; c.height = canvasH; });
+            svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
+            const ctx = pdfCanvas.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvasW, canvasH);
+            ctx.drawImage(img, 0, 0, canvasW, canvasH);
+            const saved = state.pages[state.currentPage];
+            while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
+            embedLayer.innerHTML = ''; videoLayer.innerHTML = '';
+            if (saved) applySnapshot(saved);
+          } finally { URL.revokeObjectURL(url); }
+        }
+      }
+    }
+  }, 300);
 }
 window.addEventListener('resize', handleResize);
 window.addEventListener('orientationchange', () => setTimeout(() => window.dispatchEvent(new Event('resize')), 300));
 
-/* ===== NAVIGATION ===== */
+/* ================================================================
+   NAVIGATION
+   ================================================================ */
 let sliding = false;
 async function goToPage(newPage, dir) {
   if (sliding || newPage < 1 || newPage > state.totalPages || newPage === state.currentPage) return;
-  sliding = true; savePageNow();
+  sliding = true; savePageNow(); scheduleSave();
   const w = stage.clientWidth;
   const outX = dir === 'next' ? -w : w, inX = dir === 'next' ? w : -w;
   stageContent.style.transition = 'transform .22s ease-out'; stageContent.style.transform = `translateX(${outX}px)`;
@@ -473,7 +692,9 @@ async function goToPage(newPage, dir) {
   setTimeout(() => { stageContent.style.transition = ''; stageContent.style.transform = ''; sliding = false; }, 240);
 }
 
-/* ===== TOOLBAR ===== */
+/* ================================================================
+   TOOLBAR
+   ================================================================ */
 function setTool(tool) {
   if (tool !== 'select') deselect();
   state.tool = tool; stage.dataset.tool = tool;
@@ -492,11 +713,17 @@ function bindPress(el, handler) {
   });
 }
 toolbar.querySelectorAll('button').forEach(btn => {
-  bindPress(btn, () => {
+  bindPress(btn, async () => {
     if (btn.id === 'btnUndo') { undo(); return; }
     if (btn.id === 'btnRedo') { redo(); return; }
     if (btn.id === 'btnFullscreen') { toggleFullscreen(); return; }
     if (btn.id === 'btnOpen') { fileInput.click(); return; }
+    if (btn.id === 'btnSave') {
+      const ok = await saveProject();
+      if (ok) toast('تم حفظ المشروع ✅', 'ok');
+      return;
+    }
+    if (btn.id === 'btnClearSaved') { confirmClearSaved(); return; }
     const tool = btn.dataset.tool; if (!tool) return;
     if (tool === 'embed') { openEmbedDialog(); return; }
     if (tool === 'video') { openVideoPicker(); return; }
@@ -517,8 +744,18 @@ function toggleFullscreen() {
     else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
   }
 }
+function confirmClearSaved() {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'dialog-backdrop';
+  backdrop.innerHTML = `<div class="dialog"><h3>🗑️ حذف المشروع المحفوظ</h3><p>سيتم حذف كل البيانات المحفوظة (PDF، الرسومات، الفيديوهات، التضمينات). لا يمكن التراجع.</p><div class="dialog-actions"><button type="button" class="btn-secondary" data-action="cancel">إلغاء</button><button type="button" class="btn-danger" data-action="ok">حذف</button></div></div>`;
+  document.body.appendChild(backdrop);
+  bindPress(backdrop.querySelector('[data-action="cancel"]'), () => backdrop.remove());
+  bindPress(backdrop.querySelector('[data-action="ok"]'), async () => { backdrop.remove(); await clearSavedProject(); });
+}
 
-/* ===== SUBMENU ===== */
+/* ================================================================
+   SUBMENU
+   ================================================================ */
 let submenuOwner = null;
 function closeSubmenu() { submenu.classList.remove('show'); submenu.innerHTML = ''; submenuOwner = null; }
 function repositionSubmenu() {
@@ -547,7 +784,7 @@ function renderColorSize(color, size, kind, colors, sizes) {
       ${colors.map(c => `<button type="button" class="color-btn ${c === color ? 'active' : ''}" data-kind="${kind}" data-color="${c}"><div class="swatch" style="background:${c}"></div></button>`).join('')}
     </div></div>
     <div class="sub-section"><div class="sub-label">الحجم</div><div class="size-grid">
-      ${sizes.map(s => `<button type="button" class="size-btn ${s === size ? 'active' : ''}" data-kind="${kind}" data-size="${s}"><div class="dot" style="width:${Math.min(20, s / (sizes[sizes.length-1] > 20 ? 1.5 : 1))}px;height:${Math.min(20, s / (sizes[sizes.length-1] > 20 ? 1.5 : 1))}px"></div></button>`).join('')}
+      ${sizes.map(s => `<button type="button" class="size-btn ${s === size ? 'active' : ''}" data-kind="${kind}" data-size="${s}"><div class="dot" style="width:${Math.min(20, Math.max(3, s/1.5))}px;height:${Math.min(20, Math.max(3, s/1.5))}px"></div></button>`).join('')}
     </div></div>`;
 }
 function renderEraserSubmenu() {
@@ -557,10 +794,7 @@ function renderEraserSubmenu() {
       ${sizes.map(s => `<button type="button" class="size-btn ${s === state.eraserSize ? 'active' : ''}" data-kind="eraser" data-size="${s}"><div class="dot" style="width:${Math.min(20, s / 4)}px;height:${Math.min(20, s / 4)}px"></div></button>`).join('')}
     </div></div>
     <div class="sub-section">
-      <div class="color-input-row">
-        <label><input type="checkbox" id="subEraseShapes" ${state.eraserErasesShapes ? 'checked' : ''}> امسح الأشكال</label>
-      </div>
-      <div style="font-size:9px;color:#666;text-align:center;padding:2px 6px 4px;line-height:1.4">عند الإلغاء تُمسح الخطوط فقط</div>
+      <div class="color-input-row"><label><input type="checkbox" id="subEraseShapes" ${state.eraserErasesShapes ? 'checked' : ''}> امسح الأشكال</label></div>
     </div>`;
 }
 function renderShapeSubmenu() {
@@ -570,14 +804,8 @@ function renderShapeSubmenu() {
     <div class="sub-section"><div class="sub-label">الشكل</div><div class="shape-grid">
       ${kinds.map(o => `<button type="button" class="shape-btn ${o.k === state.shapeKind ? 'active' : ''}" data-shape="${o.k}">${o.label}</button>`).join('')}
     </div></div>
-    <div class="sub-section"><div class="sub-label">الحدود</div><div class="color-input-row">
-      <input type="color" id="subShapeStroke" value="${state.shapeStroke}">
-    </div></div>
-    <div class="sub-section"><div class="sub-label">التعبئة</div><div class="color-input-row">
-      <input type="color" id="subShapeFill" value="${state.shapeFill}" ${state.shapeFillNone ? 'disabled' : ''}>
-    </div><div class="color-input-row">
-      <label><input type="checkbox" id="subNoFill" ${state.shapeFillNone ? 'checked' : ''}> بدون تعبئة</label>
-    </div></div>
+    <div class="sub-section"><div class="sub-label">الحدود</div><div class="color-input-row"><input type="color" id="subShapeStroke" value="${state.shapeStroke}"></div></div>
+    <div class="sub-section"><div class="sub-label">التعبئة</div><div class="color-input-row"><input type="color" id="subShapeFill" value="${state.shapeFill}" ${state.shapeFillNone ? 'disabled' : ''}></div><div class="color-input-row"><label><input type="checkbox" id="subNoFill" ${state.shapeFillNone ? 'checked' : ''}> بدون تعبئة</label></div></div>
     <div class="sub-section"><div class="sub-label">السماكة</div><div class="size-grid">
       ${sizes.map(s => `<button type="button" class="size-btn ${s === state.shapeSize ? 'active' : ''}" data-kind="shape" data-size="${s}"><div class="dot" style="width:${Math.max(3, s)}px;height:${Math.max(3, s)}px"></div></button>`).join('')}
     </div></div>`;
@@ -629,7 +857,9 @@ function updateToolbarIndicators() {
   if (l) l.style.setProperty('--indicator', state.laserColor);
 }
 
-/* ===== EMBED ===== */
+/* ================================================================
+   EMBED
+   ================================================================ */
 function openEmbedDialog() {
   const backdrop = document.createElement('div');
   backdrop.className = 'dialog-backdrop';
@@ -665,8 +895,8 @@ function addEmbedElement(url, x, y, w, hh, save) {
   iframe.setAttribute('referrerpolicy', 'no-referrer');
   const resize = document.createElement('div'); resize.className = 'embed-resize';
   el.appendChild(header); el.appendChild(iframe); el.appendChild(resize); embedLayer.appendChild(el);
-  header.addEventListener('pointerdown', e => { if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return; e.preventDefault(); e.stopPropagation(); header.setPointerCapture(e.pointerId); selectEmbed(el); startEmbedDrag(el, e, 'move'); });
-  resize.addEventListener('pointerdown', e => { if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return; e.preventDefault(); e.stopPropagation(); resize.setPointerCapture(e.pointerId); selectEmbed(el); startEmbedDrag(el, e, 'resize'); });
+  header.addEventListener('pointerdown', e => { if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return; e.preventDefault(); e.stopPropagation(); try { header.setPointerCapture(e.pointerId); } catch (_) {} selectEmbed(el); startEmbedDrag(el, e, 'move'); });
+  resize.addEventListener('pointerdown', e => { if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return; e.preventDefault(); e.stopPropagation(); try { resize.setPointerCapture(e.pointerId); } catch (_) {} selectEmbed(el); startEmbedDrag(el, e, 'resize'); });
   if (save !== false) savePageNow();
   return el;
 }
@@ -689,7 +919,9 @@ function startEmbedDrag(el, e, mode) {
   document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp); document.addEventListener('pointercancel', onUp);
 }
 
-/* ===== VIDEO ===== */
+/* ================================================================
+   VIDEO
+   ================================================================ */
 function openVideoPicker() {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = 'video/*'; input.multiple = true; input.style.display = 'none';
@@ -703,9 +935,11 @@ function openVideoPicker() {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]; if (!/^video\//i.test(file.type)) continue;
         try {
+          const videoId = uid();
+          /* احفظ الـ Blob الأصلي في السجل (للحفظ لاحقاً) */
+          videoBlobs.set(videoId, file);
           const blobUrl = URL.createObjectURL(file);
           const dims = await getVideoDimensions(blobUrl);
-          const videoId = uid();
           const targetW = state.pdfW * 0.55, ratio = dims.h / dims.w;
           let wPct = (targetW / state.pdfW) * 100, hPct = (targetW * ratio / state.pdfH) * 100;
           if (hPct > 60) { hPct = 60; wPct = (hPct / 100 * state.pdfH) / (ratio * state.pdfW) * 100; }
@@ -713,16 +947,27 @@ function openVideoPicker() {
           placed++;
         } catch (err) { console.warn(err); }
       }
-      if (placed > 0) { commitChange(pre); toast(`تمت إضافة ${placed} فيديو ✅`); setTool('select'); }
-      else toast('لم يتم اختيار أي فيديو صالح');
+      if (placed > 0) { commitChange(pre); toast(`تمت إضافة ${placed} فيديو ✅`, 'ok'); setTool('select'); }
+      else toast('لم يتم اختيار أي فيديو صالح', 'warn');
     } finally { setLoading(false); input.remove(); }
   });
   input.click();
 }
 function addVideoElement(videoId, url, title, x, y, w, h, save) {
   const el = document.createElement('div'); el.className = 'video-obj';
-  el.dataset.videoId = videoId; el.dataset.url = url; el.dataset.title = title || '';
+  el.dataset.videoId = videoId;
+  el.dataset.title = title || '';
   el.style.left = x || '25%'; el.style.top = y || '20%'; el.style.width = w || '50%'; el.style.height = h || '40%';
+
+  /* ★ إن كان لدينا blob مسجّل، أنشئ رابطاً جديداً منه (مهم عند الاستعادة) */
+  let actualUrl = url;
+  const storedBlob = videoBlobs.get(videoId);
+  if (storedBlob) {
+    try { if (actualUrl && actualUrl.startsWith('blob:')) URL.revokeObjectURL(actualUrl); } catch (_) {}
+    actualUrl = URL.createObjectURL(storedBlob);
+  }
+  el.dataset.url = actualUrl;
+
   const header = document.createElement('div'); header.className = 'video-header';
   const titleEl = document.createElement('span'); titleEl.className = 'video-title'; titleEl.textContent = title || 'فيديو'; titleEl.title = title || '';
   const closeBtn = document.createElement('button'); closeBtn.type = 'button'; closeBtn.className = 'video-close'; closeBtn.textContent = '×'; closeBtn.title = 'حذف';
@@ -730,14 +975,15 @@ function addVideoElement(videoId, url, title, x, y, w, h, save) {
   bindPress(closeBtn, e => {
     e.stopPropagation(); const pre = snapshot();
     if (state.selected && state.selected.el === el) state.selected = null;
-    try { const v = el.querySelector('video'); if (v) { v.pause(); v.src = ''; } if (url && url.startsWith('blob:')) URL.revokeObjectURL(url); } catch (_) {}
+    try { const v = el.querySelector('video'); if (v) { v.pause(); v.src = ''; } } catch (_) {}
+    /* لا تحذف الـ blob من السجل — قد نحتاجه للتراجع */
     el.remove(); commitChange(pre);
   });
   header.appendChild(titleEl); header.appendChild(closeBtn);
-  const video = document.createElement('video'); video.src = url; video.preload = 'metadata'; video.playsInline = true;
+  const video = document.createElement('video'); video.src = actualUrl; video.preload = 'metadata'; video.playsInline = true;
   video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', '');
   const playBtn = document.createElement('button'); playBtn.type = 'button'; playBtn.className = 'video-play-btn'; playBtn.innerHTML = '▶'; playBtn.title = 'تشغيل';
-  bindPress(playBtn, e => { e.stopPropagation(); if (video.paused) video.play().catch(() => toast('تعذّر تشغيل الفيديو')); else video.pause(); });
+  bindPress(playBtn, e => { e.stopPropagation(); if (video.paused) video.play().catch(() => toast('تعذّر تشغيل الفيديو', 'error')); else video.pause(); });
   video.addEventListener('play', () => playBtn.classList.add('hidden'));
   video.addEventListener('pause', () => playBtn.classList.remove('hidden'));
   video.addEventListener('ended', () => playBtn.classList.remove('hidden'));
@@ -770,7 +1016,9 @@ function startVideoDrag(el, e, mode) {
   document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp); document.addEventListener('pointercancel', onUp);
 }
 
-/* ===== SELECTION ===== */
+/* ================================================================
+   SELECTION
+   ================================================================ */
 function deselect() {
   if (state.selected) {
     if (state.selected.kind === 'svg') state.selected.el.classList.remove('selected');
@@ -808,7 +1056,9 @@ function drawSelectionOverlay(el) {
   svgLayer.appendChild(g);
 }
 
-/* ===== GEOMETRY HELPERS ===== */
+/* ================================================================
+   GEOMETRY HELPERS
+   ================================================================ */
 function distToSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1, dy = y2 - y1, len2 = dx*dx + dy*dy;
   if (len2 === 0) return Math.hypot(px - x1, py - y1);
@@ -841,10 +1091,10 @@ function isPointNearShape(p, el, tol) {
   return false;
 }
 
-/* ===== CREATE ANNOTATIONS ===== */
+/* ================================================================
+   CREATE ANNOTATIONS
+   ================================================================ */
 function addAnnotation(el) { el.dataset.annot = '1'; if (!el.dataset.id) el.dataset.id = uid(); el.classList.add('annot'); svgLayer.appendChild(el); }
-
-/* ★ بناء مسار من نقاط — مع خيارات للقلم/الهايلايتر */
 function buildPathFromPoints(points, kind) {
   if (!points || points.length < 2) return null;
   let d = 'M ' + points[0].x.toFixed(1) + ' ' + points[0].y.toFixed(1);
@@ -858,7 +1108,7 @@ function buildPathFromPoints(points, kind) {
     path.setAttribute('stroke-linejoin', 'round');
     path.setAttribute('fill', 'none');
     path.dataset.type = 'path';
-  } else if (kind === 'highlighter') {
+  } else {
     path.setAttribute('stroke', state.highlighterColor);
     path.setAttribute('stroke-width', state.highlighterSize);
     path.setAttribute('stroke-linecap', 'square');
@@ -881,16 +1131,14 @@ function createShapeElement(kind) {
   return el;
 }
 
-/* ===== UNIFIED STROKE HANDLING (pen / highlighter / eraser) ===== */
+/* ================================================================
+   STROKE HANDLING — ★ استخدام dpr بدل canvasScale لضمان التطابق
+   ================================================================ */
 let interaction = null, handDrag = null;
 
 function startStroke(kind, p) {
   const rect = stage.getBoundingClientRect();
-  const inter = {
-    type: 'stroke', kind, points: [p], rect,
-    lastDrawnIdx: 0,
-    pre: snapshot(),
-  };
+  const inter = { type: 'stroke', kind, points: [p], rect, lastDrawnIdx: 0, pre: snapshot() };
   clearTransient();
   if (kind === 'highlighter') transientCanvas.style.opacity = '0.4';
   else transientCanvas.style.opacity = '1';
@@ -898,24 +1146,25 @@ function startStroke(kind, p) {
   drawStrokeIncremental();
 }
 
-/* ★ الرسم التدريجي — يرسم فقط المقاطع الجديدة */
+/* ★ الرسم التدريجي بوحدات CSS px */
 function drawStrokeIncremental() {
   const inter = interaction;
   if (!inter || inter.type !== 'stroke') return;
-  const k = state.canvasScale;
+  /* ★ dpr = canvas pixels per CSS pixel — يجعل الخط بنفس سماكة SVG */
+  const dpr = state.dpr;
   const pts = inter.points;
   const fromIdx = Math.max(0, inter.lastDrawnIdx - 1);
   if (pts.length - fromIdx < 2 && inter.lastDrawnIdx > 0) return;
 
   let strokeColor, lineWidth, cap, join;
   if (inter.kind === 'pen') {
-    strokeColor = state.penColor; lineWidth = state.penSize * k;
+    strokeColor = state.penColor; lineWidth = state.penSize * dpr;
     cap = 'round'; join = 'round';
   } else if (inter.kind === 'highlighter') {
-    strokeColor = state.highlighterColor; lineWidth = state.highlighterSize * k;
+    strokeColor = state.highlighterColor; lineWidth = state.highlighterSize * dpr;
     cap = 'square'; join = 'miter';
-  } else { /* eraser */
-    strokeColor = '#ffffff'; lineWidth = state.eraserSize * k;
+  } else {
+    strokeColor = '#ffffff'; lineWidth = state.eraserSize * dpr;
     cap = 'round'; join = 'round';
   }
 
@@ -925,25 +1174,22 @@ function drawStrokeIncremental() {
   transCtx.lineJoin = join;
 
   if (inter.kind === 'eraser') {
-    /* للممحاة: ظل خفيف ليظهر على خلفية بيضاء */
     transCtx.shadowColor = 'rgba(0,0,0,0.28)';
-    transCtx.shadowBlur = 4 * k;
+    transCtx.shadowBlur = 4 * dpr;
   }
 
   if (pts.length === 1) {
-    /* نقطة واحدة: دائرة صغيرة للممحاة، أو لا شيء للقلم */
     if (inter.kind === 'eraser') {
       transCtx.beginPath();
-      transCtx.arc(pts[0].x * k, pts[0].y * k, lineWidth / 2, 0, Math.PI * 2);
+      transCtx.arc(pts[0].x * state.canvasScale, pts[0].y * state.canvasScale, lineWidth / 2, 0, Math.PI * 2);
       transCtx.fillStyle = strokeColor;
       transCtx.fill();
     }
   } else {
+    const k = state.canvasScale;
     transCtx.beginPath();
     transCtx.moveTo(pts[fromIdx].x * k, pts[fromIdx].y * k);
-    for (let i = fromIdx + 1; i < pts.length; i++) {
-      transCtx.lineTo(pts[i].x * k, pts[i].y * k);
-    }
+    for (let i = fromIdx + 1; i < pts.length; i++) transCtx.lineTo(pts[i].x * k, pts[i].y * k);
     transCtx.stroke();
   }
 
@@ -951,7 +1197,6 @@ function drawStrokeIncremental() {
   inter.lastDrawnIdx = pts.length;
 }
 
-/* ★ التقاط الأحداث المُجمّعة (coalesced) لسلاسة عالية */
 function appendStrokePoints(e) {
   const inter = interaction;
   if (!inter || inter.type !== 'stroke') return;
@@ -960,10 +1205,7 @@ function appendStrokePoints(e) {
   const r = inter.rect;
   for (let i = 0; i < events.length; i++) {
     const ev = events[i]; if (!ev) continue;
-    const p = {
-      x: ((ev.clientX - r.left) / r.width) * state.pdfW,
-      y: ((ev.clientY - r.top) / r.height) * state.pdfH,
-    };
+    const p = { x: ((ev.clientX - r.left) / r.width) * state.pdfW, y: ((ev.clientY - r.top) / r.height) * state.pdfH };
     const last = inter.points[inter.points.length - 1];
     const dx = p.x - last.x, dy = p.y - last.y;
     if (dx*dx + dy*dy > 1) { inter.points.push(p); added++; }
@@ -974,26 +1216,27 @@ function appendStrokePoints(e) {
   }
 }
 
-/* ★ محو على طول المقطع الجديد فقط */
+/* ★ الممحاة: تحويل حجم CSS إلى وحدات PDF */
 function eraserEraseAlongPath() {
   const inter = interaction;
   if (!inter || inter.type !== 'stroke' || inter.kind !== 'eraser') return;
   const pts = inter.points;
-  const tol = Math.max(state.eraserSize / 2, 6);
+  /* نصف قطر الممحاة بوحدات PDF */
+  const cssToPdf = state.cssW > 0 ? state.pdfW / state.cssW : 1;
+  const tol = (state.eraserSize / 2) * cssToPdf;
   const startIdx = Math.max(1, inter.lastDrawnIdx - 1);
   for (let i = startIdx; i < pts.length; i++) {
     const a = pts[i-1], b = pts[i];
     const dist = Math.hypot(b.x - a.x, b.y - a.y);
-    const step = Math.max(state.eraserSize / 3, 4);
+    const step = Math.max(tol / 2, 4);
     const n = Math.max(1, Math.ceil(dist / step));
     for (let j = 0; j <= n; j++) {
       const t = j / n;
-      const pp = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-      eraseAt(pp, tol);
+      eraseAtPdf({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, tol);
     }
   }
 }
-function eraseAt(p, tol) {
+function eraseAtPdf(p, tol) {
   const toRemove = [];
   svgLayer.querySelectorAll('[data-annot]').forEach(el => {
     if (el.tagName.toLowerCase() === 'g') return;
@@ -1015,28 +1258,23 @@ function endStroke() {
   if (!inter || inter.type !== 'stroke') return;
   interaction = null;
   clearTransient();
-
-  if (inter.kind === 'pen') {
+  if (inter.kind === 'pen' || inter.kind === 'highlighter') {
     if (inter.points.length >= 2) {
-      const p = buildPathFromPoints(inter.points, 'pen');
-      if (p) commitChange(inter.pre);
-    }
-  } else if (inter.kind === 'highlighter') {
-    if (inter.points.length >= 2) {
-      const p = buildPathFromPoints(inter.points, 'highlighter');
+      const p = buildPathFromPoints(inter.points, inter.kind);
       if (p) commitChange(inter.pre);
     }
   } else if (inter.kind === 'eraser') {
-    /* الممحاة: commit فقط إذا تم حذف شيء فعلاً */
     if (inter.pre) {
-      const before = JSON.stringify(inter.pre.annotations.map(a => a.dataId));
-      const after = JSON.stringify(snapshot().annotations.map(a => a.dataId));
+      const before = inter.pre.annotations.map(a => a.dataId).sort().join(',');
+      const after = snapshot().annotations.map(a => a.dataId).sort().join(',');
       if (before !== after) commitChange(inter.pre);
     }
   }
 }
 
-/* ===== POINTER EVENTS ===== */
+/* ================================================================
+   POINTER EVENTS
+   ================================================================ */
 stage.addEventListener('pointerdown', e => {
   if (!state.pdfW) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -1109,11 +1347,8 @@ function onStageUp(e) {
   if (!interaction) return;
   const inter = interaction;
   try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
-
   if (inter.type === 'stroke') { endStroke(); return; }
-
   interaction = null;
-
   if (inter.type === 'hand' && handDrag) {
     stage.classList.remove('dragging');
     const dx = handDrag.dx, w = stage.clientWidth, thr = w * 0.15;
@@ -1140,7 +1375,14 @@ function onStageUp(e) {
   if (inter.type === 'moveSvg' || inter.type === 'resizeSvg') commitChange(inter.pre);
 }
 
-/* ===== SVG GEOMETRY ===== */
+function getStagePoint(e) {
+  const r = stage.getBoundingClientRect();
+  return { x: ((e.clientX - r.left) / r.width) * state.pdfW, y: ((e.clientY - r.top) / r.height) * state.pdfH };
+}
+
+/* ================================================================
+   SVG GEOMETRY
+   ================================================================ */
 function captureSvgGeom(el) {
   const g = {};
   ['x','y','width','height','cx','cy','rx','ry','x1','y1','x2','y2'].forEach(a => { const v = el.getAttribute(a); if (v !== null) g[a] = parseFloat(v); });
@@ -1176,13 +1418,9 @@ function resizeSvg(el, handle, startPt, p) {
   }
 }
 
-/* ===== GET STAGE POINT (once-per-event only; strokes use cached rect) ===== */
-function getStagePoint(e) {
-  const r = stage.getBoundingClientRect();
-  return { x: ((e.clientX - r.left) / r.width) * state.pdfW, y: ((e.clientY - r.top) / r.height) * state.pdfH };
-}
-
-/* ===== NAV + KEYBOARD + FILES ===== */
+/* ================================================================
+   NAV + KEYBOARD + FILES
+   ================================================================ */
 bindPress(btnPrev, () => goToPage(state.currentPage - 1, 'prev'));
 bindPress(btnNext, () => goToPage(state.currentPage + 1, 'next'));
 
@@ -1190,14 +1428,14 @@ document.addEventListener('keydown', e => {
   if (e.target.matches('input, textarea, select')) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
   if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); redo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveProject().then(ok => ok && toast('تم الحفظ ✅', 'ok')); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') {
     if (state.selected) {
-      const pre = snapshot();
-      const sel = state.selected;
+      const pre = snapshot(); const sel = state.selected;
       if (sel.kind === 'svg') sel.el.remove();
       if (sel.kind === 'embed') sel.el.remove();
       if (sel.kind === 'video') {
-        try { const v = sel.el.querySelector('video'); if (v) { v.pause(); v.src = ''; } const url = sel.el.dataset.url; if (url && url.startsWith('blob:')) URL.revokeObjectURL(url); } catch (_) {}
+        try { const v = sel.el.querySelector('video'); if (v) { v.pause(); v.src = ''; } } catch (_) {}
         sel.el.remove();
       }
       state.selected = null; svgLayer.querySelectorAll('.selection-overlay').forEach(n => n.remove());
@@ -1229,11 +1467,29 @@ document.addEventListener('pointerdown', e => {
   if (submenu.classList.contains('show') && !submenu.contains(e.target) && !toolbar.contains(e.target)) closeSubmenu();
 }, true);
 
-/* ===== INIT ===== */
-setTool('select');
-updateToolbarIndicators();
-updateUndoButtons();
-updatePageIndicator();
+/* حفظ عند إغلاق النافذة (best-effort) */
+window.addEventListener('beforeunload', () => {
+  if (state.pdfBlob) { try { saveProject(); } catch (_) {} }
+});
+
+/* ================================================================
+   INIT + AUTO-RESTORE
+   ================================================================ */
+(async () => {
+  setTool('select');
+  updateToolbarIndicators();
+  updateUndoButtons();
+  updatePageIndicator();
+  try {
+    const ok = await loadProject();
+    if (ok) {
+      toast('تم استعادة المشروع المحفوظ ✅', 'ok');
+    }
+  } catch (err) {
+    console.warn('restore failed', err);
+  }
+})();
+
 </script>
 </body>
 </html>
