@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تعديل الـ PDF والتطبيق التفاعلي</title>
     
-    <!-- 🎨 استدعاء ملف التصميم المرفق في مستودعك بشكل صحيح ومستقل -->
-    <link rel="stylesheet" href="./tldraw.css">
+    <!-- 🎨 استدعاء الأنماط الرسمية لتيلدرو من رابط خارجي مستقر جداً -->
+    <link rel="stylesheet" href="https://jsdelivr.net">
 
     <style>
         body, html, #root {
@@ -31,19 +31,23 @@
 </head>
 <body>
 
-    <!-- المكون الأساسي الحاضن للنظام التفاعلي بالكامل -->
+    <!-- العنصر الحاضن للوحة التحكم والواجهة -->
     <div id="root"></div>
 
-    <!-- 💡 استخدام البرمجيات الحديثة الموجهة للمتصفح مباشرة دون روابط عشوائية لمنع الـ CORS -->
-    <script type="module">
-        import React, { useState } from 'https://unpkg.com';
-        import ReactDOM from 'https://unpkg.com';
-        import { Tldraw, defaultEmbedDefinitions } from 'https://unpkg.com';
+    <!-- 🌐 استيراد نسخ المتصفح العالمية (Global UMD) المضمونة 100% بدون أخطاء تجميع -->
+    <script src="https://cloudflare.com"></script>
+    <script src="https://cloudflare.com"></script>
+    <script src="https://jsdelivr.net"></script>
+
+    <script>
+        // استخراج الخصائص مباشرة من نطاق المتصفح العالمي بعد التحميل الآمن
+        const { useState, createElement } = React;
+        const { Tldraw, defaultEmbedDefinitions } = window.tldraw || tldraw;
 
         function App() {
             const [editor, setEditor] = useState(null);
 
-            // السماح للعبتك المنشورة على نطاق جيت هاب بالتفاعل الكامل داخل اللوحة
+            // إعداد كسر قيود الحماية داخل اللوحة للعبتك المنشورة
             const customEmbeds = [
                 ...defaultEmbedDefinitions,
                 {
@@ -57,7 +61,7 @@
                 }
             ];
 
-            // دالة استقبال ملف الـ PDF/الصور وإسقاطه في لوحة تيلدرو
+            // استقبال ملف الـ PDF/الصور وضخه داخل إحداثيات لوحة الرسم الحالية
             const handlePdfUpload = (event) => {
                 const files = event.target.files;
                 if (!files || files.length === 0 || !editor) return;
@@ -77,7 +81,7 @@
                 ]);
             };
 
-            // دالة حقن رابط لعبتك التفاعلية المنشورة مباشرة داخل إحداثيات العرض الحالية
+            // زر استدعاء لعبتك وحقن الـ iframe الخاص بها تفاعلياً تلقائياً
             const insertGameEmbed = () => {
                 if (!editor) return;
                 const gameUrl = "https://github.io";
@@ -95,15 +99,15 @@
                 ]);
             };
 
-            return React.createElement('div', { style: { width: '100%', height: '100%', position: 'relative' } },
-                React.createElement('div', { className: 'toolbar' },
-                    React.createElement('span', { style: { fontSize: '14px', fontWeight: 'bold' } }, 'التحكم التفاعلي:'),
-                    React.createElement('label', { className: 'btn btn-pdf' }, '📁 فتح ملف PDF',
-                        React.createElement('input', { type: 'file', accept: '.pdf,image/*', onChange: handlePdfUpload, style: { display: 'none' } })
+            return createElement('div', { style: { width: '100%', height: '100%', position: 'relative' } },
+                createElement('div', { className: 'toolbar' },
+                    createElement('span', { style: { fontSize: '14px', fontWeight: 'bold' } }, 'التحكم التفاعلي:'),
+                    createElement('label', { className: 'btn btn-pdf' }, '📁 فتح ملف PDF',
+                        createElement('input', { type: 'file', accept: '.pdf,image/*', onChange: handlePdfUpload, style: { display: 'none' } })
                     ),
-                    React.createElement('button', { onClick: insertGameEmbed, className: 'btn btn-game' }, '🎮 إضافة اللعبة التفاعلية')
+                    createElement('button', { onClick: insertGameEmbed, className: 'btn btn-game' }, '🎮 إضافة اللعبة التفاعلية')
                 ),
-                React.createElement(Tldraw, {
+                createElement(Tldraw, {
                     onMount: (edt) => setEditor(edt),
                     embedDefinitions: customEmbeds,
                     options: { unmountOnBlur: false }
@@ -111,10 +115,10 @@
             );
         }
 
-        // معالجة صيرورة بناء React وإسقاطها داخل الواجهة بصورة سليمة
+        // تشغيل نظام العرض وربطه بواجهة الويب الحية
         const container = document.getElementById('root');
         const root = ReactDOM.createRoot(container);
-        root.render(React.createElement(App));
+        root.render(createElement(App));
     </script>
 </body>
 </html>
