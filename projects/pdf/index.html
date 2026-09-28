@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تعديل الـ PDF والتطبيق التفاعلي</title>
     
-    <!-- 🎨 استيراد أنماط تيلدرو من شبكة خوادم cdnjs الآمنة والسريعة جداً -->
-    <link rel="stylesheet" href="https://cloudflare.com">
+    <!-- استدعاء ملف الأنماط من خادم مستقل ومؤمن تماماً ضد الحظر -->
+    <link rel="stylesheet" href="https://esm.sh">
 
     <style>
         body, html, #root {
@@ -31,23 +31,20 @@
 </head>
 <body>
 
-    <!-- المكون الأساسي لربط واجهة تيلدرو -->
+    <!-- العنصر الأساسي الحاضن لواجهة اللوحة -->
     <div id="root"></div>
 
-    <!-- 🌐 استيراد نسخ المتصفحات المستقرة من خوادم cdnjs وخوادم ميكروسوفت (خالية من الحظر والـ CORS) -->
-    <script src="https://cloudflare.com"></script>
-    <script src="https://cloudflare.com"></script>
-    <script src="https://cloudflare.com"></script>
+    <!-- 💡 الاستيراد بنظام النماذج الحديث (ES Modules) لحل مشكلة الحظر والصفحة البيضاء جذرياً -->
+    <script type="module">
+        import React, { useState } from 'https://esm.sh';
+        import ReactDOM from 'https://esm.sh';
+        import { Tldraw, defaultEmbedDefinitions } from 'https://esm.sh';
 
-    <script>
-        // استخراج الصلاحيات مباشرة من النطاق العام للمتصفح
-        const { useState, createElement } = React;
-        const { Tldraw, defaultEmbedDefinitions } = window.tldraw || tldraw;
-
+        // المكون الرئيسي للتطبيق
         function App() {
             const [editor, setEditor] = useState(null);
 
-            // إعداد كسر قيود الأمان في المتصفح لتعمل لعبتك بشكل تفاعلي ممتاز
+            // إعدادات البيئة التفاعلية للعبتك المنشورة لتفادي حظر التفاعل
             const customEmbeds = [
                 ...defaultEmbedDefinitions,
                 {
@@ -61,12 +58,12 @@
                 }
             ];
 
-            // استقبال ملف الـ PDF/الصور وضخه داخل إحداثيات لوحة الرسم الحالية
+            // دالة رفع وقراءة ملف الـ PDF/الصور
             const handlePdfUpload = (event) => {
                 const files = event.target.files;
                 if (!files || files.length === 0 || !editor) return;
 
-                const fileUrl = URL.createObjectURL(files[0]); // تصحيح لقراءة أول ملف مرفوع بدقة
+                const fileUrl = URL.createObjectURL(files[0]); // قراءة الملف الأول بدقة
                 
                 editor.createShapes([
                     {
@@ -81,7 +78,7 @@
                 ]);
             };
 
-            // حقن اللعبة التفاعلية الخاصة بك المرفوعة على جيت هاب داخل إحداثيات اللوحة
+            // دالة حقن لعبتك التفاعلية داخل اللوحة
             const insertGameEmbed = () => {
                 if (!editor) return;
                 const gameUrl = "https://github.io";
@@ -99,15 +96,16 @@
                 ]);
             };
 
-            return createElement('div', { style: { width: '100%', height: '100%', position: 'relative' } },
-                createElement('div', { className: 'toolbar' },
-                    createElement('span', { style: { fontSize: '14px', fontWeight: 'bold' } }, 'التحكم التفاعلي:'),
-                    createElement('label', { className: 'btn btn-pdf' }, '📁 فتح ملف PDF',
-                        createElement('input', { type: 'file', accept: '.pdf,image/*', onChange: handlePdfUpload, style: { display: 'none' } })
+            // بناء العناصر والعرض البرمجي المتوافق
+            return React.createElement('div', { style: { width: '100%', height: '100%', position: 'relative' } },
+                React.createElement('div', { className: 'toolbar' },
+                    React.createElement('span', { style: { fontSize: '14px', fontWeight: 'bold' } }, 'التحكم التفاعلي:'),
+                    React.createElement('label', { className: 'btn btn-pdf' }, '📁 فتح ملف PDF',
+                        React.createElement('input', { type: 'file', accept: '.pdf,image/*', onChange: handlePdfUpload, style: { display: 'none' } })
                     ),
-                    createElement('button', { onClick: insertGameEmbed, className: 'btn btn-game' }, '🎮 إضافة اللعبة التفاعلية')
+                    React.createElement('button', { onClick: insertGameEmbed, className: 'btn btn-game' }, '🎮 إضافة اللعبة التفاعلية')
                 ),
-                createElement(Tldraw, {
+                React.createElement(Tldraw, {
                     onMount: (edt) => setEditor(edt),
                     embedDefinitions: customEmbeds,
                     options: { unmountOnBlur: false }
@@ -115,10 +113,10 @@
             );
         }
 
-        // ربط الواجهة التفاعلية بهيكل الصفحة المكتمل
+        // معالجة صيرورة بناء المكونات وحقنها بـ DOM المتصفح
         const container = document.getElementById('root');
         const root = ReactDOM.createRoot(container);
-        root.render(createElement(App));
+        root.render(React.createElement(App));
     </script>
 </body>
 </html>
