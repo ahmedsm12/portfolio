@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تعديل الـ PDF والتطبيق التفاعلي</title>
     
-    <!-- 🎨 Correct local stylesheet loading -->
+    <!-- 🎨 استدعاء ملف التصميم المرفق في مستودعك بشكل صحيح ومستقل -->
     <link rel="stylesheet" href="./tldraw.css">
 
     <style>
@@ -31,9 +31,10 @@
 </head>
 <body>
 
+    <!-- المكون الأساسي الحاضن للنظام التفاعلي بالكامل -->
     <div id="root"></div>
 
-    <!-- 💡 Safe ES Module imports via unified browser package paths -->
+    <!-- 💡 استخدام البرمجيات الحديثة الموجهة للمتصفح مباشرة دون روابط عشوائية لمنع الـ CORS -->
     <script type="module">
         import React, { useState } from 'https://unpkg.com';
         import ReactDOM from 'https://unpkg.com';
@@ -42,6 +43,7 @@
         function App() {
             const [editor, setEditor] = useState(null);
 
+            // السماح للعبتك المنشورة على نطاق جيت هاب بالتفاعل الكامل داخل اللوحة
             const customEmbeds = [
                 ...defaultEmbedDefinitions,
                 {
@@ -55,11 +57,12 @@
                 }
             ];
 
+            // دالة استقبال ملف الـ PDF/الصور وإسقاطه في لوحة تيلدرو
             const handlePdfUpload = (event) => {
-                const file = event.target.files[0];
-                if (!file || !editor) return;
+                const files = event.target.files;
+                if (!files || files.length === 0 || !editor) return;
 
-                const fileUrl = URL.createObjectURL(file);
+                const fileUrl = URL.createObjectURL(files[0]);
                 
                 editor.createShapes([
                     {
@@ -68,12 +71,13 @@
                         x: editor.getViewportPageBounds().centerX - 200,
                         y: editor.getViewportPageBounds().centerY - 250,
                         props: {
-                            w: 400, h: 500, src: fileUrl, name: file.name
+                            w: 400, h: 500, src: fileUrl, name: files[0].name
                         },
                     },
                 ]);
             };
 
+            // دالة حقن رابط لعبتك التفاعلية المنشورة مباشرة داخل إحداثيات العرض الحالية
             const insertGameEmbed = () => {
                 if (!editor) return;
                 const gameUrl = "https://github.io";
@@ -107,6 +111,7 @@
             );
         }
 
+        // معالجة صيرورة بناء React وإسقاطها داخل الواجهة بصورة سليمة
         const container = document.getElementById('root');
         const root = ReactDOM.createRoot(container);
         root.render(React.createElement(App));
