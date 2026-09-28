@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تعديل الـ PDF والتطبيق التفاعلي</title>
+    
+    <!-- 🎨 استدعاء ملف الأنماط المحلي الذي قمت بتحميله مسبقاً -->
+    <link rel="stylesheet" href="./tldraw.css">
+
+    <style>
+        body, html, #root {
+            margin: 0; padding: 0; width: 100vw; height: 100vh;
+            overflow: hidden; font-family: sans-serif; background-color: #f8f9fa;
+        }
+        .toolbar {
+            position: absolute; top: 15px; right: 15px;
+            background: rgba(30, 30, 30, 0.95); padding: 12px 18px;
+            border-radius: 8px; display: flex; gap: 12px;
+            align-items: center; z-index: 9999; direction: rtl;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.25); color: #fff;
+        }
+        .btn {
+            color: white; border: none; padding: 8px 16px;
+            border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .btn-pdf { background: #007bff; }
+        .btn-game { background: #28a745; }
+    </style>
+</head>
+<body>
+
+    <div id="root"></div>
+
+    <!-- 💡 استخدام نظام الأقسام الحديث (ES Modules) المدعوم في المتصفحات رسمياً -->
+    <script type="module">
+        // جلب المكتبات بشكل آمن ومتوافق من روابط الـ ESM المخصصة للمتصفح مباشرة
+        import React, { useState } from 'https://unpkg.com';
+        import ReactDOM from 'https://unpkg.com';
+        import { Tldraw, defaultEmbedDefinitions } from 'https://unpkg.com';
+
+        function App() {
+            const [editor, setEditor] = useState(null);
+
+            // إعداد فك قيود الحماية للعبتك لتعمل وتتفاعل بسلاسة
+            const customEmbeds = [
+                ...defaultEmbedDefinitions,
+                {
+                    type: 'interactive-game',
+                    title: 'Interactive Game',
+                    hostnames: ['ahmedsm12.github.io', 'localhost', '127.0.0.1'],
+                    minWidth: 400, minHeight: 300, doesResize: true,
+                    toEmbedUrl: (url) => url,
+                    fromEmbedUrl: (url) => url,
+                    sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals',
+                }
+            ];
+
+            // دالة رفع الـ PDF أو الصور وإسقاطها باللوحة
+            const handlePdfUpload = (event) => {
+                const file = event.target.files[0];
+                if (!file || !editor) return;
+
+                const fileUrl = URL.createObjectURL(file);
+                
+                editor.createShapes([
+                    {
+                        id: editor.createShapeId(),
+                        type: 'image',
+                        x: editor.getViewportPageBounds().centerX - 200,
+                        y: editor.getViewportPageBounds().centerY - 250,
+                        props: {
+                            w: 400, h: 500, src: fileUrl, name: file.name
+                        },
+                    },
+                ]);
+            };
+
+            // دالة إسقاط اللعبة التفاعلية تلقائياً داخل مساحة تيلدرو بضغطة زر
+            const insertGameEmbed = () => {
+                if (!editor) return;
+                
+                const gameUrl = "https://github.io";
+                
+                editor.createShapes([
+                    {
+                        id: editor.createShapeId(),
+                        type: 'embed',
+                        x: editor.getViewportPageBounds().centerX - 300,
+                        y: editor.getViewportPageBounds().centerY - 200,
+                        props: {
+                            w: 600, h: 400, url: gameUrl
+                        },
+                    },
+                ]);
+            };
+
+            // بناء العناصر التفاعلية
+            return React.createElement('div', { style: { width: '100%', height: '100%', position: 'relative' } },
+                React.createElement('div', { className: 'toolbar' },
+                    React.createElement('span', { style: { fontSize: '14px', fontWeight: 'bold' } }, 'التحكم التفاعلي:'),
+                    React.createElement('label', { className: 'btn btn-pdf' }, '📁 فتح ملف PDF',
+                        React.createElement('input', { type: 'file', accept: '.pdf,image/*', onChange: handlePdfUpload, style: { display: 'none' } })
+                    ),
+                    React.createElement('button', { onClick: insertGameEmbed, className: 'btn btn-game' }, '🎮 إضافة اللعبة التفاعلية')
+                ),
+                React.createElement(Tldraw, {
+                    onMount: (edt) => setEditor(edt),
+                    embedDefinitions: customEmbeds,
+                    options: { unmountOnBlur: false }
+                })
+            );
+        }
+
+        // بدء تشغيل بيئة العرض داخل الصفحة بصورة سليمة
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(React.createElement(App));
+    </script>
+</body>
+</html>
