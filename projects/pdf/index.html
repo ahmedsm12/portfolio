@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تعديل الـ PDF والتطبيق التفاعلي</title>
     
-    <!-- استدعاء ملف الأنماط من خادم مستقل ومؤمن تماماً ضد الحظر -->
-    <link rel="stylesheet" href="https://esm.sh">
+    <!-- 🎨 استيراد أنماط تيلدرو الرسمية من رابط مباشر مستقر -->
+    <link rel="stylesheet" href="https://jsdelivr.net">
 
     <style>
         body, html, #root {
@@ -31,20 +31,23 @@
 </head>
 <body>
 
-    <!-- العنصر الأساسي الحاضن لواجهة اللوحة -->
+    <!-- العنصر الحاضن للوحة -->
     <div id="root"></div>
 
-    <!-- 💡 الاستيراد بنظام النماذج الحديث (ES Modules) لحل مشكلة الحظر والصفحة البيضاء جذرياً -->
-    <script type="module">
-        import React, { useState } from 'https://esm.sh';
-        import ReactDOM from 'https://esm.sh';
-        import { Tldraw, defaultEmbedDefinitions } from 'https://esm.sh';
+    <!-- 🌐 روابط الـ CDN العالمية المضمونة (إصدارات UMD حقيقية للمتصفح مباشرة) -->
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
 
-        // المكون الرئيسي للتطبيق
+    <script>
+        // استخراج الصلاحيات والمكونات بعد تحميل روابط الـ UMD بنجاح في المتصفح
+        const { useState, createElement } = React;
+        const { Tldraw, defaultEmbedDefinitions } = window.tldraw || tldraw;
+
         function App() {
             const [editor, setEditor] = useState(null);
 
-            // إعدادات البيئة التفاعلية للعبتك المنشورة لتفادي حظر التفاعل
+            // إعداد كسر قيود الأمان لتعمل لعبتك على جيت هاب بكفاءة وتفاعل كامل
             const customEmbeds = [
                 ...defaultEmbedDefinitions,
                 {
@@ -58,7 +61,7 @@
                 }
             ];
 
-            // دالة رفع وقراءة ملف الـ PDF/الصور
+            // دالة رفع ملف الـ PDF أو الصور وإسقاطه في لوحة الرسم
             const handlePdfUpload = (event) => {
                 const files = event.target.files;
                 if (!files || files.length === 0 || !editor) return;
@@ -78,7 +81,7 @@
                 ]);
             };
 
-            // دالة حقن لعبتك التفاعلية داخل اللوحة
+            // دالة إضافة رابط لعبتك التفاعلية المنشورة تلقائياً بضغطة زر
             const insertGameEmbed = () => {
                 if (!editor) return;
                 const gameUrl = "https://github.io";
@@ -96,16 +99,15 @@
                 ]);
             };
 
-            // بناء العناصر والعرض البرمجي المتوافق
-            return React.createElement('div', { style: { width: '100%', height: '100%', position: 'relative' } },
-                React.createElement('div', { className: 'toolbar' },
-                    React.createElement('span', { style: { fontSize: '14px', fontWeight: 'bold' } }, 'التحكم التفاعلي:'),
-                    React.createElement('label', { className: 'btn btn-pdf' }, '📁 فتح ملف PDF',
-                        React.createElement('input', { type: 'file', accept: '.pdf,image/*', onChange: handlePdfUpload, style: { display: 'none' } })
+            return createElement('div', { style: { width: '100%', height: '100%', position: 'relative' } },
+                createElement('div', { className: 'toolbar' },
+                    createElement('span', { style: { fontSize: '14px', fontWeight: 'bold' } }, 'التحكم التفاعلي:'),
+                    createElement('label', { className: 'btn btn-pdf' }, '📁 فتح ملف PDF',
+                        createElement('input', { type: 'file', accept: '.pdf,image/*', onChange: handlePdfUpload, style: { display: 'none' } })
                     ),
-                    React.createElement('button', { onClick: insertGameEmbed, className: 'btn btn-game' }, '🎮 إضافة اللعبة التفاعلية')
+                    createElement('button', { onClick: insertGameEmbed, className: 'btn btn-game' }, '🎮 إضافة اللعبة التفاعلية')
                 ),
-                React.createElement(Tldraw, {
+                createElement(Tldraw, {
                     onMount: (edt) => setEditor(edt),
                     embedDefinitions: customEmbeds,
                     options: { unmountOnBlur: false }
@@ -113,10 +115,10 @@
             );
         }
 
-        // معالجة صيرورة بناء المكونات وحقنها بـ DOM المتصفح
+        // تشغيل البناء وربطه بالواجهة
         const container = document.getElementById('root');
         const root = ReactDOM.createRoot(container);
-        root.render(React.createElement(App));
+        root.render(createElement(App));
     </script>
 </body>
 </html>
