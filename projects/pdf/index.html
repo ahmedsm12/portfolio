@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#0e1117" />
 <title>لوحة تعديل الـ PDF والوسائط التفاعلية</title>
 
-<!-- أنماط tldraw من CDN مع مسار احتياطي -->
+<!-- أنماط tldraw من CDN -->
 <link rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/tldraw@2.4.4/dist/tldraw.css"
-      onerror="this.onerror=null;this.href='https://unpkg.com/tldraw@2.4.4/dist/tldraw.css';" />
+      href="https://esm.sh/tldraw@2.4.4/tldraw.css"
+      onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/tldraw@2.4.4/dist/tldraw.css';" />
 
 <style>
   :root{
@@ -172,10 +172,10 @@
   </div>
 </div>
 
-<script>
+<script type="module">
 /* ============================================================================
    لوحة تعديل الـ PDF والوسائط التفاعلية
-   Frontend-only SPA  |  React 18 + tldraw v2 + pdf.js  |  Global UMD Scripts
+   Frontend-only SPA  |  React 18 + tldraw v2 (ESM) + pdf.js  |  Global UMD
    ============================================================================ */
 (async function bootstrap() {
   'use strict';
@@ -203,12 +203,15 @@
       'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + PDFJS_VERSION + '/pdf.min.js',
       'https://unpkg.com/pdfjs-dist@' + PDFJS_VERSION + '/build/pdf.min.js',
       'https://cdn.jsdelivr.net/npm/pdfjs-dist@' + PDFJS_VERSION + '/build/pdf.min.js'
-    ],
-    tldraw: [
-      'https://cdn.jsdelivr.net/npm/tldraw@' + TL_VERSION + '/dist/tldraw.umd.js',
-      'https://unpkg.com/tldraw@' + TL_VERSION + '/dist/tldraw.umd.js'
     ]
   };
+
+  /* مسارات tldraw كوحدة ESM (لأنها لا توفّر UMD builds) */
+  const TLDRAW_ESM_SOURCES = [
+    'https://esm.sh/tldraw@' + TL_VERSION + '?external=react,react-dom',
+    'https://cdn.skypack.dev/tldraw@' + TL_VERSION,
+    'https://esm.run/tldraw@' + TL_VERSION
+  ];
 
   const PDF_WORKER_SRC = [
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + PDFJS_VERSION + '/pdf.worker.min.js',
@@ -236,6 +239,24 @@
     throw lastErr || new Error('تعذّر تحميل المصدر');
   }
 
+  /* تحميل tldraw عبر ESM (Dynamic Import) مع مسارات احتياطية */
+  async function loadTldrawESM() {
+    let lastErr = null;
+    for (let i = 0; i < TLDRAW_ESM_SOURCES.length; i++) {
+      const src = TLDRAW_ESM_SOURCES[i];
+      try {
+        const mod = await import(/* @vite-ignore */ src);
+        if (mod && (mod.Tldraw || mod.Editor)) return mod;
+        if (mod && mod.default && (mod.default.Tldraw || mod.default.Editor)) return mod.default;
+        throw new Error('الوحدة المستوردة لا تحتوي على Tldraw.');
+      } catch (e) {
+        console.warn('فشل تحميل tldraw من: ' + src, e);
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error('تعذّر تحميل tldraw من جميع المصادر');
+  }
+
   function showFatal(msg) {
     rootEl.innerHTML =
       '<div class="ipb-boot">' +
@@ -248,14 +269,18 @@
   }
 
   /* ------------------------------------------------------------------
-     2) تحميل الاعتماديات بالترتيب الصحيح (React ← ثم tldraw)
+     2) تحميل الاعتماديات بالترتيب الصحيح
      ------------------------------------------------------------------ */
   try {
     await loadFirst(CDN.react);
     await loadFirst(CDN.reactDom);
-    await loadFirst(CDN.tldraw);
+
     // pdf.js مطلوب فقط لمعالجة ملفات الـ PDF
     try { await loadFirst(CDN.pdfjs); } catch (e) { console.warn('pdf.js غير متاح:', e); }
+
+    // tldraw كوحدة ESM
+    const tldrawModule = await loadTldrawESM();
+    window.tldraw = tldrawModule;
   } catch (err) {
     console.error(err);
     showFatal('تعذّر تحميل المكتبات الأساسية.<br><code>' + String(err.message || err) + '</code>');
@@ -304,14 +329,7 @@
   const DISPLAY_PAGE_W = 1000;      // عرض الصفحة على اللوحة (وحدات الصفحة)
   const PAGE_GAP = 40;              // المسافة بين الصفحات
 
-  /* ===== تعريف التضمين المخصّص (customEmbedDefinitions) =====
-     - hostnames: قائمة واسعة + السلسلة الفارغة '' التي تُطابق أي نطاق
-       (لأن tldraw يستخدم مطابقة "ينتهي بـ").
-     - toEmbedUrl / fromEmbedUrl: تُعيد الرابط كما هو لضمان اعتباره قابلاً للتضمين
-       بدل تحويله إلى Bookmark.
-     - نضع التعريف في نهاية القائمة كي لا يطغى على تعريفات tldraw الافتراضية
-       (يوتيوب، فيميو، فيغما…).
-  */
+  /* ===== تعريف التضمين المخصّص (customEmbedDefinitions) ===== */
   const INTERACTIVE_EMBED_DEFINITION = {
     type: 'interactive-html',
     title: 'وسائط تفاعلية (HTML/لعبة)',
@@ -341,11 +359,6 @@
     doesResize: true,
     toEmbedUrl: function (url) { return url; },
     fromEmbedUrl: function (url) { return url; }
-    /* ملاحظة:
-       بعض إصدارات tldraw تُتيح الخاصية overridePermissions هنا، لكن صيغتها
-       (نصّ أم كائن) تختلف بين الإصدارات، لذا نُطبّق تجاوز الـ Sandbox
-       على مستوى الـ DOM مباشرة (Sandbox Bypass Engine) لضمان العمل
-       مع كل الإصدارات دون أي خطر كسر. */
   };
 
   /* ===== بناء shapeUtils مع تعريف التضمين المخصّص ===== */
@@ -618,7 +631,6 @@
 
     /* ==============================================================
        محرّك تجاوز الـ Sandbox (Sandbox Bypass Engine)
-       يعمل على مستوى الـ DOM لضمان عمل الـ iframes في كل إصدارات tldraw
        ============================================================== */
     useEffect(function () {
       function patchIframe(iframe) {
@@ -629,7 +641,6 @@
         if (iframe.getAttribute('allow') !== IFRAME_ALLOW) {
           iframe.setAttribute('allow', IFRAME_ALLOW);
         }
-        // ضمان استمرار التفاعل باللمس/الماوس
         iframe.style.pointerEvents = iframe.style.pointerEvents || 'auto';
       }
 
@@ -819,7 +830,7 @@
             persistenceKey: 'interactive-pdf-board-v1',
             onMount: function (ed) { setEditor(ed); },
             shapeUtils: SHAPE_UTILS,
-            unmountOnBlur: false,   // إبقاء الـ iframes حيّة عند فقدان التركيز
+            unmountOnBlur: false,
             autoFocus: true,
             inferDarkMode: true
           })
