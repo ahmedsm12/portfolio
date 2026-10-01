@@ -1,18 +1,10 @@
 /* ============================================================
  * pdf.js — تحميل PDF + الشرائح + الشريط الجانبي + قائمة السياق
  * ============================================================
- *  ★★ الإصلاح الجوهري — دقّة النص العربي والإنجليزي ★★
- *
- *  المشكلة السابقة:
- *    canvasW = cssW × dpr  ثم  viewport.scale = canvasW / vp1.width
- *    → scale كبير (4-5x) → pdf.js يقرّب x position لكل حرف
- *    → مسافات غير متساوية، تقطّع العربية، فراغات غلط في الإنجليزي
- *
- *  الحل (نفس pdf.js viewer الرسمي):
- *    viewport.scale = cssW / vp1.width  (صغير، دقيق)
- *    canvas.width   = cssW × dpr         (كبير، عالي الحدة)
- *    transform      = [dpr, 0, 0, dpr, 0, 0]
- *    → pdf.js يرسم النص بحجمه الطبيعي بدقة، ثم يضاعفه على canvas
+ *  ★★ الإصلاحات ★★
+ *   1) تأخير الرسم حتى اكتمال تحميل الخطوط (يحل مشكلة المسافات)
+ *   2) التقاط thumbnail من stage كاملاً بعد التعديلات
+ *   3) transform [dpr,0,0,dpr,0,0] لدقة النص
  * ============================================================ */
 
 import {
@@ -23,7 +15,7 @@ import {
   transientCanvas, laserCanvas, emptyState, pageIndicator,
   thumbnailSidebar, thumbsList, slideContextMenu,
   state, slideClipboard,
-  uid, setLoading, toast,
+  uid, setLoading, toast, loadScript,
 } from './core.js';
 
 import {
@@ -48,14 +40,38 @@ export async function initPdfJs() {
   pdfjsLib.GlobalWorkerOptions.useSystemFonts = false;
   pdfjsLib.GlobalWorkerOptions.isEvalSupported = true;
 
-  /* ⭐ اجعل pdfjsLib متاحاً على window للتصحيح */
   if (typeof window !== 'undefined') {
     window.__PDFJS__ = pdfjsLib;
   }
 }
 
 /* ============================================================
-   §2. STAGE SIZING
+   §2. FONT LOADING GUARD ★ جديد ★
+   ============================================================
+   السبب: pdf.js يسجّل الخطوط في document.fonts لكن المتصفح
+   يحتاج وقتاً لتفعيلها على canvas. بدون هذا الانتظار، الرسم
+   الأول يستخدم fallback font بمسافات خاطئة.
+   ============================================================ */
+async function ensureFontsReady(page) {
+  try {
+    /* 1) getOperatorList يجبر pdf.js على تحميل كل الخطوط */
+    await page.getOperatorList();
+
+    /* 2) انتظر اكتمال تحميل FontFaces في document.fonts */
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+
+    /* 3) انتظر إطارَي عرض لتفعيل الخطوط على canvas
+          (إطار واحد لا يكفي في بعض المتصفحات) */
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  } catch (e) {
+    console.warn('ensureFontsReady failed:', e);
+  }
+}
+
+/* ============================================================
+   §3. STAGE SIZING
    ============================================================ */
 export function getSidebarWidth() {
   return thumbnailSidebar.classList.contains('collapsed') ? 0 : (thumbnailSidebar.offsetWidth || 0);
@@ -97,23 +113,12 @@ export function applyView() {
 }
 
 /* ============================================================
-   §3. RENDER HELPERS
+   §4. RENDER HELPERS
    ============================================================ */
-
-/**
- * ★★ الدالة الجوهرية الجديدة ★★
- * ترسم صفحة PDF على canvas بدقة النص المثالية:
- *   - viewport صغير (بحجم CSS) → تقريب دقيق للنص
- *   - canvas كبير (CSS × dpr) → حدة عالية
- *   - transform [dpr,0,0,dpr,0,0] → pdf.js يضاعف الرسم
- */
-async function renderPageToCanvas(page, cssW, cssH, dpr, canvas, opts = {}) {
+async function renderPageToCanvas(page, cssW, cssH, dpr, canvas) {
   const vp1 = page.getViewport({ scale: 1 });
-
-  /* ★ viewport بحجم CSS — هذا هو المفتاح لدقة النص */
   const cssViewport = page.getViewport({ scale: cssW / vp1.width });
 
-  /* canvas ببكسلات dpr */
   canvas.width = Math.round(cssW * dpr);
   canvas.height = Math.round(cssH * dpr);
   canvas.style.width = cssW + 'px';
@@ -126,18 +131,14 @@ async function renderPageToCanvas(page, cssW, cssH, dpr, canvas, opts = {}) {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  /* ★ transform يضاعف الرسم تلقائياً على canvas الكبير */
   const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
-
   const renderOpts = {
     canvasContext: ctx,
-    viewport: cssViewport,         // ← صغير
-    transform,                      // ← يُضاعف
+    viewport: cssViewport,
+    transform,
     background: '#ffffff',
     intent: 'print',
   };
-
-  /* annotationMode بأمان */
   try {
     if (pdfjsLib && pdfjsLib.AnnotationMode &&
         typeof pdfjsLib.AnnotationMode.DISABLE === 'number') {
@@ -148,10 +149,9 @@ async function renderPageToCanvas(page, cssW, cssH, dpr, canvas, opts = {}) {
   await page.render(renderOpts).promise;
 }
 
-/**
- * ترسم صفحة على canvas مؤقت ثم تُعيد dataURL JPEG
- */
-async function renderPageToDataUrl(page, cssW, dpr, format = 'jpeg', quality = 0.92) {
+async function renderPageToDataUrl(page, cssW, dpr, format = 'jpeg', quality = 0.92, waitForFonts = false) {
+  if (waitForFonts) await ensureFontsReady(page);
+
   const vp1 = page.getViewport({ scale: 1 });
   const aspect = vp1.height / vp1.width;
   const cssH = cssW * aspect;
@@ -170,7 +170,7 @@ async function renderPageToDataUrl(page, cssW, dpr, format = 'jpeg', quality = 0
 }
 
 /* ============================================================
-   §4. RENDER PAGE
+   §5. RENDER PAGE
    ============================================================ */
 export async function renderPage(pageNum) {
   const slide = state.slides[pageNum - 1];
@@ -208,7 +208,6 @@ export async function renderPage(pageNum) {
     stage.style.width = cssW + 'px';
     stage.style.height = cssH + 'px';
 
-    /* تهيئة كل الـ canvases بنفس الأبعاد */
     [pdfCanvas, transientCanvas, laserCanvas].forEach(c => {
       c.width = canvasW;
       c.height = canvasH;
@@ -225,7 +224,6 @@ export async function renderPage(pageNum) {
     const cached = state.pageCache.get(pageNum);
 
     if (cached) {
-      /* من الـ cache */
       const img = new Image();
       await new Promise(res => {
         img.onload = res;
@@ -236,10 +234,11 @@ export async function renderPage(pageNum) {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, canvasW, canvasH);
     } else if (bg.type === 'pdf' && state.pdfDoc) {
-      /* ★★ الرسم المباشر — باستخدام الدالة الجديدة ★★ */
       const page = await state.pdfDoc.getPage(bg.page);
 
-      /* نرسم مباشرة على pdfCanvas */
+      /* ★ الخطوة الأهم: انتظر تحميل الخطوط قبل الرسم الأول */
+      await ensureFontsReady(page);
+
       const vp1 = page.getViewport({ scale: 1 });
       const cssViewport = page.getViewport({ scale: cssW / vp1.width });
 
@@ -270,14 +269,14 @@ export async function renderPage(pageNum) {
       try {
         const result = await renderPageToDataUrl(
           page,
-          Math.min(cssW * 1.5, CACHE_WIDTH),  // cache بعرض أكبر قليلاً
-          Math.min(dpr, 2),                     // dpr محدود بـ 2 للـ cache
+          Math.min(cssW * 1.5, CACHE_WIDTH),
+          Math.min(dpr, 2),
           'jpeg',
-          0.95                                  // ★ 0.95 — جودة عالية جداً
+          0.95,
+          false  /* الخطوط محمّلة بالفعل */
         );
         state.pageCache.set(pageNum, { dataUrl: result.dataUrl });
       } catch (e) {
-        /* fallback: خزّن canvas الحالي */
         try {
           const cc = document.createElement('canvas');
           const cw = Math.min(canvasW, CACHE_WIDTH);
@@ -291,7 +290,6 @@ export async function renderPage(pageNum) {
         } catch (_) {}
       }
     } else if (bg.type === 'blank') {
-      /* شريحة فارغة */
       try {
         const cc = document.createElement('canvas');
         const cw = Math.min(canvasW, CACHE_WIDTH);
@@ -303,7 +301,6 @@ export async function renderPage(pageNum) {
         state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.95) });
       } catch (e) {}
     } else if (state.pdfBlob) {
-      /* صورة مفردة */
       const url = URL.createObjectURL(state.pdfBlob);
       try {
         const img = await new Promise((res, rej) => {
@@ -333,12 +330,14 @@ export async function renderPage(pageNum) {
 }
 
 /* ============================================================
-   §5. PRELOAD — يستخدم نفس الحل
+   §6. PRELOAD
    ============================================================ */
 export async function preloadAllPages(token) {
-  /* ===== المرحلة 1: صور مصغّرة ===== */
+  /* المرحلة 1: thumbnails سريعة من PDF */
   for (let i = 1; i <= state.totalPages; i++) {
     if (state.preloadToken !== token) return;
+    /* ⚠️ لا تدهس thumbnail صنعته captureStageThumbnail */
+    if (state.thumbCache.has(i) && state.thumbCache.get(i).userEdited) continue;
     if (state.thumbCache.has(i)) { updateThumbnailImg(i); continue; }
     try {
       const slide = state.slides[i - 1];
@@ -347,13 +346,9 @@ export async function preloadAllPages(token) {
 
       if (bg.type === 'pdf' && state.pdfDoc) {
         const page = await state.pdfDoc.getPage(bg.page);
-        const result = await renderPageToDataUrl(
-          page,
-          THUMB_WIDTH,   // CSS viewport صغير
-          1,             // dpr = 1 (صور مصغّرة لا تحتاج حدة عالية)
-          'jpeg',
-          0.85
-        );
+        /* ★ انتظر الخطوط هنا أيضاً لضمان thumbnails واضحة */
+        await ensureFontsReady(page);
+        const result = await renderPageToDataUrl(page, THUMB_WIDTH, 1, 'jpeg', 0.85, false);
         if (state.preloadToken !== token) return;
         state.thumbCache.set(i, { dataUrl: result.dataUrl });
         updateThumbnailImg(i);
@@ -373,7 +368,7 @@ export async function preloadAllPages(token) {
     } catch (e) { console.warn('thumb preload', i, e); }
   }
 
-  /* ===== المرحلة 2: cache الجودة الكاملة ===== */
+  /* المرحلة 2: cache الجودة الكاملة */
   for (let i = 1; i <= state.totalPages; i++) {
     if (state.preloadToken !== token) return;
     if (state.pageCache.has(i)) continue;
@@ -385,19 +380,9 @@ export async function preloadAllPages(token) {
       if (bg.type === 'pdf' && state.pdfDoc) {
         const page = await state.pdfDoc.getPage(bg.page);
         const vp1 = page.getViewport({ scale: 1 });
-
-        /* عرض الـ cache: بين 1200 و CACHE_WIDTH */
         const cacheCSS = Math.min(CACHE_WIDTH, Math.max(1200, Math.round(vp1.width * 1.6)));
         const cacheDpr = Math.min(window.devicePixelRatio || 1, 2);
-
-        const result = await renderPageToDataUrl(
-          page,
-          cacheCSS,
-          cacheDpr,
-          'jpeg',
-          0.95
-        );
-
+        const result = await renderPageToDataUrl(page, cacheCSS, cacheDpr, 'jpeg', 0.95, false);
         if (state.preloadToken !== token) return;
         state.pageCache.set(i, { dataUrl: result.dataUrl });
         page.cleanup();
@@ -410,7 +395,60 @@ export async function preloadAllPages(token) {
 }
 
 /* ============================================================
-   §6. LOAD PDF / IMAGE
+   §7. THUMBNAIL CAPTURE FROM STAGE ★ جديد ★
+   ============================================================ */
+let _html2canvasLib = null;
+async function getHtml2CanvasLib() {
+  if (_html2canvasLib) return _html2canvasLib;
+  if (window.html2canvas) { _html2canvasLib = window.html2canvas; return _html2canvasLib; }
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  _html2canvasLib = window.html2canvas;
+  return _html2canvasLib;
+}
+
+/**
+ * يلتقط صورة للـ stage كاملاً (PDF + كل الطبقات) ويستخدمها كـ thumbnail.
+ * يُستدعى:
+ *   - بعد كل تعديل (debounced في main.js)
+ *   - قبل مغادرة الصفحة
+ */
+export async function captureStageThumbnail(pageNum) {
+  if (!pageNum || pageNum < 1 || pageNum > state.totalPages) return;
+  /* فقط للصفحة الحالية (ما يظهر الآن) */
+  if (state.currentPage !== pageNum) return;
+
+  try {
+    const html2canvas = await getHtml2CanvasLib();
+    const stageEl = stage;
+
+    /* حجم الـ stage الكامل لكن scale صغير → سريع */
+    const canvas = await html2canvas(stageEl, {
+      backgroundColor: '#ffffff',
+      scale: 0.25,
+      logging: false,
+      useCORS: true,
+      allowTaint: true,
+      /* تجاهل العناصر التي لا يمكن تصويرها */
+      ignoreElements: (el) => {
+        const t = el.tagName;
+        return t === 'IFRAME' || t === 'VIDEO';
+      },
+    });
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+    state.thumbCache.set(pageNum, {
+      dataUrl,
+      userEdited: true,   /* ← علم لـ preloadAllPages حتى لا يدهسه */
+    });
+    updateThumbnailImg(pageNum);
+  } catch (e) {
+    console.warn('captureStageThumbnail failed:', e);
+  }
+}
+
+/* ============================================================
+   §8. LOAD PDF / IMAGE
    ============================================================ */
 export function initSlidesFromPdf(numPages) {
   state.slides = [];
@@ -425,21 +463,17 @@ export async function loadPdfFile(file, opts = {}) {
   try {
     const buf = await file.arrayBuffer();
 
-    /* ★★ إعدادات getDocument المُحسَّنة ★★ */
     const doc = await pdfjsLib.getDocument({
       data: buf,
-
       cMapUrl: `${PDFJS_BASE}/cmaps/`,
       cMapPacked: true,
       standardFontDataUrl: `${PDFJS_BASE}/standard_fonts/`,
       wasmUrl: `${PDFJS_BASE}/wasm/`,
-
-      useSystemFonts: false,       // ← لا تستبدل الخطوط المضمّنة
-      disableFontFace: false,      // ← FontFace API للخطوط المضمّنة
-      fontExtraProperties: true,   // ← احتفظ بالخصائص الكاملة
-      isEvalSupported: true,       // ← TrueType hinting
-      useWorkerFetch: true,        // ← تحميل مباشر عبر Worker
-
+      useSystemFonts: false,
+      disableFontFace: false,
+      fontExtraProperties: true,
+      isEvalSupported: true,
+      useWorkerFetch: true,
       disableRange: false,
       disableStream: false,
       disableAutoFetch: false,
@@ -514,7 +548,7 @@ export async function loadImageFile(file, opts = {}) {
 }
 
 /* ============================================================
-   §7. PAGE INDICATOR
+   §9. PAGE INDICATOR
    ============================================================ */
 export function updatePageIndicator() {
   if (!state.totalPages) { pageIndicator.textContent = ''; return; }
@@ -526,7 +560,7 @@ export function updatePageIndicator() {
 }
 
 /* ============================================================
-   §8. SIDEBAR
+   §10. SIDEBAR
    ============================================================ */
 export function updateSidebarPadding() {
   const w = getSidebarWidth();
@@ -598,7 +632,7 @@ export function initSidebar() {
 }
 
 /* ============================================================
-   §9. THUMBNAILS
+   §11. THUMBNAILS UI
    ============================================================ */
 export function renderThumbnails() {
   if (!thumbsList) return;
@@ -683,15 +717,20 @@ export function updateThumbnailActive(p) {
 }
 
 /* ============================================================
-   §10. SLIDE NAVIGATION
+   §12. SLIDE NAVIGATION ★ مُعدَّلة ★
    ============================================================ */
 let sliding = false;
 
 export async function goToPage(p) {
   if (sliding || p < 1 || p > state.totalPages || p === state.currentPage) return;
   sliding = true;
+
   const { savePageNow } = await import('./core.js');
   savePageNow();
+
+  /* ★ التقط thumbnail للصفحة الحالية قبل مغادرتها */
+  await captureStageThumbnail(state.currentPage).catch(() => {});
+
   stageContent.style.transition = 'none';
   stageContent.style.transform = '';
   void stageContent.offsetWidth;
@@ -701,7 +740,7 @@ export async function goToPage(p) {
 }
 
 /* ============================================================
-   §11. SLIDE CONTEXT MENU
+   §13. SLIDE CONTEXT MENU
    ============================================================ */
 let currentCtxSlideIdx = null;
 
@@ -728,7 +767,7 @@ export function hideSlideContextMenu() {
 }
 
 /* ============================================================
-   §12. SLIDE OPERATIONS
+   §14. SLIDE OPERATIONS
    ============================================================ */
 export async function cutSlide(idx) {
   const { savePageNow } = await import('./core.js');
@@ -880,7 +919,7 @@ export async function deleteSlide(idx) {
 }
 
 /* ============================================================
-   §13. BINDING SLIDE CONTEXT MENU
+   §15. BINDING
    ============================================================ */
 export function bindSlideContextMenu() {
   slideContextMenu.querySelectorAll('button').forEach(btn => {
