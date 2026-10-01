@@ -10,6 +10,9 @@ html,body{
   background:#0f1115;color:#eee;
   user-select:none;-webkit-user-select:none;
   overscroll-behavior:none;
+  /* ★ منع pinch-zoom + double-tap zoom على مستوى الصفحة
+     مع السماح بـ scroll عادي للعناصر القابلة للتمرير */
+  touch-action: pan-x pan-y;
 }
 
 :root{

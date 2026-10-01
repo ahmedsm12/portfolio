@@ -519,6 +519,48 @@ async function loadLocalFonts() {
   } catch (e) { return []; }
 }
 
+
+/* ============================================================
+ * ★ تعطيل التكبير/التصغير في المتصفح
+ * ============================================================
+ *  1. Ctrl/Cmd + Wheel (بما فيها trackpad pinch)
+ *  2. Ctrl/Cmd + Plus/Minus/0 (لوحة المفاتيح)
+ *  3. Safari gesture events (iOS/macOS pinch)
+ *
+ *  ملاحظة: أداة hand لا تتأثر — تستخدم pointer events على stage.
+ * ============================================================ */
+function disableBrowserZoom() {
+  /* 1. Ctrl/Cmd + Wheel */
+  window.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, { passive: false, capture: true });
+
+  /* 2. Ctrl/Cmd + Plus/Minus/0 */
+  window.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const k = e.key;
+    const c = e.keyCode;
+    if (k === '+' || k === '-' || k === '=' || k === '0' ||
+        k === 'Add' || k === 'Subtract' ||
+        c === 187 || c === 189 || c === 48 ||
+        c === 107 || c === 109 || c === 96) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, { capture: true });
+
+  /* 3. Safari gesture events */
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(evt => {
+    document.addEventListener(evt, (e) => {
+      e.preventDefault();
+    }, { passive: false });
+  });
+}
+
+
 async function init() {
   /* 1) تحميل KaTeX */
   await loadKatex();
