@@ -1,12 +1,10 @@
 /* ============================================================
- * pdf.js — النسخة النهائية
+ * pdf.js — النسخة النهائية المُصلَحة
  * ============================================================
- *  ★ الحل الجذري لمشكلة letter spacing:
- *    1) Pass 1 يرسم الصفحة → يجبر pdf.js على تسجيل الخطوط
- *    2) ننتظر كل font object في page.commonObjs (مصدر widths)
- *    3) ننتظر document.fonts.ready + كل FontFace.load()
- *    4) ننتظر loadingdone event مع timeout
- *    5) Pass 2 يعيد الرسم — widths جاهزة الآن
+ *  ★ الحل: disableFontFace: true
+ *    - pdf.js يرسم كل glyph مباشرة من مصفوفة transform
+ *    - لا يعتمد على canvas font metrics
+ *    - letter spacing دقيق من الرسم الأول
  * ============================================================ */
 
 import {
@@ -41,309 +39,14 @@ export async function initPdfJs() {
   pdfjsLib.GlobalWorkerOptions.useWorkerFetch = true;
   pdfjsLib.GlobalWorkerOptions.useSystemFonts = false;
   pdfjsLib.GlobalWorkerOptions.isEvalSupported = true;
-  if (typeof window !== 'undefined') window.__PDFJS__ = pdfjsLib;
-}
-
-/* ============================================================
-   §2. ★★★ FONT WARMUP — الحل الجذري ★★★
-   ============================================================
-   ننتظر 4 طبقات معاً لضمان جاهزية widths:
-     1. كل font object في page.commonObjs (مصدر widths الأساسي)
-     2. document.fonts.ready (تحميل ملف الخط)
-     3. fontFace.load() لكل FontFace (تحميل فعلي)
-     4. loadingdone event + تأخير (تفعيل على canvas)
-   ============================================================ */
-
-/**
- * ينتظر كل font objects في page.commonObjs.
- * هذه هي الطريقة الموثوقة للانتظار حتى pdf.js يجهّز الـ widths.
- */
-function waitForCommonObjsFonts(page) {
-  return new Promise(resolve => {
-    let opList;
-    try {
-      /* getOperatorList يمكن استدعاؤه أكثر من مرة — pdf.js يعيد النتيجة المخزّنة */
-      page.getOperatorList().then(list => {
-        opList = list;
-
-        const fontIds = new Set();
-        const OPS = pdfjsLib.OPS;
-        for (let i = 0; i < opList.fnArray.length; i++) {
-          if (opList.fnArray[i] === OPS.setFont) {
-            const id = opList.argsArray[i][0];
-            if (id) fontIds.add(id);
-          }
-        }
-
-        if (fontIds.size === 0) {
-          resolve();
-          return;
-        }
-
-        let remaining = fontIds.size;
-        const done = () => {
-          remaining--;
-          if (remaining === 0) resolve();
-        };
-
-        fontIds.forEach(id => {
-          try {
-            if (page.commonObjs.has && page.commonObjs.has(id)) {
-              done();
-            } else {
-              page.commonObjs.get(id, () => done());
-            }
-          } catch (_) {
-            done();
-          }
-        });
-
-        /* timeout أمان */
-        setTimeout(resolve, 2000);
-      }).catch(() => resolve());
-    } catch (_) {
-      resolve();
-    }
-  });
-}
-
-/**
- * ينتظر FontFace API بعد الرسم (font loading on canvas).
- */
-async function waitForFontFaceAPI(timeoutMs = 1500) {
-  try {
-    /* 1) document.fonts.ready */
-    if (document.fonts && document.fonts.ready) {
-      try { await document.fonts.ready; } catch (_) {}
-    }
-
-    /* 2) fontFace.load() صراحةً لكل الخطوط */
-    if (document.fonts && document.fonts.forEach) {
-      const faces = [];
-      document.fonts.forEach(f => faces.push(f));
-      await Promise.all(faces.map(f => {
-        try {
-          return (f.load ? f.load() : Promise.resolve()).catch(() => {});
-        } catch (_) {
-          return Promise.resolve();
-        }
-      }));
-    }
-
-    /* 3) loadingdone event مع timeout */
-    await new Promise(resolve => {
-      let done = false;
-      const finish = () => { if (!done) { done = true; resolve(); } };
-
-      if (!document.fonts) { finish(); return; }
-
-      if (document.fonts.status === 'loaded') {
-        setTimeout(finish, 80);
-        return;
-      }
-
-      const handler = () => {
-        document.fonts.removeEventListener('loadingdone', handler);
-        finish();
-      };
-      document.fonts.addEventListener('loadingdone', handler);
-      setTimeout(() => {
-        try { document.fonts.removeEventListener('loadingdone', handler); } catch (_) {}
-        finish();
-      }, timeoutMs);
-    });
-  } catch (_) {}
-}
-
-/**
- * تأخير RAF × 2 + timeout صغير لضمان أن canvas يستخدم الخطوط الجديدة.
- */
-function waitFramesAndDelay(delayMs = 100) {
-  return new Promise(resolve => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setTimeout(resolve, delayMs);
-      });
-    });
-  });
-}
-
-/* ============================================================
-   §3. RENDER OPTIONS
-   ============================================================ */
-function _buildRenderOpts(canvasContext, viewport, transform, intent) {
-  const opts = {
-    canvasContext,
-    viewport,
-    transform: transform || null,
-    background: '#ffffff',
-  };
-  if (intent) opts.intent = intent;
-  try {
-    if (pdfjsLib?.AnnotationMode?.DISABLE !== undefined) {
-      opts.annotationMode = pdfjsLib.AnnotationMode.DISABLE;
-    }
-  } catch (_) {}
-  return opts;
-}
-
-/* ============================================================
-   §4. ★★★ RENDER PAGE WITH FONTS — Double Render ★★★
-   ============================================================ */
-
-/* ============================================================
-   ★★★ renderPageWithFonts — نسخة بسيطة بعد disableFontFace:true ★★★
-   ============================================================
-   مع disableFontFace: true، pdf.js يرسم كل glyph مباشرة من
-   مصفوفة transform — لا يعتمد على canvas font metrics.
-   النتيجة: letter spacing دقيق من الرسم الأول.
-   ============================================================ */
-async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
-  const vp1 = page.getViewport({ scale: 1 });
-
-  /* viewport كامل — لا transform */
-  const renderScale = (cssW * dpr) / vp1.width;
-  const viewport = page.getViewport({ scale: renderScale });
-
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-
-  const ctx = canvas.getContext('2d', { alpha: false });
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-
-  await page.render({
-    canvasContext: ctx,
-    viewport,
-    background: '#ffffff',
-  }).promise;
-
-  return ctx;
-}
-
-
-  const vp1 = page.getViewport({ scale: 1 });
-
-  /* ★ viewport كامل — لا transform */
-  const renderScale = (cssW * dpr) / vp1.width;
-  const viewport = page.getViewport({ scale: renderScale });
-
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-
-  const ctx = canvas.getContext('2d', { alpha: false });
-
-  const prep = () => {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-  };
-
-  /* ═══ المرحلة 1: تحضير الخطوط ═══ */
-  try { await page.getTextContent(); } catch (_) {}
-  try { await page.getOperatorList(); } catch (_) {}
-
-  /* ═══ جمع كل font objects ═══ */
-  const fonts = [];
-  try {
-    const opList = await page.getOperatorList();
-    const OPS = pdfjsLib.OPS;
-    const ids = new Set();
-    for (let i = 0; i < opList.fnArray.length; i++) {
-      if (opList.fnArray[i] === OPS.setFont) {
-        const id = opList.argsArray[i][0];
-        if (id) ids.add(id);
-      }
-    }
-    for (const id of ids) {
-      const f = await new Promise(r => {
-        let done = false;
-        const fin = x => { if (!done) { done = true; r(x); } };
-        try { page.commonObjs.get(id, fin); } catch (_) { fin(null); }
-        setTimeout(() => fin(null), 1500);
-      });
-      if (f) fonts.push(f);
-    }
-  } catch (_) {}
-
-  /* ═══ انتظار FontFace API ═══ */
-  try {
-    if (document.fonts && document.fonts.ready) {
-      await document.fonts.ready;
-    }
-  } catch (_) {}
-  const faces = [];
-  try { document.fonts.forEach(f => faces.push(f)); } catch (_) {}
-  for (const f of faces) {
-    try { if (f.load) await f.load(); } catch (_) {}
+  if (typeof window !== 'undefined') {
+    window.__PDFJS__ = pdfjsLib;
+    window.__PDF_MODULE__ = { pdfjsLib };
   }
-
-  /* ═══ تسخين canvas بكل خط ═══ */
-  try {
-    ctx.fillStyle = '#000';
-    ctx.textBaseline = 'alphabetic';
-    for (const f of fonts) {
-      const fam = f.loadedName || f.name;
-      if (!fam) continue;
-      ctx.font = `20px "${fam}"`;
-      ctx.fillText('Wg 0123', 0, 20);
-    }
-  } catch (_) {}
-
-  await new Promise(r => requestAnimationFrame(r));
-  await new Promise(r => requestAnimationFrame(r));
-  await new Promise(r => setTimeout(r, 300));
-
-  /* ═══ Pass 1: رسم أول (يجبر pdf.js على استخدام الخطوط الجاهزة) ═══ */
-  prep();
-  await page.render({
-    canvasContext: ctx,
-    viewport,
-    background: '#ffffff',
-  }).promise;
-
-  await new Promise(r => setTimeout(r, 80));
-
-  /* ═══ Pass 2: رسم نهائي ═══ */
-  prep();
-  await page.render({
-    canvasContext: ctx,
-    viewport,
-    background: '#ffffff',
-  }).promise;
-  /* Pass 3 للضمان */
-await new Promise(r => setTimeout(r, 80));
-prep();
-await page.render({ canvasContext: ctx, viewport, background: '#ffffff' }).promise;
-
-  return ctx;
-}
-/* ============================================================
-   §5. RENDER TO OFFSCREEN (للـ cache والـ thumbnails)
-   ============================================================ */
-async function renderPageToOffscreen(page, pdfPageNum, cssW, dpr, format = 'jpeg', quality = 0.92) {
-  const vp1 = page.getViewport({ scale: 1 });
-  const aspect = vp1.height / vp1.width;
-  const cssH = cssW * aspect;
-
-  const canvas = document.createElement('canvas');
-  await renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr);
-
-  const mime = format === 'png' ? 'image/png' : 'image/jpeg';
-  return { dataUrl: canvas.toDataURL(mime, quality), cssW, cssH };
 }
 
 /* ============================================================
-   §6. STAGE SIZING
+   §2. STAGE SIZING
    ============================================================ */
 export function getSidebarWidth() {
   return thumbnailSidebar.classList.contains('collapsed') ? 0 : (thumbnailSidebar.offsetWidth || 0);
@@ -385,7 +88,54 @@ export function applyView() {
 }
 
 /* ============================================================
-   §7. RENDER PAGE
+   §3. renderPageWithFonts — نسخة مبسّطة
+   ============================================================
+   مع disableFontFace: true، pdf.js يرسم كل glyph مباشرة
+   من مصفوفة transform الخاصة به. لا يعتمد على canvas font.
+   ============================================================ */
+async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
+  const vp1 = page.getViewport({ scale: 1 });
+  const renderScale = (cssW * dpr) / vp1.width;
+  const viewport = page.getViewport({ scale: renderScale });
+
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  await page.render({
+    canvasContext: ctx,
+    viewport,
+    background: '#ffffff',
+  }).promise;
+
+  return ctx;
+}
+
+/* ============================================================
+   §4. renderPageToOffscreen (للـ cache والـ thumbnails)
+   ============================================================ */
+async function renderPageToOffscreen(page, pdfPageNum, cssW, dpr, format = 'jpeg', quality = 0.92) {
+  const vp1 = page.getViewport({ scale: 1 });
+  const aspect = vp1.height / vp1.width;
+  const cssH = cssW * aspect;
+
+  const canvas = document.createElement('canvas');
+  await renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr);
+
+  const mime = format === 'png' ? 'image/png' : 'image/jpeg';
+  return { dataUrl: canvas.toDataURL(mime, quality), cssW, cssH };
+}
+
+/* ============================================================
+   §5. RENDER PAGE (الرئيسية)
    ============================================================ */
 export async function renderPage(pageNum) {
   const slide = state.slides[pageNum - 1];
@@ -447,7 +197,6 @@ export async function renderPage(pageNum) {
       const page = await state.pdfDoc.getPage(bg.page);
       await renderPageWithFonts(page, bg.page, pdfCanvas, cssW, cssH, dpr);
 
-      /* خزّن في الـ cache (الآن مضمون) */
       try {
         const result = await renderPageToOffscreen(
           page, bg.page, Math.min(cssW * 1.5, CACHE_WIDTH), Math.min(dpr, 2), 'jpeg', 0.95
@@ -518,7 +267,7 @@ export async function renderPage(pageNum) {
 }
 
 /* ============================================================
-   §8. PRELOAD
+   §6. PRELOAD
    ============================================================ */
 export async function preloadAllPages(token) {
   for (let i = 1; i <= state.totalPages; i++) {
@@ -531,7 +280,6 @@ export async function preloadAllPages(token) {
 
       if (bg.type === 'pdf' && state.pdfDoc) {
         const page = await state.pdfDoc.getPage(bg.page);
-        /* ⚠️ لا ننتظر الخطوط في thumbnails (أسرع بكثير) */
         const vp1 = page.getViewport({ scale: 1 });
         const cssW = THUMB_WIDTH;
         const cssH = cssW * vp1.height / vp1.width;
@@ -542,7 +290,7 @@ export async function preloadAllPages(token) {
         c.fillStyle = '#fff';
         c.fillRect(0, 0, cvs.width, cvs.height);
         const cssViewport = page.getViewport({ scale: cssW / vp1.width });
-        await page.render({ canvasContext: c, viewport: cssViewport, intent: 'display' }).promise;
+        await page.render({ canvasContext: c, viewport: cssViewport }).promise;
         if (state.preloadToken !== token) return;
         state.thumbCache.set(i, { dataUrl: cvs.toDataURL('image/jpeg', 0.82) });
         updateThumbnailImg(i);
@@ -562,7 +310,6 @@ export async function preloadAllPages(token) {
     } catch (e) { console.warn('thumb preload', i, e); }
   }
 
-  /* cache عالي الدقة — يستخدم renderPageWithFonts كاملاً */
   for (let i = 1; i <= state.totalPages; i++) {
     if (state.preloadToken !== token) return;
     if (state.pageCache.has(i)) continue;
@@ -588,7 +335,7 @@ export async function preloadAllPages(token) {
 }
 
 /* ============================================================
-   §9. THUMBNAIL CAPTURE
+   §7. THUMBNAIL CAPTURE
    ============================================================ */
 export async function captureStageThumbnail(pageNum) {
   if (!pageNum || pageNum < 1 || pageNum > state.totalPages) return;
@@ -713,7 +460,7 @@ export async function captureStageThumbnail(pageNum) {
 }
 
 /* ============================================================
-   §10. CACHE SHIFTING
+   §8. CACHE SHIFTING
    ============================================================ */
 function _shiftCachesAfterInsert(atIdx, count) {
   const newThumbs = new Map();
@@ -729,6 +476,7 @@ function _shiftCachesAfterInsert(atIdx, count) {
   });
   state.pageCache = newPages;
 }
+
 function _shiftCachesAfterDelete(atIdx) {
   const newThumbs = new Map();
   state.thumbCache.forEach((v, k) => {
@@ -745,7 +493,7 @@ function _shiftCachesAfterDelete(atIdx) {
 }
 
 /* ============================================================
-   §11. LOAD PDF / IMAGE
+   §9. LOAD PDF / IMAGE
    ============================================================ */
 export function initSlidesFromPdf(numPages) {
   state.slides = [];
@@ -766,7 +514,7 @@ export async function loadPdfFile(file, opts = {}) {
       standardFontDataUrl: `${PDFJS_BASE}/standard_fonts/`,
       wasmUrl: `${PDFJS_BASE}/wasm/`,
       useSystemFonts: false,
-      disableFontFace: true,
+      disableFontFace: true,        /* ★ التعديل الجوهري */
       fontExtraProperties: true,
       isEvalSupported: true,
       useWorkerFetch: true,
@@ -842,7 +590,7 @@ export async function loadImageFile(file, opts = {}) {
 }
 
 /* ============================================================
-   §12. PAGE INDICATOR
+   §10. PAGE INDICATOR
    ============================================================ */
 export function updatePageIndicator() {
   if (!state.totalPages) { pageIndicator.textContent = ''; return; }
@@ -854,7 +602,7 @@ export function updatePageIndicator() {
 }
 
 /* ============================================================
-   §13. SIDEBAR
+   §11. SIDEBAR
    ============================================================ */
 export function updateSidebarPadding() {
   const w = getSidebarWidth();
@@ -924,7 +672,7 @@ export function initSidebar() {
 }
 
 /* ============================================================
-   §14. THUMBNAILS UI
+   §12. THUMBNAILS UI
    ============================================================ */
 export function renderThumbnails() {
   if (!thumbsList) return;
@@ -1009,7 +757,7 @@ export function updateThumbnailActive(p) {
 }
 
 /* ============================================================
-   §15. SLIDE NAVIGATION
+   §13. SLIDE NAVIGATION
    ============================================================ */
 let sliding = false;
 
@@ -1028,7 +776,7 @@ export async function goToPage(p) {
 }
 
 /* ============================================================
-   §16. SLIDE CONTEXT MENU
+   §14. SLIDE CONTEXT MENU
    ============================================================ */
 let currentCtxSlideIdx = null;
 
@@ -1055,7 +803,7 @@ export function hideSlideContextMenu() {
 }
 
 /* ============================================================
-   §17. SLIDE OPERATIONS
+   §15. SLIDE OPERATIONS
    ============================================================ */
 export async function cutSlide(idx) {
   const { savePageNow } = await import('./core.js');
@@ -1203,7 +951,7 @@ export async function deleteSlide(idx) {
 }
 
 /* ============================================================
-   §18. BINDING
+   §16. BINDING
    ============================================================ */
 export function bindSlideContextMenu() {
   slideContextMenu.querySelectorAll('button').forEach(btn => {
