@@ -278,7 +278,7 @@ async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
 
   await new Promise(r => requestAnimationFrame(r));
   await new Promise(r => requestAnimationFrame(r));
-  await new Promise(r => setTimeout(r, 100));
+  await new Promise(r => setTimeout(r, 300));
 
   /* ═══ Pass 1: رسم أول (يجبر pdf.js على استخدام الخطوط الجاهزة) ═══ */
   prep();
