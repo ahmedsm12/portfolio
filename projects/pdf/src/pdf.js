@@ -297,6 +297,10 @@ async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
     viewport,
     background: '#ffffff',
   }).promise;
+  /* Pass 3 للضمان */
+await new Promise(r => setTimeout(r, 80));
+prep();
+await page.render({ canvasContext: ctx, viewport, background: '#ffffff' }).promise;
 
   return ctx;
 }
