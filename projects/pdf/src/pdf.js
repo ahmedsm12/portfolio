@@ -191,44 +191,46 @@ function _buildRenderOpts(canvasContext, viewport, transform, intent) {
    §4. ★★★ RENDER PAGE WITH FONTS — Double Render ★★★
    ============================================================ */
 /* ============================================================
-   ★★★ الحل الجذري: rendering على offscreen canvas ثم copy ★★★
+   ★★★ الحل النهائي — بدون transform ★★★
    ============================================================
-   السبب: canvas الذي يُستخدم مرة بصورة خاطئة يحتفظ بـ font cache
-   معطوب. كل مرة نرسم على canvas منفصل جديد = نتيجة صحيحة.
+   السبب:
+     - transform: [dpr,0,0,dpr,0,0] يُطبّق على baseline النص
+     - لكن ascent/descent بالـ CSS pixels
+     - النتيجة: إزاحة رأسية = (dpr-1) × ارتفاع النص
+   
+   الحل:
+     - viewport كامل بحجم (cssW × dpr)
+     - بدون transform
+     - مع تحضير الخطوط (يمنع letter-spacing)
    ============================================================ */
 async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
   const vp1 = page.getViewport({ scale: 1 });
-  const cssViewport = page.getViewport({ scale: cssW / vp1.width });
-  const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
 
-  const W = Math.round(cssW * dpr);
-  const H = Math.round(cssH * dpr);
+  /* ★ viewport كامل — لا transform */
+  const renderScale = (cssW * dpr) / vp1.width;
+  const viewport = page.getViewport({ scale: renderScale });
 
-  /* ★ canvas منفصل تماماً في الذاكرة — لا font cache قديم */
-  const off = document.createElement('canvas');
-  off.width = W;
-  off.height = H;
-  const octx = off.getContext('2d', { alpha: false });
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+
+  const ctx = canvas.getContext('2d', { alpha: false });
 
   const prep = () => {
-    octx.setTransform(1, 0, 0, 1, 0, 0);
-    octx.fillStyle = '#ffffff';
-    octx.fillRect(0, 0, W, H);
-    octx.imageSmoothingEnabled = true;
-    octx.imageSmoothingQuality = 'high';
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
   };
 
-  /* ═══════ Pass 1: رسم أولي على canvas نظيف ═══════ */
-  prep();
-  await page.render({
-    canvasContext: octx,
-    viewport: cssViewport,
-    transform,
-    background: '#ffffff',
-  }).promise;
+  /* ═══ المرحلة 1: تحضير الخطوط ═══ */
+  try { await page.getTextContent(); } catch (_) {}
+  try { await page.getOperatorList(); } catch (_) {}
 
-  /* ═══════ جمع font objects من commonObjs ═══════ */
-  let fonts = [];
+  /* ═══ جمع كل font objects ═══ */
+  const fonts = [];
   try {
     const opList = await page.getOperatorList();
     const OPS = pdfjsLib.OPS;
@@ -240,86 +242,64 @@ async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
       }
     }
     for (const id of ids) {
-      try {
-        const f = await new Promise(r => {
-          let done = false;
-          const finish = x => { if (!done) { done = true; r(x); } };
-          try { page.commonObjs.get(id, finish); } catch (_) { finish(null); }
-          setTimeout(() => finish(null), 1500);
-        });
-        if (f) fonts.push(f);
-      } catch (_) {}
+      const f = await new Promise(r => {
+        let done = false;
+        const fin = x => { if (!done) { done = true; r(x); } };
+        try { page.commonObjs.get(id, fin); } catch (_) { fin(null); }
+        setTimeout(() => fin(null), 1500);
+      });
+      if (f) fonts.push(f);
     }
   } catch (_) {}
 
-  /* ═══════ تحميل FontFaces صراحةً ═══════ */
+  /* ═══ انتظار FontFace API ═══ */
   try {
     if (document.fonts && document.fonts.ready) {
-      try { await document.fonts.ready; } catch (_) {}
+      await document.fonts.ready;
     }
-    if (document.fonts) {
-      const faces = [];
-      document.fonts.forEach(f => faces.push(f));
-      for (const f of faces) {
-        try { if (f.load) await f.load(); } catch (_) {}
-      }
+  } catch (_) {}
+  const faces = [];
+  try { document.fonts.forEach(f => faces.push(f)); } catch (_) {}
+  for (const f of faces) {
+    try { if (f.load) await f.load(); } catch (_) {}
+  }
+
+  /* ═══ تسخين canvas بكل خط ═══ */
+  try {
+    ctx.fillStyle = '#000';
+    ctx.textBaseline = 'alphabetic';
+    for (const f of fonts) {
+      const fam = f.loadedName || f.name;
+      if (!fam) continue;
+      ctx.font = `20px "${fam}"`;
+      ctx.fillText('Wg 0123', 0, 20);
     }
   } catch (_) {}
 
-  /* ═══════ تسخين offscreen canvas بكل خط مضمّن ═══════
-     هذه الخطوة تجبر canvas على تحميل كل خط في font cache الداخلي
-  */
-  prep();
-  octx.fillStyle = '#000';
-  octx.textBaseline = 'top';
-  for (const f of fonts) {
-    const family = f.loadedName || f.name;
-    if (!family) continue;
-    octx.font = `20px "${family}"`;
-    octx.fillText('Wg عربي 0123 ABC', 10, 10);
-  }
-
-  /* ═══════ انتظار تفعيل الخطوط ═══════ */
   await new Promise(r => requestAnimationFrame(r));
   await new Promise(r => requestAnimationFrame(r));
-  await new Promise(r => setTimeout(r, 150));
-
-  /* ═══════ Pass 2: الرسم الحقيقي (الخطوط الآن جاهزة) ═══════ */
-  prep();
-  await page.render({
-    canvasContext: octx,
-    viewport: cssViewport,
-    transform,
-    background: '#ffffff',
-  }).promise;
-
-  /* ═══════ Pass 3: شبكة الأمان ═══════ */
   await new Promise(r => setTimeout(r, 100));
+
+  /* ═══ Pass 1: رسم أول (يجبر pdf.js على استخدام الخطوط الجاهزة) ═══ */
   prep();
   await page.render({
-    canvasContext: octx,
-    viewport: cssViewport,
-    transform,
+    canvasContext: ctx,
+    viewport,
     background: '#ffffff',
   }).promise;
 
-  /* ═══════ نسخ النتيجة إلى canvas الحقيقي ═══════
-     الآن pdfCanvas لن يرسم مباشرة، بل يستقبل صورة من canvas نظيف.
-     هذا يتفادى أي font cache قديم معطوب في pdfCanvas.
-  */
-  canvas.width = W;
-  canvas.height = H;
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  const ctx = canvas.getContext('2d', { alpha: false });
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(off, 0, 0);
+  await new Promise(r => setTimeout(r, 80));
+
+  /* ═══ Pass 2: رسم نهائي ═══ */
+  prep();
+  await page.render({
+    canvasContext: ctx,
+    viewport,
+    background: '#ffffff',
+  }).promise;
 
   return ctx;
 }
-
 /* ============================================================
    §5. RENDER TO OFFSCREEN (للـ cache والـ thumbnails)
    ============================================================ */
