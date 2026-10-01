@@ -1,5 +1,10 @@
 /* ============================================================
  * pdf.js — تحميل PDF + الشرائح + الشريط الجانبي + قائمة السياق
+ * ============================================================
+ *  ★★ الإصلاحات الرئيسية ★★
+ *   1) Double-render على المرة الأولى (يحل مشكلة الخطوط والمسافات)
+ *   2) تركيب يدوي للـ thumbnail (بدون html2canvas)
+ *   3) إزاحة مفاتيح الكاش بدل مسحها (عند إضافة/حذف شرائح)
  * ============================================================ */
 
 import {
@@ -38,37 +43,34 @@ export async function initPdfJs() {
 }
 
 /* ============================================================
-   §2. FONTS READY GUARD — مع cache لكل (doc, page)
+   §2. FONTS CACHE — تتتبّع الصفحات التي تم تهيئة خطوطها
    ============================================================ */
-let _fontsReadySet = new Set();
-let _fontsReadyDocId = null;
+const _fontWarmedPages = new Set();
+let _fontWarmedDocId = null;
 
-function _docId() {
+function _getDocId() {
   if (!state.pdfDoc) return null;
-  if (!state.pdfDoc.__uid) state.pdfDoc.__uid = uid();
+  if (!state.pdfDoc.__uid) {
+    state.pdfDoc.__uid = 'doc_' + Math.random().toString(36).slice(2, 9);
+  }
   return state.pdfDoc.__uid;
 }
 
 export function resetFontsCache() {
-  _fontsReadySet.clear();
-  _fontsReadyDocId = null;
+  _fontWarmedPages.clear();
+  _fontWarmedDocId = null;
 }
 
-async function ensureFontsReady(page, pageNum) {
-  const docId = _docId();
+function _isFontsWarmed(pdfPageNum) {
+  const docId = _getDocId();
+  if (!docId) return true;
+  return _fontWarmedPages.has(`${docId}:${pdfPageNum}`);
+}
+
+function _markFontsWarmed(pdfPageNum) {
+  const docId = _getDocId();
   if (!docId) return;
-  const key = `${docId}:${pageNum}`;
-  if (_fontsReadySet.has(key)) return;
-  try {
-    await page.getOperatorList();
-    if (document.fonts && document.fonts.ready) {
-      await document.fonts.ready;
-    }
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    _fontsReadySet.add(key);
-  } catch (e) {
-    console.warn('ensureFontsReady failed:', e);
-  }
+  _fontWarmedPages.add(`${docId}:${pdfPageNum}`);
 }
 
 /* ============================================================
@@ -114,9 +116,41 @@ export function applyView() {
 }
 
 /* ============================================================
-   §4. RENDER HELPERS
+   §4. RENDER OPTIONS HELPER
    ============================================================ */
-async function renderPageToCanvas(page, cssW, cssH, dpr, canvas) {
+function _buildRenderOpts(canvasContext, viewport, transform) {
+  const opts = {
+    canvasContext,
+    viewport,
+    transform: transform || null,
+    background: '#ffffff',
+    intent: 'print',
+  };
+  try {
+    if (pdfjsLib?.AnnotationMode?.DISABLE !== undefined) {
+      opts.annotationMode = pdfjsLib.AnnotationMode.DISABLE;
+    }
+  } catch (_) {}
+  return opts;
+}
+
+/* ============================================================
+   §5. ★★★ RENDER PAGE WITH FONTS — Double-Render ★★★
+   ============================================================
+   هذه هي الدالة الجوهرية التي تحل مشكلة الخطوط نهائياً.
+
+   المنطق:
+     - إذا كانت الخطوط جاهزة (لم يتم رسم هذه الصفحة من قبل في هذه الجلسة):
+         • المسار السريع: render واحد
+     - إذا كانت الخطوط غير جاهزة (أول مرة):
+         • Pass 1: render عادي (يجبر pdf.js على تحميل الخطوط)
+         • await document.fonts.ready
+         • تأخير قصير
+         • مسح canvas
+         • Pass 2: render ثانٍ (الآن بالخطوط الصحيحة)
+         • علّم الصفحة كمُهيَّأة
+   ============================================================ */
+async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
   const vp1 = page.getViewport({ scale: 1 });
   const cssViewport = page.getViewport({ scale: cssW / vp1.width });
 
@@ -126,42 +160,68 @@ async function renderPageToCanvas(page, cssW, cssH, dpr, canvas) {
   canvas.style.height = cssH + 'px';
 
   const ctx = canvas.getContext('2d', { alpha: false });
+  const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
+
+  const needsWarmup = !_isFontsWarmed(pdfPageNum);
+
+  /* ===== Pass 1 ===== */
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
-  const renderOpts = {
-    canvasContext: ctx,
-    viewport: cssViewport,
-    transform,
-    background: '#ffffff',
-    intent: 'print',
-  };
-  try {
-    if (pdfjsLib && pdfjsLib.AnnotationMode &&
-        typeof pdfjsLib.AnnotationMode.DISABLE === 'number') {
-      renderOpts.annotationMode = pdfjsLib.AnnotationMode.DISABLE;
-    }
-  } catch (_) {}
+  await page.render(_buildRenderOpts(ctx, cssViewport, transform)).promise;
 
-  await page.render(renderOpts).promise;
+  /* ===== Warm-up (المرة الأولى فقط) ===== */
+  if (needsWarmup) {
+    try {
+      /* انتظر اكتمال تحميل كل FontFaces المُسجَّلة */
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+
+      /* إطاران + تأخير قصير لتفعيل الخطوط على canvas */
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => setTimeout(r, 80));
+
+      /* ===== Pass 2 ===== */
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      await page.render(_buildRenderOpts(ctx, cssViewport, transform)).promise;
+
+      _markFontsWarmed(pdfPageNum);
+    } catch (e) {
+      console.warn('Font warmup failed for page', pdfPageNum, e);
+      _markFontsWarmed(pdfPageNum);
+    }
+  }
+
+  return ctx;
 }
 
-async function renderPageToDataUrl(page, cssW, dpr, format = 'jpeg', quality = 0.92) {
+/* ============================================================
+   §6. RENDER TO OFFSCREEN (للـ cache والـ thumbnails)
+   ============================================================ */
+async function renderPageToOffscreen(page, pdfPageNum, cssW, dpr, format = 'jpeg', quality = 0.92) {
   const vp1 = page.getViewport({ scale: 1 });
   const aspect = vp1.height / vp1.width;
   const cssH = cssW * aspect;
+
   const canvas = document.createElement('canvas');
-  await renderPageToCanvas(page, cssW, cssH, dpr, canvas);
+  await renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr);
+
   const mime = format === 'png' ? 'image/png' : 'image/jpeg';
   return { dataUrl: canvas.toDataURL(mime, quality), cssW, cssH };
 }
 
 /* ============================================================
-   §5. RENDER PAGE
+   §7. RENDER PAGE (الرئيسية)
    ============================================================ */
 export async function renderPage(pageNum) {
   const slide = state.slides[pageNum - 1];
@@ -200,18 +260,22 @@ export async function renderPage(pageNum) {
     stage.style.height = cssH + 'px';
 
     [pdfCanvas, transientCanvas, laserCanvas].forEach(c => {
-      c.width = canvasW; c.height = canvasH;
-      c.style.width = cssW + 'px'; c.style.height = cssH + 'px';
+      c.width = canvasW;
+      c.height = canvasH;
+      c.style.width = cssW + 'px';
+      c.style.height = cssH + 'px';
     });
     svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
 
-    const ctx = pdfCanvas.getContext('2d', { alpha: false });
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvasW, canvasH);
-
     const cached = state.pageCache.get(pageNum);
+
     if (cached) {
+      /* من الذاكرة المؤقتة */
+      const ctx = pdfCanvas.getContext('2d', { alpha: false });
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+
       const img = new Image();
       await new Promise(res => { img.onload = res; img.onerror = res; img.src = cached.dataUrl; });
       ctx.imageSmoothingEnabled = true;
@@ -219,45 +283,38 @@ export async function renderPage(pageNum) {
       ctx.drawImage(img, 0, 0, canvasW, canvasH);
     } else if (bg.type === 'pdf' && state.pdfDoc) {
       const page = await state.pdfDoc.getPage(bg.page);
-      await ensureFontsReady(page, bg.page);
 
-      const vp1 = page.getViewport({ scale: 1 });
-      const cssViewport = page.getViewport({ scale: cssW / vp1.width });
+      /* ★ الرسم الرئيسي عبر double-render ★ */
+      await renderPageWithFonts(page, bg.page, pdfCanvas, cssW, cssH, dpr);
 
+      /* خزّن في الـ cache — الآن مضمون أن الخطوط صحيحة */
+      try {
+        const cacheCSS = Math.min(cssW * 1.5, CACHE_WIDTH);
+        const cacheDpr = Math.min(dpr, 2);
+        const result = await renderPageToOffscreen(
+          page, bg.page, cacheCSS, cacheDpr, 'jpeg', 0.95
+        );
+        state.pageCache.set(pageNum, { dataUrl: result.dataUrl });
+      } catch (e) {
+        /* fallback: نسخ من canvas الحالي */
+        try {
+          const cc = document.createElement('canvas');
+          const cw = Math.min(canvasW, CACHE_WIDTH);
+          const ch = Math.round(cw * canvasH / canvasW);
+          cc.width = cw; cc.height = ch;
+          const cctx = cc.getContext('2d', { alpha: false });
+          cctx.imageSmoothingEnabled = true;
+          cctx.imageSmoothingQuality = 'high';
+          cctx.drawImage(pdfCanvas, 0, 0, cw, ch);
+          state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.95) });
+        } catch (_) {}
+      }
+    } else if (bg.type === 'blank') {
+      const ctx = pdfCanvas.getContext('2d', { alpha: false });
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvasW, canvasH);
 
-      const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
-      const renderOpts = {
-        canvasContext: ctx,
-        viewport: cssViewport,
-        transform,
-        background: '#ffffff',
-        intent: 'print',
-      };
-      try {
-        if (pdfjsLib && pdfjsLib.AnnotationMode &&
-            typeof pdfjsLib.AnnotationMode.DISABLE === 'number') {
-          renderOpts.annotationMode = pdfjsLib.AnnotationMode.DISABLE;
-        }
-      } catch (_) {}
-
-      await page.render(renderOpts).promise;
-
-      /* تخزين كاش الجودة الكاملة */
-      try {
-        const result = await renderPageToDataUrl(
-          page,
-          Math.min(cssW * 1.5, CACHE_WIDTH),
-          Math.min(dpr, 2),
-          'jpeg', 0.95
-        );
-        state.pageCache.set(pageNum, { dataUrl: result.dataUrl });
-      } catch (e) {}
-    } else if (bg.type === 'blank') {
       try {
         const cc = document.createElement('canvas');
         const cw = Math.min(canvasW, CACHE_WIDTH);
@@ -269,6 +326,11 @@ export async function renderPage(pageNum) {
         state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.95) });
       } catch (e) {}
     } else if (state.pdfBlob) {
+      const ctx = pdfCanvas.getContext('2d', { alpha: false });
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+
       const url = URL.createObjectURL(state.pdfBlob);
       try {
         const img = await new Promise((res, rej) => {
@@ -290,8 +352,8 @@ export async function renderPage(pageNum) {
     updateUndoButtonsSafe();
     emptyState.style.display = 'none';
 
-    /* ★ بعد الرسم، التقط thumbnail نهائي */
-    setTimeout(() => { captureStageThumbnail(pageNum).catch(() => {}); }, 60);
+    /* التقط thumbnail */
+    setTimeout(() => { captureStageThumbnail(pageNum).catch(() => {}); }, 50);
 
   } catch (err) {
     console.error(err);
@@ -302,10 +364,10 @@ export async function renderPage(pageNum) {
 }
 
 /* ============================================================
-   §6. PRELOAD
+   §8. PRELOAD
    ============================================================ */
 export async function preloadAllPages(token) {
-  /* المرحلة 1: thumbnails (بدون انتظار الخطوط — سريع جداً) */
+  /* المرحلة 1: صور مصغّرة */
   for (let i = 1; i <= state.totalPages; i++) {
     if (state.preloadToken !== token) return;
     if (state.thumbCache.has(i)) { updateThumbnailImg(i); continue; }
@@ -316,7 +378,8 @@ export async function preloadAllPages(token) {
 
       if (bg.type === 'pdf' && state.pdfDoc) {
         const page = await state.pdfDoc.getPage(bg.page);
-        const result = await renderPageToDataUrl(page, THUMB_WIDTH, 1, 'jpeg', 0.82);
+        /* ★ هذا سيؤدي إلى تهيئة الخطوط للصفحة */
+        const result = await renderPageToOffscreen(page, bg.page, THUMB_WIDTH, 1, 'jpeg', 0.82);
         if (state.preloadToken !== token) return;
         state.thumbCache.set(i, { dataUrl: result.dataUrl });
         updateThumbnailImg(i);
@@ -336,7 +399,7 @@ export async function preloadAllPages(token) {
     } catch (e) { console.warn('thumb preload', i, e); }
   }
 
-  /* المرحلة 2: كاش الجودة الكاملة (بدون انتظار الخطوط) */
+  /* المرحلة 2: cache الجودة الكاملة */
   for (let i = 1; i <= state.totalPages; i++) {
     if (state.preloadToken !== token) return;
     if (state.pageCache.has(i)) continue;
@@ -350,7 +413,7 @@ export async function preloadAllPages(token) {
         const vp1 = page.getViewport({ scale: 1 });
         const cacheCSS = Math.min(CACHE_WIDTH, Math.max(1200, Math.round(vp1.width * 1.6)));
         const cacheDpr = Math.min(window.devicePixelRatio || 1, 2);
-        const result = await renderPageToDataUrl(page, cacheCSS, cacheDpr, 'jpeg', 0.95);
+        const result = await renderPageToOffscreen(page, bg.page, cacheCSS, cacheDpr, 'jpeg', 0.95);
         if (state.preloadToken !== token) return;
         state.pageCache.set(i, { dataUrl: result.dataUrl });
         page.cleanup();
@@ -363,7 +426,7 @@ export async function preloadAllPages(token) {
 }
 
 /* ============================================================
-   §7. THUMBNAIL CAPTURE — تركيب يدوي (بدون html2canvas)
+   §9. THUMBNAIL CAPTURE — تركيب يدوي (بدون html2canvas)
    ============================================================ */
 export async function captureStageThumbnail(pageNum) {
   if (!pageNum || pageNum < 1 || pageNum > state.totalPages) return;
@@ -383,11 +446,7 @@ export async function captureStageThumbnail(pageNum) {
     ctx.fillRect(0, 0, TW, TH);
 
     /* 1) خلفية PDF */
-    try {
-      ctx.drawImage(pdfCanvas, 0, 0, TW, TH);
-    } catch (e) {
-      console.warn('pdfCanvas draw failed', e);
-    }
+    try { ctx.drawImage(pdfCanvas, 0, 0, TW, TH); } catch (_) {}
 
     /* 2) الرسومات SVG */
     try {
@@ -396,11 +455,9 @@ export async function captureStageThumbnail(pageNum) {
       svgClone.setAttribute('width', state.pdfW);
       svgClone.setAttribute('height', state.pdfH);
       svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-
       const svgStr = new XMLSerializer().serializeToString(svgClone);
       const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
       const svgUrl = URL.createObjectURL(svgBlob);
-
       try {
         const svgImg = await new Promise((res, rej) => {
           const i = new Image();
@@ -409,12 +466,8 @@ export async function captureStageThumbnail(pageNum) {
           i.src = svgUrl;
         });
         ctx.drawImage(svgImg, 0, 0, TW, TH);
-      } finally {
-        URL.revokeObjectURL(svgUrl);
-      }
-    } catch (e) {
-      console.warn('SVG overlay failed', e);
-    }
+      } finally { URL.revokeObjectURL(svgUrl); }
+    } catch (_) {}
 
     /* 3) النصوص والأزرار */
     const saved = state.pages[pageNum];
@@ -468,7 +521,6 @@ export async function captureStageThumbnail(pageNum) {
         } catch (_) {}
       });
 
-      /* 4) الميديا والتضمينات كمستطيلات */
       const mediaList = saved.media || saved.videos || [];
       mediaList.forEach(spec => {
         try {
@@ -504,10 +556,9 @@ export async function captureStageThumbnail(pageNum) {
 }
 
 /* ============================================================
-   §8. CACHE SHIFTING — الحل لمشكلة مسح الكاش
+   §10. CACHE SHIFTING
    ============================================================ */
 function _shiftCachesAfterInsert(atIdx, count) {
-  /* كل مفتاح > atIdx → +count */
   const newThumbs = new Map();
   state.thumbCache.forEach((v, k) => {
     if (k <= atIdx) newThumbs.set(k, v);
@@ -540,7 +591,7 @@ function _shiftCachesAfterDelete(atIdx) {
 }
 
 /* ============================================================
-   §9. LOAD PDF / IMAGE
+   §11. LOAD PDF / IMAGE
    ============================================================ */
 export function initSlidesFromPdf(numPages) {
   state.slides = [];
@@ -639,7 +690,7 @@ export async function loadImageFile(file, opts = {}) {
 }
 
 /* ============================================================
-   §10. PAGE INDICATOR
+   §12. PAGE INDICATOR
    ============================================================ */
 export function updatePageIndicator() {
   if (!state.totalPages) { pageIndicator.textContent = ''; return; }
@@ -651,7 +702,7 @@ export function updatePageIndicator() {
 }
 
 /* ============================================================
-   §11. SIDEBAR
+   §13. SIDEBAR
    ============================================================ */
 export function updateSidebarPadding() {
   const w = getSidebarWidth();
@@ -721,7 +772,7 @@ export function initSidebar() {
 }
 
 /* ============================================================
-   §12. THUMBNAILS UI
+   §14. THUMBNAILS UI
    ============================================================ */
 export function renderThumbnails() {
   if (!thumbsList) return;
@@ -806,7 +857,7 @@ export function updateThumbnailActive(p) {
 }
 
 /* ============================================================
-   §13. SLIDE NAVIGATION
+   §15. SLIDE NAVIGATION
    ============================================================ */
 let sliding = false;
 
@@ -825,7 +876,7 @@ export async function goToPage(p) {
 }
 
 /* ============================================================
-   §14. SLIDE CONTEXT MENU
+   §16. SLIDE CONTEXT MENU
    ============================================================ */
 let currentCtxSlideIdx = null;
 
@@ -852,7 +903,7 @@ export function hideSlideContextMenu() {
 }
 
 /* ============================================================
-   §15. SLIDE OPERATIONS — تستخدم shift بدل clear
+   §17. SLIDE OPERATIONS
    ============================================================ */
 export async function cutSlide(idx) {
   const { savePageNow } = await import('./core.js');
@@ -864,7 +915,6 @@ export async function cutSlide(idx) {
   slideClipboard.pagesData = { 1: JSON.parse(JSON.stringify(pagesData)) };
 
   state.slides.splice(idx - 1, 1);
-
   const newPages = {};
   for (let i = 1; i <= state.totalPages; i++) {
     if (i < idx) newPages[i] = state.pages[i];
@@ -873,7 +923,6 @@ export async function cutSlide(idx) {
   state.pages = newPages;
   state.history = {};
 
-  /* ★ إزاحة الكاش بدل مسحه */
   _shiftCachesAfterDelete(idx);
 
   state.totalPages = state.slides.length;
@@ -902,7 +951,6 @@ export async function pasteSlide(idx) {
   const insertAt = idx;
   const count = clip.slides.length;
 
-  /* ★ إزاحة الكاش قبل التعديل */
   _shiftCachesAfterInsert(idx, count);
 
   clip.slides.forEach((s, k) => {
@@ -934,7 +982,6 @@ export async function newBlankSlide(idx) {
   savePageNow();
   const insertAt = idx;
 
-  /* ★ إزاحة الكاش قبل التعديل */
   _shiftCachesAfterInsert(idx, 1);
 
   state.slides.splice(insertAt, 0, { id: uid(), bg: { type: 'blank' } });
@@ -963,8 +1010,6 @@ export async function duplicateSlide(idx) {
   const clone = JSON.parse(JSON.stringify(data));
 
   const insertAt = idx;
-
-  /* ★ إزاحة الكاش */
   _shiftCachesAfterInsert(idx, 1);
 
   state.slides.splice(insertAt, 0, { id: uid(), bg: { ...slide.bg } });
@@ -1001,8 +1046,6 @@ export async function deleteSlide(idx) {
 
   state.pages = newPages;
   state.history = {};
-
-  /* ★ إزاحة الكاش */
   _shiftCachesAfterDelete(idx);
 
   state.totalPages = state.slides.length;
@@ -1015,7 +1058,7 @@ export async function deleteSlide(idx) {
 }
 
 /* ============================================================
-   §16. BINDING
+   §18. BINDING
    ============================================================ */
 export function bindSlideContextMenu() {
   slideContextMenu.querySelectorAll('button').forEach(btn => {
