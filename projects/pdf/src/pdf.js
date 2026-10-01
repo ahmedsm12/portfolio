@@ -190,6 +190,9 @@ function _buildRenderOpts(canvasContext, viewport, transform, intent) {
 /* ============================================================
    §4. ★★★ RENDER PAGE WITH FONTS — Double Render ★★★
    ============================================================ */
+/* ============================================================
+   ★★★ الدالة المُصلَحة — تعتمد على 3 مراحل + تفعيل FontFace ★★★
+   ============================================================ */
 async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
   const vp1 = page.getViewport({ scale: 1 });
   const cssViewport = page.getViewport({ scale: cssW / vp1.width });
@@ -202,7 +205,7 @@ async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
   const ctx = canvas.getContext('2d', { alpha: false });
   const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
 
-  const clearCanvas = () => {
+  const clearAndPrep = () => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -210,23 +213,102 @@ async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
     ctx.imageSmoothingQuality = 'high';
   };
 
-  /* ═══ Pass 1 — رسم أولي (يجبر pdf.js على تسجيل الخطوط) ═══ */
-  clearCanvas();
-  await page.render(_buildRenderOpts(ctx, cssViewport, transform, 'display')).promise;
+  /* ═══ المرحلة 0: تحليل النصوص — يجبر pdf.js على حساب widths ═══ */
+  try {
+    await page.getTextContent();
+  } catch (_) {}
 
-  /* ═══ انتظار الخطوط بـ 4 طبقات متزامنة ═══ */
-  await Promise.all([
-    waitForCommonObjsFonts(page),      // ← مصدر widths
-    waitForFontFaceAPI(1500),          // ← FontFace API
-  ]);
-  await waitFramesAndDelay(120);
+  /* ═══ Pass 1: رسم أولي (يجبر الخطوط على التسجيل في commonObjs) ═══ */
+  clearAndPrep();
+  await page.render(_buildRenderOpts(ctx, cssViewport, transform)).promise;
 
-  /* ═══ Pass 2 — إعادة الرسم بالخطوط الجاهزة ═══ */
-  clearCanvas();
-  await page.render(_buildRenderOpts(ctx, cssViewport, transform, 'display')).promise;
+  /* ═══ جمع كل font objects من commonObjs ═══ */
+  let fonts = [];
+  try {
+    const opList = await page.getOperatorList();
+    const fontIds = new Set();
+    const OPS = pdfjsLib.OPS;
+    for (let i = 0; i < opList.fnArray.length; i++) {
+      if (opList.fnArray[i] === OPS.setFont) {
+        const id = opList.argsArray[i][0];
+        if (id) fontIds.add(id);
+      }
+    }
+
+    for (const id of fontIds) {
+      try {
+        const font = await new Promise(resolve => {
+          let done = false;
+          const finish = (f) => {
+            if (done) return;
+            done = true;
+            resolve(f || null);
+          };
+          try {
+            page.commonObjs.get(id, finish);
+          } catch (_) {
+            finish(null);
+          }
+          setTimeout(() => finish(null), 1500);
+        });
+        if (font) fonts.push(font);
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  /* ═══ تحميل كل FontFace صراحةً ═══ */
+  let faceList = [];
+  try {
+    if (document.fonts && typeof document.fonts.forEach === 'function') {
+      document.fonts.forEach(f => faceList.push(f));
+    }
+  } catch (_) {}
+
+  for (const face of faceList) {
+    try {
+      if (face.load) await face.load();
+    } catch (_) {}
+  }
+
+  /* ═══ تفعيل الخطوط على canvas وهمي ═══ */
+  if (fonts.length) {
+    try {
+      const dummy = document.createElement('canvas');
+      dummy.width = 200;
+      dummy.height = 30;
+      const dctx = dummy.getContext('2d');
+      dctx.fillStyle = '#000';
+      dctx.textBaseline = 'top';
+      for (const f of fonts) {
+        const family = f.loadedName || f.name;
+        if (!family) continue;
+        dctx.font = `16px "${family}"`;
+        dctx.fillText('Xg0123 عربي', 0, 8);
+      }
+      /* اقرأ عرض نص للتحقق */
+      const testWidth = dctx.measureText('Chapter 1').width;
+      console.log('[Font warmup] test width:', testWidth.toFixed(2));
+    } catch (_) {}
+  }
+
+  /* ═══ انتظار مضاعف ═══ */
+  await new Promise(r => requestAnimationFrame(r));
+  await new Promise(r => requestAnimationFrame(r));
+  await new Promise(r => setTimeout(r, 100));
+
+  /* ═══ Pass 2 ═══ */
+  clearAndPrep();
+  await page.render(_buildRenderOpts(ctx, cssViewport, transform)).promise;
+
+  /* ═══ Pass 3 — شبكة الأمان ═══ */
+  await new Promise(r => setTimeout(r, 80));
+  clearAndPrep();
+  await page.render(_buildRenderOpts(ctx, cssViewport, transform)).promise;
 
   return ctx;
 }
+
+
 
 /* ============================================================
    §5. RENDER TO OFFSCREEN (للـ cache والـ thumbnails)
