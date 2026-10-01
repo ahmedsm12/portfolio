@@ -580,26 +580,23 @@ async function init() {
       reload: () => location.reload(),
     };
   }
-    /* ====== التقاط thumbnail تلقائياً بعد كل تعديل ====== */
+  /* ====== مراقبة التعديلات لالتقاط thumbnail تلقائياً ====== */
   import('./pdf.js').then(pdf => {
     let thumbTimer = null;
     const scheduleCapture = () => {
       clearTimeout(thumbTimer);
       thumbTimer = setTimeout(() => {
         pdf.captureStageThumbnail(state.currentPage).catch(() => {});
-      }, 1200);
+      }, 900);
     };
 
-    /* بعد أي تفاعل مع stage → جدولة التقاط */
     const stageEl = document.getElementById('stage');
     if (stageEl) {
       stageEl.addEventListener('pointerup', scheduleCapture);
       stageEl.addEventListener('pointercancel', scheduleCapture);
     }
-
-    /* بعد أي تغيير في الحالة → جدولة التقاط */
-    ['annotation-change', 'element-added', 'element-removed'].forEach(evt => {
-      document.addEventListener(evt, scheduleCapture);
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') scheduleCapture();
     });
   });
 }	
