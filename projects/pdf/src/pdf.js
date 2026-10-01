@@ -190,20 +190,43 @@ function _buildRenderOpts(canvasContext, viewport, transform, intent) {
 /* ============================================================
    §4. ★★★ RENDER PAGE WITH FONTS — Double Render ★★★
    ============================================================ */
+
 /* ============================================================
-   ★★★ الحل النهائي — بدون transform ★★★
+   ★★★ renderPageWithFonts — نسخة بسيطة بعد disableFontFace:true ★★★
    ============================================================
-   السبب:
-     - transform: [dpr,0,0,dpr,0,0] يُطبّق على baseline النص
-     - لكن ascent/descent بالـ CSS pixels
-     - النتيجة: إزاحة رأسية = (dpr-1) × ارتفاع النص
-   
-   الحل:
-     - viewport كامل بحجم (cssW × dpr)
-     - بدون transform
-     - مع تحضير الخطوط (يمنع letter-spacing)
+   مع disableFontFace: true، pdf.js يرسم كل glyph مباشرة من
+   مصفوفة transform — لا يعتمد على canvas font metrics.
+   النتيجة: letter spacing دقيق من الرسم الأول.
    ============================================================ */
 async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
+  const vp1 = page.getViewport({ scale: 1 });
+
+  /* viewport كامل — لا transform */
+  const renderScale = (cssW * dpr) / vp1.width;
+  const viewport = page.getViewport({ scale: renderScale });
+
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  await page.render({
+    canvasContext: ctx,
+    viewport,
+    background: '#ffffff',
+  }).promise;
+
+  return ctx;
+}
+
+
   const vp1 = page.getViewport({ scale: 1 });
 
   /* ★ viewport كامل — لا transform */
@@ -743,7 +766,7 @@ export async function loadPdfFile(file, opts = {}) {
       standardFontDataUrl: `${PDFJS_BASE}/standard_fonts/`,
       wasmUrl: `${PDFJS_BASE}/wasm/`,
       useSystemFonts: false,
-      disableFontFace: false,
+      disableFontFace: true,
       fontExtraProperties: true,
       isEvalSupported: true,
       useWorkerFetch: true,
