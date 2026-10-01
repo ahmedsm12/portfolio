@@ -599,6 +599,9 @@ async function init() {
       if (e.key === 'Delete' || e.key === 'Backspace') scheduleCapture();
     });
   });
+    /* عرض الوحدة مباشرة للتصحيح */
+  import('./pdf.js').then(mod => { window.__PDF__ = mod; });
+  import('./interaction.js').then(mod => { window.__INTERACTION__ = mod; });
 }	
 
 /* ============================================================
