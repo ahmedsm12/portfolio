@@ -1,16 +1,18 @@
 /* ============================================================
  * pdf.js — تحميل PDF + الشرائح + الشريط الجانبي + قائمة السياق
  * ============================================================
- *  محلّل PDF: pdf.js v4.7.76
- *  الميزات المُحسَّنة لعرض الخطوط العربية والإنجليزية:
- *    - useSystemFonts: false  → استخدم الخطوط المضمّنة دائماً
- *    - disableFontFace: false → استخدم FontFace API للخطوط المضمّنة
- *    - isEvalSupported: true  → اسمح بتقييم JS لـ TrueType hinting
- *    - fontExtraProperties: true → احتفظ بخصائص الخط الكاملة
- *    - useWorkerFetch: true   → تحميل الخطوط عبر Worker مباشرة
- *    - intent: 'print'        → مسار عرض بجودة طباعة
- *    - annotationMode: DISABLE → لا ترسم الحقول التفاعلية
- *    - مسارات cmaps + standard_fonts من نفس مصدر pdf.js
+ *  ★★ الإصلاح الجوهري — دقّة النص العربي والإنجليزي ★★
+ *
+ *  المشكلة السابقة:
+ *    canvasW = cssW × dpr  ثم  viewport.scale = canvasW / vp1.width
+ *    → scale كبير (4-5x) → pdf.js يقرّب x position لكل حرف
+ *    → مسافات غير متساوية، تقطّع العربية، فراغات غلط في الإنجليزي
+ *
+ *  الحل (نفس pdf.js viewer الرسمي):
+ *    viewport.scale = cssW / vp1.width  (صغير، دقيق)
+ *    canvas.width   = cssW × dpr         (كبير، عالي الحدة)
+ *    transform      = [dpr, 0, 0, dpr, 0, 0]
+ *    → pdf.js يرسم النص بحجمه الطبيعي بدقة، ثم يضاعفه على canvas
  * ============================================================ */
 
 import {
@@ -30,7 +32,7 @@ import {
 } from './interaction.js';
 
 /* ============================================================
-   §1. PDFJS LOADING — إعدادات عامة محسّنة
+   §1. PDFJS LOADING
    ============================================================ */
 export let pdfjsLib = null;
 
@@ -39,13 +41,17 @@ export async function initPdfJs() {
   pdfjsLib = mod;
   pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_BASE}/build/pdf.worker.min.mjs`;
 
-  /* ====== إعدادات عامة (تُطبَّق على كل مستند) ====== */
   pdfjsLib.GlobalWorkerOptions.cMapUrl = `${PDFJS_BASE}/cmaps/`;
   pdfjsLib.GlobalWorkerOptions.cMapPacked = true;
   pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = `${PDFJS_BASE}/standard_fonts/`;
   pdfjsLib.GlobalWorkerOptions.useWorkerFetch = true;
   pdfjsLib.GlobalWorkerOptions.useSystemFonts = false;
   pdfjsLib.GlobalWorkerOptions.isEvalSupported = true;
+
+  /* ⭐ اجعل pdfjsLib متاحاً على window للتصحيح */
+  if (typeof window !== 'undefined') {
+    window.__PDFJS__ = pdfjsLib;
+  }
 }
 
 /* ============================================================
@@ -71,7 +77,7 @@ export function computeStageSize(naturalW, naturalH) {
     canvasW = Math.floor(canvasW * f);
     canvasH = Math.floor(canvasH * f);
   }
-  return { cssW: cW, cssH: cH, canvasW, canvasH };
+  return { cssW: cW, cssH: cH, canvasW, canvasH, dpr };
 }
 
 export function updateStageRect0() {
@@ -91,29 +97,76 @@ export function applyView() {
 }
 
 /* ============================================================
-   §3. SHARED RENDER OPTIONS — تُستخدم في كل استدعاءات page.render
+   §3. RENDER HELPERS
    ============================================================ */
-function getRenderOptions(canvasContext, viewport, background) {
-  /* intent: 'print' يحسّن دقّة النصوص والخطوط.
-     annotationMode: 0 (DISABLE) يمنع رسم الحقول التفاعلية على canvas
-     حتى لا تتداخل مع طبقات التطبيق. */
-  const opts = {
-    canvasContext,
-    viewport,
-    background: background || '#ffffff',
+
+/**
+ * ★★ الدالة الجوهرية الجديدة ★★
+ * ترسم صفحة PDF على canvas بدقة النص المثالية:
+ *   - viewport صغير (بحجم CSS) → تقريب دقيق للنص
+ *   - canvas كبير (CSS × dpr) → حدة عالية
+ *   - transform [dpr,0,0,dpr,0,0] → pdf.js يضاعف الرسم
+ */
+async function renderPageToCanvas(page, cssW, cssH, dpr, canvas, opts = {}) {
+  const vp1 = page.getViewport({ scale: 1 });
+
+  /* ★ viewport بحجم CSS — هذا هو المفتاح لدقة النص */
+  const cssViewport = page.getViewport({ scale: cssW / vp1.width });
+
+  /* canvas ببكسلات dpr */
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  /* ★ transform يضاعف الرسم تلقائياً على canvas الكبير */
+  const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
+
+  const renderOpts = {
+    canvasContext: ctx,
+    viewport: cssViewport,         // ← صغير
+    transform,                      // ← يُضاعف
+    background: '#ffffff',
     intent: 'print',
   };
-  /* نضيف annotationMode بأمان من الـ enum إن وُجد */
+
+  /* annotationMode بأمان */
   try {
-    if (pdfjsLib && pdfjsLib.AnnotationMode && typeof pdfjsLib.AnnotationMode.DISABLE === 'number') {
-      opts.annotationMode = pdfjsLib.AnnotationMode.DISABLE;
-    } else {
-      opts.annotationMode = 0;
+    if (pdfjsLib && pdfjsLib.AnnotationMode &&
+        typeof pdfjsLib.AnnotationMode.DISABLE === 'number') {
+      renderOpts.annotationMode = pdfjsLib.AnnotationMode.DISABLE;
     }
-  } catch (_) {
-    opts.annotationMode = 0;
-  }
-  return opts;
+  } catch (_) {}
+
+  await page.render(renderOpts).promise;
+}
+
+/**
+ * ترسم صفحة على canvas مؤقت ثم تُعيد dataURL JPEG
+ */
+async function renderPageToDataUrl(page, cssW, dpr, format = 'jpeg', quality = 0.92) {
+  const vp1 = page.getViewport({ scale: 1 });
+  const aspect = vp1.height / vp1.width;
+  const cssH = cssW * aspect;
+
+  const canvas = document.createElement('canvas');
+  await renderPageToCanvas(page, cssW, cssH, dpr, canvas);
+
+  const mime = format === 'png' ? 'image/png' : 'image/jpeg';
+  return {
+    dataUrl: canvas.toDataURL(mime, quality),
+    cssW,
+    cssH,
+    canvasW: canvas.width,
+    canvasH: canvas.height,
+  };
 }
 
 /* ============================================================
@@ -147,15 +200,20 @@ export async function renderPage(pageNum) {
     state.pdfH = Math.round(COORD_WIDTH * aspect);
     updateThumbAspect();
 
-    const { cssW, cssH, canvasW, canvasH } = computeStageSize(vp1W, vp1H);
+    const { cssW, cssH, canvasW, canvasH, dpr } = computeStageSize(vp1W, vp1H);
     state.canvasScale = canvasW / state.pdfW;
     state.cssW = cssW; state.cssH = cssH;
-    state.dpr = canvasW / cssW;
+    state.dpr = dpr;
 
     stage.style.width = cssW + 'px';
     stage.style.height = cssH + 'px';
+
+    /* تهيئة كل الـ canvases بنفس الأبعاد */
     [pdfCanvas, transientCanvas, laserCanvas].forEach(c => {
-      c.width = canvasW; c.height = canvasH;
+      c.width = canvasW;
+      c.height = canvasH;
+      c.style.width = cssW + 'px';
+      c.style.height = cssH + 'px';
     });
     svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
 
@@ -165,39 +223,75 @@ export async function renderPage(pageNum) {
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     const cached = state.pageCache.get(pageNum);
+
     if (cached) {
-      /* ✅ من الذاكرة المؤقتة — أعلى جودة (JPEG 0.92) */
+      /* من الـ cache */
       const img = new Image();
       await new Promise(res => {
         img.onload = res;
         img.onerror = res;
         img.src = cached.dataUrl;
       });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, canvasW, canvasH);
     } else if (bg.type === 'pdf' && state.pdfDoc) {
-      /* ✅ عرض مباشر من pdf.js بالإعدادات المُحسَّنة */
+      /* ★★ الرسم المباشر — باستخدام الدالة الجديدة ★★ */
       const page = await state.pdfDoc.getPage(bg.page);
+
+      /* نرسم مباشرة على pdfCanvas */
       const vp1 = page.getViewport({ scale: 1 });
-      const renderScale = canvasW / vp1.width;
-      const viewport = page.getViewport({ scale: renderScale });
+      const cssViewport = page.getViewport({ scale: cssW / vp1.width });
 
-      await page.render(getRenderOptions(ctx, viewport)).promise;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasW, canvasH);
 
-      /* خزّن في الذاكرة المؤقتة بجودة عالية جداً للاستخدام اللاحق */
+      const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
+      const renderOpts = {
+        canvasContext: ctx,
+        viewport: cssViewport,
+        transform,
+        background: '#ffffff',
+        intent: 'print',
+      };
       try {
-        const cc = document.createElement('canvas');
-        const cw = Math.min(canvasW, CACHE_WIDTH);
-        const ch = Math.round(cw * canvasH / canvasW);
-        cc.width = cw; cc.height = ch;
-        const cctx = cc.getContext('2d', { alpha: false });
-        cctx.imageSmoothingEnabled = true;
-        cctx.imageSmoothingQuality = 'high';
-        cctx.drawImage(pdfCanvas, 0, 0, cw, ch);
-        /* 0.92 بدل 0.82 → نصوص أوضح بكثير */
-        state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.92) });
-      } catch (e) { /* تجاهل أخطاء الـ cache */ }
+        if (pdfjsLib && pdfjsLib.AnnotationMode &&
+            typeof pdfjsLib.AnnotationMode.DISABLE === 'number') {
+          renderOpts.annotationMode = pdfjsLib.AnnotationMode.DISABLE;
+        }
+      } catch (_) {}
+
+      await page.render(renderOpts).promise;
+
+      /* خزّن في الـ cache بجودة عالية جداً */
+      try {
+        const result = await renderPageToDataUrl(
+          page,
+          Math.min(cssW * 1.5, CACHE_WIDTH),  // cache بعرض أكبر قليلاً
+          Math.min(dpr, 2),                     // dpr محدود بـ 2 للـ cache
+          'jpeg',
+          0.95                                  // ★ 0.95 — جودة عالية جداً
+        );
+        state.pageCache.set(pageNum, { dataUrl: result.dataUrl });
+      } catch (e) {
+        /* fallback: خزّن canvas الحالي */
+        try {
+          const cc = document.createElement('canvas');
+          const cw = Math.min(canvasW, CACHE_WIDTH);
+          const ch = Math.round(cw * canvasH / canvasW);
+          cc.width = cw; cc.height = ch;
+          const cctx = cc.getContext('2d', { alpha: false });
+          cctx.imageSmoothingEnabled = true;
+          cctx.imageSmoothingQuality = 'high';
+          cctx.drawImage(pdfCanvas, 0, 0, cw, ch);
+          state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.95) });
+        } catch (_) {}
+      }
     } else if (bg.type === 'blank') {
-      /* شريحة فارغة → خلفية بيضاء فقط */
+      /* شريحة فارغة */
       try {
         const cc = document.createElement('canvas');
         const cw = Math.min(canvasW, CACHE_WIDTH);
@@ -206,10 +300,10 @@ export async function renderPage(pageNum) {
         const cctx = cc.getContext('2d', { alpha: false });
         cctx.fillStyle = '#fff';
         cctx.fillRect(0, 0, cw, ch);
-        state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.92) });
+        state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.95) });
       } catch (e) {}
     } else if (state.pdfBlob) {
-      /* وضع الصورة المفردة */
+      /* صورة مفردة */
       const url = URL.createObjectURL(state.pdfBlob);
       try {
         const img = await new Promise((res, rej) => {
@@ -239,10 +333,10 @@ export async function renderPage(pageNum) {
 }
 
 /* ============================================================
-   §5. PRELOAD
+   §5. PRELOAD — يستخدم نفس الحل
    ============================================================ */
 export async function preloadAllPages(token) {
-  /* ===== المرحلة 1: صور مصغّرة عالية السرعة ===== */
+  /* ===== المرحلة 1: صور مصغّرة ===== */
   for (let i = 1; i <= state.totalPages; i++) {
     if (state.preloadToken !== token) return;
     if (state.thumbCache.has(i)) { updateThumbnailImg(i); continue; }
@@ -253,25 +347,15 @@ export async function preloadAllPages(token) {
 
       if (bg.type === 'pdf' && state.pdfDoc) {
         const page = await state.pdfDoc.getPage(bg.page);
-        const vp1 = page.getViewport({ scale: 1 });
-        const scale = THUMB_WIDTH / vp1.width;
-        const viewport = page.getViewport({ scale });
-        const cvs = document.createElement('canvas');
-        cvs.width = Math.max(1, Math.floor(viewport.width));
-        cvs.height = Math.max(1, Math.floor(viewport.height));
-        const c = cvs.getContext('2d', { alpha: false });
-        c.imageSmoothingEnabled = true;
-        c.imageSmoothingQuality = 'high';
-        c.fillStyle = '#fff';
-        c.fillRect(0, 0, cvs.width, cvs.height);
-
-        /* ✅ نفس الإعدادات المُحسَّنة */
-        await page.render(getRenderOptions(c, viewport)).promise;
-
-        /* الصور المصغّرة بجودة 0.85 (أعلى من السابق 0.70) */
-        const url = cvs.toDataURL('image/jpeg', 0.85);
+        const result = await renderPageToDataUrl(
+          page,
+          THUMB_WIDTH,   // CSS viewport صغير
+          1,             // dpr = 1 (صور مصغّرة لا تحتاج حدة عالية)
+          'jpeg',
+          0.85
+        );
         if (state.preloadToken !== token) return;
-        state.thumbCache.set(i, { dataUrl: url });
+        state.thumbCache.set(i, { dataUrl: result.dataUrl });
         updateThumbnailImg(i);
         page.cleanup();
         await new Promise(r => setTimeout(r, 0));
@@ -289,7 +373,7 @@ export async function preloadAllPages(token) {
     } catch (e) { console.warn('thumb preload', i, e); }
   }
 
-  /* ===== المرحلة 2: كاش الجودة الكاملة للتنقّل السلس ===== */
+  /* ===== المرحلة 2: cache الجودة الكاملة ===== */
   for (let i = 1; i <= state.totalPages; i++) {
     if (state.preloadToken !== token) return;
     if (state.pageCache.has(i)) continue;
@@ -301,26 +385,21 @@ export async function preloadAllPages(token) {
       if (bg.type === 'pdf' && state.pdfDoc) {
         const page = await state.pdfDoc.getPage(bg.page);
         const vp1 = page.getViewport({ scale: 1 });
-        const cw = Math.min(CACHE_WIDTH, Math.max(1200, Math.round(vp1.width * 1.5)));
-        const scale = cw / vp1.width;
-        const viewport = page.getViewport({ scale });
 
-        const cvs = document.createElement('canvas');
-        cvs.width = Math.max(1, Math.floor(viewport.width));
-        cvs.height = Math.max(1, Math.floor(viewport.height));
-        const c = cvs.getContext('2d', { alpha: false });
-        c.imageSmoothingEnabled = true;
-        c.imageSmoothingQuality = 'high';
-        c.fillStyle = '#fff';
-        c.fillRect(0, 0, cvs.width, cvs.height);
+        /* عرض الـ cache: بين 1200 و CACHE_WIDTH */
+        const cacheCSS = Math.min(CACHE_WIDTH, Math.max(1200, Math.round(vp1.width * 1.6)));
+        const cacheDpr = Math.min(window.devicePixelRatio || 1, 2);
 
-        /* ✅ نفس الإعدادات المُحسَّنة */
-        await page.render(getRenderOptions(c, viewport)).promise;
+        const result = await renderPageToDataUrl(
+          page,
+          cacheCSS,
+          cacheDpr,
+          'jpeg',
+          0.95
+        );
 
-        /* ✅ 0.92 للكاش الرئيسي — نصوص أوضح */
-        const url = cvs.toDataURL('image/jpeg', 0.92);
         if (state.preloadToken !== token) return;
-        state.pageCache.set(i, { dataUrl: url });
+        state.pageCache.set(i, { dataUrl: result.dataUrl });
         page.cleanup();
         await new Promise(r => setTimeout(r, 0));
       } else if (bg.type === 'blank') {
@@ -346,34 +425,24 @@ export async function loadPdfFile(file, opts = {}) {
   try {
     const buf = await file.arrayBuffer();
 
-    /* ============================================================
-       ★★★ إعدادات getDocument المُحسَّنة — الحل الأول ★★★
-       ============================================================ */
+    /* ★★ إعدادات getDocument المُحسَّنة ★★ */
     const doc = await pdfjsLib.getDocument({
       data: buf,
 
-      /* مسارات الخطوط والخرائط (نفس مصدر pdf.js لضمان التوافق) */
       cMapUrl: `${PDFJS_BASE}/cmaps/`,
       cMapPacked: true,
       standardFontDataUrl: `${PDFJS_BASE}/standard_fonts/`,
       wasmUrl: `${PDFJS_BASE}/wasm/`,
 
-      /* ★ الأهم: عدم استبدال الخطوط المضمّنة */
-      useSystemFonts: false,       // لا تستخدم خطوط النظام — استخدم المضمّن
-      disableFontFace: false,      // استخدم FontFace API (أدق للعربية)
-      fontExtraProperties: true,   // احتفظ بخصائص الخط الكاملة (ascent/glyphs)
+      useSystemFonts: false,       // ← لا تستبدل الخطوط المضمّنة
+      disableFontFace: false,      // ← FontFace API للخطوط المضمّنة
+      fontExtraProperties: true,   // ← احتفظ بالخصائص الكاملة
+      isEvalSupported: true,       // ← TrueType hinting
+      useWorkerFetch: true,        // ← تحميل مباشر عبر Worker
 
-      /* ★ جديد: السماح بتقييم JS لـ TrueType hinting */
-      isEvalSupported: true,
-
-      /* ★ جديد: تحميل الخطوط مباشرة عبر Worker (أسرع وأدق) */
-      useWorkerFetch: true,
-
-      /* أداء: لا تعطّل أي شيء */
       disableRange: false,
       disableStream: false,
       disableAutoFetch: false,
-
       verbosity: 0,
     }).promise;
 
