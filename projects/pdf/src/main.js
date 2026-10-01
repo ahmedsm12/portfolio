@@ -570,6 +570,16 @@ async function init() {
   /* 12) مراقبة clipboard لتحديث زر اللصق */
   const origCopy = copyElement;
   setInterval(updatePasteBtnState, 1500);
+    /* ====== تصحيح فقط: عرض المتغيرات على window ====== */
+  if (typeof window !== 'undefined') {
+    window.__APP__ = {
+      state,
+      get pdfjsLib() { return import('./pdf.js').then(m => m.pdfjsLib); },
+      get pages() { return state.pages; },
+      get slides() { return state.slides; },
+      reload: () => location.reload(),
+    };
+  }
 }
 
 /* ============================================================
