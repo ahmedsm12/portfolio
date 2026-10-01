@@ -1,10 +1,12 @@
 /* ============================================================
- * pdf.js — تحميل PDF + الشرائح + الشريط الجانبي + قائمة السياق
+ * pdf.js — النسخة النهائية
  * ============================================================
- *  ★★ الإصلاحات الرئيسية ★★
- *   1) Double-render على المرة الأولى (يحل مشكلة الخطوط والمسافات)
- *   2) تركيب يدوي للـ thumbnail (بدون html2canvas)
- *   3) إزاحة مفاتيح الكاش بدل مسحها (عند إضافة/حذف شرائح)
+ *  ★ الحل الجذري لمشكلة letter spacing:
+ *    1) Pass 1 يرسم الصفحة → يجبر pdf.js على تسجيل الخطوط
+ *    2) ننتظر كل font object في page.commonObjs (مصدر widths)
+ *    3) ننتظر document.fonts.ready + كل FontFace.load()
+ *    4) ننتظر loadingdone event مع timeout
+ *    5) Pass 2 يعيد الرسم — widths جاهزة الآن
  * ============================================================ */
 
 import {
@@ -43,38 +45,206 @@ export async function initPdfJs() {
 }
 
 /* ============================================================
-   §2. FONTS CACHE — تتتبّع الصفحات التي تم تهيئة خطوطها
+   §2. ★★★ FONT WARMUP — الحل الجذري ★★★
+   ============================================================
+   ننتظر 4 طبقات معاً لضمان جاهزية widths:
+     1. كل font object في page.commonObjs (مصدر widths الأساسي)
+     2. document.fonts.ready (تحميل ملف الخط)
+     3. fontFace.load() لكل FontFace (تحميل فعلي)
+     4. loadingdone event + تأخير (تفعيل على canvas)
    ============================================================ */
-const _fontWarmedPages = new Set();
-let _fontWarmedDocId = null;
 
-function _getDocId() {
-  if (!state.pdfDoc) return null;
-  if (!state.pdfDoc.__uid) {
-    state.pdfDoc.__uid = 'doc_' + Math.random().toString(36).slice(2, 9);
-  }
-  return state.pdfDoc.__uid;
+/**
+ * ينتظر كل font objects في page.commonObjs.
+ * هذه هي الطريقة الموثوقة للانتظار حتى pdf.js يجهّز الـ widths.
+ */
+function waitForCommonObjsFonts(page) {
+  return new Promise(resolve => {
+    let opList;
+    try {
+      /* getOperatorList يمكن استدعاؤه أكثر من مرة — pdf.js يعيد النتيجة المخزّنة */
+      page.getOperatorList().then(list => {
+        opList = list;
+
+        const fontIds = new Set();
+        const OPS = pdfjsLib.OPS;
+        for (let i = 0; i < opList.fnArray.length; i++) {
+          if (opList.fnArray[i] === OPS.setFont) {
+            const id = opList.argsArray[i][0];
+            if (id) fontIds.add(id);
+          }
+        }
+
+        if (fontIds.size === 0) {
+          resolve();
+          return;
+        }
+
+        let remaining = fontIds.size;
+        const done = () => {
+          remaining--;
+          if (remaining === 0) resolve();
+        };
+
+        fontIds.forEach(id => {
+          try {
+            if (page.commonObjs.has && page.commonObjs.has(id)) {
+              done();
+            } else {
+              page.commonObjs.get(id, () => done());
+            }
+          } catch (_) {
+            done();
+          }
+        });
+
+        /* timeout أمان */
+        setTimeout(resolve, 2000);
+      }).catch(() => resolve());
+    } catch (_) {
+      resolve();
+    }
+  });
 }
 
-export function resetFontsCache() {
-  _fontWarmedPages.clear();
-  _fontWarmedDocId = null;
+/**
+ * ينتظر FontFace API بعد الرسم (font loading on canvas).
+ */
+async function waitForFontFaceAPI(timeoutMs = 1500) {
+  try {
+    /* 1) document.fonts.ready */
+    if (document.fonts && document.fonts.ready) {
+      try { await document.fonts.ready; } catch (_) {}
+    }
+
+    /* 2) fontFace.load() صراحةً لكل الخطوط */
+    if (document.fonts && document.fonts.forEach) {
+      const faces = [];
+      document.fonts.forEach(f => faces.push(f));
+      await Promise.all(faces.map(f => {
+        try {
+          return (f.load ? f.load() : Promise.resolve()).catch(() => {});
+        } catch (_) {
+          return Promise.resolve();
+        }
+      }));
+    }
+
+    /* 3) loadingdone event مع timeout */
+    await new Promise(resolve => {
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+
+      if (!document.fonts) { finish(); return; }
+
+      if (document.fonts.status === 'loaded') {
+        setTimeout(finish, 80);
+        return;
+      }
+
+      const handler = () => {
+        document.fonts.removeEventListener('loadingdone', handler);
+        finish();
+      };
+      document.fonts.addEventListener('loadingdone', handler);
+      setTimeout(() => {
+        try { document.fonts.removeEventListener('loadingdone', handler); } catch (_) {}
+        finish();
+      }, timeoutMs);
+    });
+  } catch (_) {}
 }
 
-function _isFontsWarmed(pdfPageNum) {
-  const docId = _getDocId();
-  if (!docId) return true;
-  return _fontWarmedPages.has(`${docId}:${pdfPageNum}`);
-}
-
-function _markFontsWarmed(pdfPageNum) {
-  const docId = _getDocId();
-  if (!docId) return;
-  _fontWarmedPages.add(`${docId}:${pdfPageNum}`);
+/**
+ * تأخير RAF × 2 + timeout صغير لضمان أن canvas يستخدم الخطوط الجديدة.
+ */
+function waitFramesAndDelay(delayMs = 100) {
+  return new Promise(resolve => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeout(resolve, delayMs);
+      });
+    });
+  });
 }
 
 /* ============================================================
-   §3. STAGE SIZING
+   §3. RENDER OPTIONS
+   ============================================================ */
+function _buildRenderOpts(canvasContext, viewport, transform, intent) {
+  const opts = {
+    canvasContext,
+    viewport,
+    transform: transform || null,
+    background: '#ffffff',
+  };
+  if (intent) opts.intent = intent;
+  try {
+    if (pdfjsLib?.AnnotationMode?.DISABLE !== undefined) {
+      opts.annotationMode = pdfjsLib.AnnotationMode.DISABLE;
+    }
+  } catch (_) {}
+  return opts;
+}
+
+/* ============================================================
+   §4. ★★★ RENDER PAGE WITH FONTS — Double Render ★★★
+   ============================================================ */
+async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
+  const vp1 = page.getViewport({ scale: 1 });
+  const cssViewport = page.getViewport({ scale: cssW / vp1.width });
+
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
+
+  const clearCanvas = () => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+  };
+
+  /* ═══ Pass 1 — رسم أولي (يجبر pdf.js على تسجيل الخطوط) ═══ */
+  clearCanvas();
+  await page.render(_buildRenderOpts(ctx, cssViewport, transform, 'display')).promise;
+
+  /* ═══ انتظار الخطوط بـ 4 طبقات متزامنة ═══ */
+  await Promise.all([
+    waitForCommonObjsFonts(page),      // ← مصدر widths
+    waitForFontFaceAPI(1500),          // ← FontFace API
+  ]);
+  await waitFramesAndDelay(120);
+
+  /* ═══ Pass 2 — إعادة الرسم بالخطوط الجاهزة ═══ */
+  clearCanvas();
+  await page.render(_buildRenderOpts(ctx, cssViewport, transform, 'display')).promise;
+
+  return ctx;
+}
+
+/* ============================================================
+   §5. RENDER TO OFFSCREEN (للـ cache والـ thumbnails)
+   ============================================================ */
+async function renderPageToOffscreen(page, pdfPageNum, cssW, dpr, format = 'jpeg', quality = 0.92) {
+  const vp1 = page.getViewport({ scale: 1 });
+  const aspect = vp1.height / vp1.width;
+  const cssH = cssW * aspect;
+
+  const canvas = document.createElement('canvas');
+  await renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr);
+
+  const mime = format === 'png' ? 'image/png' : 'image/jpeg';
+  return { dataUrl: canvas.toDataURL(mime, quality), cssW, cssH };
+}
+
+/* ============================================================
+   §6. STAGE SIZING
    ============================================================ */
 export function getSidebarWidth() {
   return thumbnailSidebar.classList.contains('collapsed') ? 0 : (thumbnailSidebar.offsetWidth || 0);
@@ -116,112 +286,7 @@ export function applyView() {
 }
 
 /* ============================================================
-   §4. RENDER OPTIONS HELPER
-   ============================================================ */
-function _buildRenderOpts(canvasContext, viewport, transform) {
-  const opts = {
-    canvasContext,
-    viewport,
-    transform: transform || null,
-    background: '#ffffff',
-    intent: 'print',
-  };
-  try {
-    if (pdfjsLib?.AnnotationMode?.DISABLE !== undefined) {
-      opts.annotationMode = pdfjsLib.AnnotationMode.DISABLE;
-    }
-  } catch (_) {}
-  return opts;
-}
-
-/* ============================================================
-   §5. ★★★ RENDER PAGE WITH FONTS — Double-Render ★★★
-   ============================================================
-   هذه هي الدالة الجوهرية التي تحل مشكلة الخطوط نهائياً.
-
-   المنطق:
-     - إذا كانت الخطوط جاهزة (لم يتم رسم هذه الصفحة من قبل في هذه الجلسة):
-         • المسار السريع: render واحد
-     - إذا كانت الخطوط غير جاهزة (أول مرة):
-         • Pass 1: render عادي (يجبر pdf.js على تحميل الخطوط)
-         • await document.fonts.ready
-         • تأخير قصير
-         • مسح canvas
-         • Pass 2: render ثانٍ (الآن بالخطوط الصحيحة)
-         • علّم الصفحة كمُهيَّأة
-   ============================================================ */
-async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
-  const vp1 = page.getViewport({ scale: 1 });
-  const cssViewport = page.getViewport({ scale: cssW / vp1.width });
-
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-
-  const ctx = canvas.getContext('2d', { alpha: false });
-  const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
-
-  const needsWarmup = !_isFontsWarmed(pdfPageNum);
-
-  /* ===== Pass 1 ===== */
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  await page.render(_buildRenderOpts(ctx, cssViewport, transform)).promise;
-
-  /* ===== Warm-up (المرة الأولى فقط) ===== */
-  if (needsWarmup) {
-    try {
-      /* انتظر اكتمال تحميل كل FontFaces المُسجَّلة */
-      if (document.fonts && document.fonts.ready) {
-        await document.fonts.ready;
-      }
-
-      /* إطاران + تأخير قصير لتفعيل الخطوط على canvas */
-      await new Promise(r => requestAnimationFrame(r));
-      await new Promise(r => requestAnimationFrame(r));
-      await new Promise(r => setTimeout(r, 80));
-
-      /* ===== Pass 2 ===== */
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-
-      await page.render(_buildRenderOpts(ctx, cssViewport, transform)).promise;
-
-      _markFontsWarmed(pdfPageNum);
-    } catch (e) {
-      console.warn('Font warmup failed for page', pdfPageNum, e);
-      _markFontsWarmed(pdfPageNum);
-    }
-  }
-
-  return ctx;
-}
-
-/* ============================================================
-   §6. RENDER TO OFFSCREEN (للـ cache والـ thumbnails)
-   ============================================================ */
-async function renderPageToOffscreen(page, pdfPageNum, cssW, dpr, format = 'jpeg', quality = 0.92) {
-  const vp1 = page.getViewport({ scale: 1 });
-  const aspect = vp1.height / vp1.width;
-  const cssH = cssW * aspect;
-
-  const canvas = document.createElement('canvas');
-  await renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr);
-
-  const mime = format === 'png' ? 'image/png' : 'image/jpeg';
-  return { dataUrl: canvas.toDataURL(mime, quality), cssW, cssH };
-}
-
-/* ============================================================
-   §7. RENDER PAGE (الرئيسية)
+   §7. RENDER PAGE
    ============================================================ */
 export async function renderPage(pageNum) {
   const slide = state.slides[pageNum - 1];
@@ -270,12 +335,10 @@ export async function renderPage(pageNum) {
     const cached = state.pageCache.get(pageNum);
 
     if (cached) {
-      /* من الذاكرة المؤقتة */
       const ctx = pdfCanvas.getContext('2d', { alpha: false });
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvasW, canvasH);
-
       const img = new Image();
       await new Promise(res => { img.onload = res; img.onerror = res; img.src = cached.dataUrl; });
       ctx.imageSmoothingEnabled = true;
@@ -283,20 +346,15 @@ export async function renderPage(pageNum) {
       ctx.drawImage(img, 0, 0, canvasW, canvasH);
     } else if (bg.type === 'pdf' && state.pdfDoc) {
       const page = await state.pdfDoc.getPage(bg.page);
-
-      /* ★ الرسم الرئيسي عبر double-render ★ */
       await renderPageWithFonts(page, bg.page, pdfCanvas, cssW, cssH, dpr);
 
-      /* خزّن في الـ cache — الآن مضمون أن الخطوط صحيحة */
+      /* خزّن في الـ cache (الآن مضمون) */
       try {
-        const cacheCSS = Math.min(cssW * 1.5, CACHE_WIDTH);
-        const cacheDpr = Math.min(dpr, 2);
         const result = await renderPageToOffscreen(
-          page, bg.page, cacheCSS, cacheDpr, 'jpeg', 0.95
+          page, bg.page, Math.min(cssW * 1.5, CACHE_WIDTH), Math.min(dpr, 2), 'jpeg', 0.95
         );
         state.pageCache.set(pageNum, { dataUrl: result.dataUrl });
-      } catch (e) {
-        /* fallback: نسخ من canvas الحالي */
+      } catch (_) {
         try {
           const cc = document.createElement('canvas');
           const cw = Math.min(canvasW, CACHE_WIDTH);
@@ -307,14 +365,13 @@ export async function renderPage(pageNum) {
           cctx.imageSmoothingQuality = 'high';
           cctx.drawImage(pdfCanvas, 0, 0, cw, ch);
           state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.95) });
-        } catch (_) {}
+        } catch (__) {}
       }
     } else if (bg.type === 'blank') {
       const ctx = pdfCanvas.getContext('2d', { alpha: false });
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvasW, canvasH);
-
       try {
         const cc = document.createElement('canvas');
         const cw = Math.min(canvasW, CACHE_WIDTH);
@@ -324,13 +381,12 @@ export async function renderPage(pageNum) {
         cctx.fillStyle = '#fff';
         cctx.fillRect(0, 0, cw, ch);
         state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.95) });
-      } catch (e) {}
+      } catch (_) {}
     } else if (state.pdfBlob) {
       const ctx = pdfCanvas.getContext('2d', { alpha: false });
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvasW, canvasH);
-
       const url = URL.createObjectURL(state.pdfBlob);
       try {
         const img = await new Promise((res, rej) => {
@@ -352,7 +408,6 @@ export async function renderPage(pageNum) {
     updateUndoButtonsSafe();
     emptyState.style.display = 'none';
 
-    /* التقط thumbnail */
     setTimeout(() => { captureStageThumbnail(pageNum).catch(() => {}); }, 50);
 
   } catch (err) {
@@ -367,7 +422,6 @@ export async function renderPage(pageNum) {
    §8. PRELOAD
    ============================================================ */
 export async function preloadAllPages(token) {
-  /* المرحلة 1: صور مصغّرة */
   for (let i = 1; i <= state.totalPages; i++) {
     if (state.preloadToken !== token) return;
     if (state.thumbCache.has(i)) { updateThumbnailImg(i); continue; }
@@ -378,10 +432,20 @@ export async function preloadAllPages(token) {
 
       if (bg.type === 'pdf' && state.pdfDoc) {
         const page = await state.pdfDoc.getPage(bg.page);
-        /* ★ هذا سيؤدي إلى تهيئة الخطوط للصفحة */
-        const result = await renderPageToOffscreen(page, bg.page, THUMB_WIDTH, 1, 'jpeg', 0.82);
+        /* ⚠️ لا ننتظر الخطوط في thumbnails (أسرع بكثير) */
+        const vp1 = page.getViewport({ scale: 1 });
+        const cssW = THUMB_WIDTH;
+        const cssH = cssW * vp1.height / vp1.width;
+        const cvs = document.createElement('canvas');
+        cvs.width = Math.round(cssW);
+        cvs.height = Math.round(cssH);
+        const c = cvs.getContext('2d', { alpha: false });
+        c.fillStyle = '#fff';
+        c.fillRect(0, 0, cvs.width, cvs.height);
+        const cssViewport = page.getViewport({ scale: cssW / vp1.width });
+        await page.render({ canvasContext: c, viewport: cssViewport, intent: 'display' }).promise;
         if (state.preloadToken !== token) return;
-        state.thumbCache.set(i, { dataUrl: result.dataUrl });
+        state.thumbCache.set(i, { dataUrl: cvs.toDataURL('image/jpeg', 0.82) });
         updateThumbnailImg(i);
         page.cleanup();
         await new Promise(r => setTimeout(r, 0));
@@ -399,7 +463,7 @@ export async function preloadAllPages(token) {
     } catch (e) { console.warn('thumb preload', i, e); }
   }
 
-  /* المرحلة 2: cache الجودة الكاملة */
+  /* cache عالي الدقة — يستخدم renderPageWithFonts كاملاً */
   for (let i = 1; i <= state.totalPages; i++) {
     if (state.preloadToken !== token) return;
     if (state.pageCache.has(i)) continue;
@@ -407,7 +471,6 @@ export async function preloadAllPages(token) {
       const slide = state.slides[i - 1];
       if (!slide) continue;
       const bg = slide.bg;
-
       if (bg.type === 'pdf' && state.pdfDoc) {
         const page = await state.pdfDoc.getPage(bg.page);
         const vp1 = page.getViewport({ scale: 1 });
@@ -426,7 +489,7 @@ export async function preloadAllPages(token) {
 }
 
 /* ============================================================
-   §9. THUMBNAIL CAPTURE — تركيب يدوي (بدون html2canvas)
+   §9. THUMBNAIL CAPTURE
    ============================================================ */
 export async function captureStageThumbnail(pageNum) {
   if (!pageNum || pageNum < 1 || pageNum > state.totalPages) return;
@@ -445,10 +508,8 @@ export async function captureStageThumbnail(pageNum) {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, TW, TH);
 
-    /* 1) خلفية PDF */
     try { ctx.drawImage(pdfCanvas, 0, 0, TW, TH); } catch (_) {}
 
-    /* 2) الرسومات SVG */
     try {
       const svgClone = svgLayer.cloneNode(true);
       svgClone.querySelectorAll('.selection-overlay, .handle').forEach(n => n.remove());
@@ -469,7 +530,6 @@ export async function captureStageThumbnail(pageNum) {
       } finally { URL.revokeObjectURL(svgUrl); }
     } catch (_) {}
 
-    /* 3) النصوص والأزرار */
     const saved = state.pages[pageNum];
     if (saved) {
       const scale = TW / state.cssW;
@@ -500,14 +560,12 @@ export async function captureStageThumbnail(pageNum) {
           const w = parseFloat(spec.w) * scale;
           const h = parseFloat(spec.h) * scale;
           const r = Math.min((spec.borderRadius || 12) * scale, Math.min(w, h) / 2);
-
           ctx.fillStyle = hexToRgba(spec.fillColor, spec.fillOpacity);
           roundRect(ctx, x, y, w, h, r);
           ctx.fill();
           ctx.strokeStyle = hexToRgba(spec.borderColor, spec.borderOpacity);
           ctx.lineWidth = 1;
           ctx.stroke();
-
           const fontSize = (spec.fontSize || 18) * scale;
           const text = stripMathToPlain(spec.text || '');
           if (text) {
@@ -565,7 +623,6 @@ function _shiftCachesAfterInsert(atIdx, count) {
     else newThumbs.set(k + count, v);
   });
   state.thumbCache = newThumbs;
-
   const newPages = new Map();
   state.pageCache.forEach((v, k) => {
     if (k <= atIdx) newPages.set(k, v);
@@ -573,7 +630,6 @@ function _shiftCachesAfterInsert(atIdx, count) {
   });
   state.pageCache = newPages;
 }
-
 function _shiftCachesAfterDelete(atIdx) {
   const newThumbs = new Map();
   state.thumbCache.forEach((v, k) => {
@@ -581,7 +637,6 @@ function _shiftCachesAfterDelete(atIdx) {
     else if (k > atIdx) newThumbs.set(k - 1, v);
   });
   state.thumbCache = newThumbs;
-
   const newPages = new Map();
   state.pageCache.forEach((v, k) => {
     if (k < atIdx) newPages.set(k, v);
@@ -622,7 +677,6 @@ export async function loadPdfFile(file, opts = {}) {
       verbosity: 0,
     }).promise;
 
-    resetFontsCache();
     state.pdfDoc = doc;
     state.pdfBlob = file;
     state.pdfName = file.name;
@@ -661,7 +715,6 @@ export async function loadPdfFile(file, opts = {}) {
 export async function loadImageFile(file, opts = {}) {
   setLoading(true, 'جارٍ تحميل الصورة…');
   try {
-    resetFontsCache();
     state.pdfDoc = null;
     state.totalPages = 1;
     state.pdfBlob = file;
@@ -922,9 +975,7 @@ export async function cutSlide(idx) {
   }
   state.pages = newPages;
   state.history = {};
-
   _shiftCachesAfterDelete(idx);
-
   state.totalPages = state.slides.length;
   renderThumbnails();
 
@@ -981,9 +1032,7 @@ export async function newBlankSlide(idx) {
   const { savePageNow } = await import('./core.js');
   savePageNow();
   const insertAt = idx;
-
   _shiftCachesAfterInsert(idx, 1);
-
   state.slides.splice(insertAt, 0, { id: uid(), bg: { type: 'blank' } });
 
   const newPages = {};
@@ -1008,10 +1057,8 @@ export async function duplicateSlide(idx) {
   if (!slide) return;
   const data = state.pages[idx] || { annotations: [], embeds: [], media: [], buttons: [], texts: [] };
   const clone = JSON.parse(JSON.stringify(data));
-
   const insertAt = idx;
   _shiftCachesAfterInsert(idx, 1);
-
   state.slides.splice(insertAt, 0, { id: uid(), bg: { ...slide.bg } });
 
   const newPages = {};
@@ -1047,7 +1094,6 @@ export async function deleteSlide(idx) {
   state.pages = newPages;
   state.history = {};
   _shiftCachesAfterDelete(idx);
-
   state.totalPages = state.slides.length;
   renderThumbnails();
   const nc = Math.min(idx, state.totalPages) || 1;
