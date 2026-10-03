@@ -137,7 +137,7 @@ body.bp-expanded {
   50% { opacity: 1; }
 }
 
-/* ═══ TOOLBAR ═══ */
+/* ═══ TOOLBAR (يسار) ═══ */
 #toolbar {
   position: fixed;
   left: 8px;
@@ -156,13 +156,19 @@ body.bp-expanded {
   border-radius: 2px;
 }
 
-/* ═══ SIDEBAR ═══ */
+/* ═══ SIDEBAR — إصلاح مشكلة الاختفاء خلف شريط الأدوات ═══ */
 #thumbnailSidebar {
   left: calc(var(--tools-w) + 4px);
   top: var(--topbar-h);
   bottom: var(--bp-current-h);
-  transition: bottom .2s ease;
+  transition: bottom .2s ease, transform .22s ease;
 }
+
+/* عند الإخفاء: نُزيح بمقدار العرض + إزاحة البداية حتى يخرج تماماً */
+#thumbnailSidebar.collapsed {
+  transform: translateX(calc(-100% - var(--tools-w) - 8px)) !important;
+}
+
 #btnShowSidebar {
   left: calc(var(--tools-w) + 4px);
   top: calc(var(--topbar-h) + 10px);
@@ -428,7 +434,7 @@ body.bp-expanded {
   z-index: 1255 !important;
 }
 
-/* ═══ EQUATION DIALOG — نسخة نظيفة بدون ::before ═══ */
+/* ═══ EQUATION DIALOG ═══ */
 #equationBackdrop {
   position: fixed;
   inset: 0;

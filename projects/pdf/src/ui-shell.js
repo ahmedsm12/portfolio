@@ -272,89 +272,194 @@ function initTopbarActions() {
 }
 
 /* ============================================================
-   §7. EQUATION DIALOG — Backdrop + Fallback ★★★
-   ============================================================ */
+   §7. EQUATION DIALOG MIRROR ★★★ الحل الجذري
+   ============================================================
+   نسخة interaction.js الحالية تُضيف .show إلى #equationBackdrop
+   فقط، ولا تُضيفه إلى #equationEditor. نحل هذا بمراقب (Observer)
+   على الـ backdrop: عند إضافة .show نضيف نفس الكلاس للمحرر،
+   وعند الإزالة نزيله. أيضاً ننشئ #equationBackdrop إذا لم يوجد.
 
-/**
- * يضيف خلفية حقيقية (div) عندما يظهر المحرر، ويزيلها عند الإغلاق.
- * يستمع لتغيّر class على #equationEditor.
- */
-function setupEquationBackdrop() {
-  const eq = document.getElementById('equationEditor');
-  if (!eq) {
+   لا نمس interaction.js إطلاقاً.
+   ============================================================ */
+function setupEquationBackdropMirror() {
+  /* 1) تأكد من وجود #equationBackdrop */
+  let backdrop = document.getElementById('equationBackdrop');
+  if (!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.id = 'equationBackdrop';
+    document.body.appendChild(backdrop);
+  }
+
+  const editor = document.getElementById('equationEditor');
+  if (!editor) {
     console.warn('[ui-shell] #equationEditor غير موجود');
     return;
   }
 
-  let backdrop = null;
-
-  function showBackdrop() {
-    if (backdrop) return;
-    backdrop = document.createElement('div');
-    backdrop.id = 'equationBackdrop';
-    backdrop.classList.add('show');
-    backdrop.addEventListener('click', async () => {
-      try {
-        const mod = await import('./interaction.js');
-        if (mod.closeEquationEditor) mod.closeEquationEditor();
-        else eq.classList.remove('show');
-      } catch (_) {
-        eq.classList.remove('show');
+  /* 2) دوال مزامنة */
+  function syncFromBackdrop() {
+    const shown = backdrop.classList.contains('show');
+    if (shown) {
+      backdrop.style.display = 'block';
+      editor.classList.add('show');
+      /* املأ الـ palette إن كانت فارغة */
+      const host = document.getElementById('eqPaletteHost');
+      if (host && !host.children.length) {
+        /* حاول من interaction.js أولاً */
+        import('./interaction.js').then(mod => {
+          if (mod.buildEquationPaletteInto) {
+            try { mod.buildEquationPaletteInto(host); } catch (_) {}
+          }
+          if (!host.children.length) buildFallbackPalette(host);
+        }).catch(() => {
+          if (!host.children.length) buildFallbackPalette(host);
+        });
       }
-    });
-    document.body.appendChild(backdrop);
-  }
-
-  function hideBackdrop() {
-    if (backdrop) {
-      backdrop.remove();
-      backdrop = null;
+      /* ركز على الـ textarea */
+      const ta = document.getElementById('eqTextarea');
+      if (ta) setTimeout(() => { try { ta.focus(); } catch (_) {} }, 100);
+    } else {
+      backdrop.style.display = 'none';
+      editor.classList.remove('show');
     }
   }
 
-  const observer = new MutationObserver(() => {
-    const shown = eq.classList.contains('show');
-    if (shown) showBackdrop();
-    else hideBackdrop();
-  });
-  observer.observe(eq, { attributes: true, attributeFilter: ['class'] });
+  /* 3) راقب الـ backdrop */
+  const obs = new MutationObserver(syncFromBackdrop);
+  obs.observe(backdrop, { attributes: true, attributeFilter: ['class'] });
 
-  /* حالة أولية */
-  if (eq.classList.contains('show')) showBackdrop();
-}
+  /* 4) حالة أولية */
+  backdrop.style.display = backdrop.classList.contains('show') ? 'block' : 'none';
 
-/**
- * مستمع احتياطي على زر المعادلة لضمان فتح المحرر.
- * يُنفَّذ بعد 200ms من أي click — يتحقق إن كان المحرر مفتوحاً.
- */
-function setupEquationButtonFallback() {
-  const eqBtn = document.querySelector('#toolbar button[data-tool="equation"]');
-  if (!eqBtn) {
-    console.warn('[ui-shell] زر المعادلة غير موجود في #toolbar');
-    return;
+  /* 5) زر الإغلاق داخل المحرر → يُخفي الـ backdrop أيضاً */
+  /* interaction.js يربطه على closeEquationEditor، لكن لو فشل نضيف احتياطياً */
+  const closeBtn = document.getElementById('eqCloseBtn');
+  const cancelBtn = document.getElementById('eqCancelBtn');
+  const hideBoth = () => {
+    editor.classList.remove('show');
+    backdrop.classList.remove('show');
+    backdrop.style.display = 'none';
+  };
+  if (closeBtn && !closeBtn._uiMirrorWired) {
+    closeBtn._uiMirrorWired = true;
+    closeBtn.addEventListener('click', hideBoth);
+  }
+  if (cancelBtn && !cancelBtn._uiMirrorWired) {
+    cancelBtn._uiMirrorWired = true;
+    cancelBtn.addEventListener('click', hideBoth);
   }
 
-  eqBtn.addEventListener('click', () => {
-    setTimeout(async () => {
-      const eq = document.getElementById('equationEditor');
-      if (!eq) return;
-      if (eq.classList.contains('show')) return; // فُتح بنجاح
-      // فشل الفتح → حاول يدوياً
-      console.warn('[ui-shell] محرر المعادلات لم يُفتح تلقائياً — محاولة يدوية');
+  /* 6) النقر على الخلفية يغلق */
+  backdrop.addEventListener('click', hideBoth);
+
+  /* 7) زر المعادلة: إن لم يُضف interaction.js .show خلال 250ms، نضيفه نحن */
+  const eqBtn = document.querySelector('#toolbar button[data-tool="equation"]');
+  if (eqBtn) {
+    eqBtn.addEventListener('click', () => {
+      setTimeout(() => {
+        if (editor.classList.contains('show')) return;
+        console.warn('[ui-shell] fallback: فتح المحرر يدوياً');
+        /* استدعِ openEquationEditor من interaction.js إن أمكن */
+        import('./interaction.js').then(mod => {
+          if (mod.openEquationEditor) {
+            try { mod.openEquationEditor(null); } catch (_) {}
+          }
+        }).catch(() => {});
+        /* ثم افرض الفتح بعد لحظة */
+        setTimeout(() => {
+          if (!editor.classList.contains('show')) {
+            backdrop.classList.add('show');
+            backdrop.style.display = 'block';
+            editor.classList.add('show');
+            const host = document.getElementById('eqPaletteHost');
+            if (host && !host.children.length) buildFallbackPalette(host);
+            const ta = document.getElementById('eqTextarea');
+            if (ta) setTimeout(() => { try { ta.focus(); } catch (_) {} }, 60);
+          }
+        }, 120);
+      }, 250);
+    }, true);
+  }
+}
+
+/* Palette احتياطية (نفس بنية interaction.js) */
+function buildFallbackPalette(host) {
+  const TEMPLATES = [
+    { cat: 'الكسور والجذور', items: [
+      { label: 'a/b', latex: '\\frac{a}{b}' },
+      { label: '√',   latex: '\\sqrt{x}' },
+      { label: 'ⁿ√',  latex: '\\sqrt[n]{x}' }
+    ]},
+    { cat: 'الأسس', items: [
+      { label: 'x²', latex: 'x^{2}' },
+      { label: 'xₙ', latex: 'x_{n}' },
+      { label: 'xⁿ', latex: 'x^{n}' }
+    ]},
+    { cat: 'المجاميع والتكاملات', items: [
+      { label: '∑',   latex: '\\sum_{i=1}^{n}' },
+      { label: '∏',   latex: '\\prod_{i=1}^{n}' },
+      { label: '∫',   latex: '\\int_{a}^{b}' },
+      { label: 'lim', latex: '\\lim_{x \\to \\infty}' },
+      { label: 'd/dx', latex: '\\frac{d}{dx}' }
+    ]},
+    { cat: 'حروف يونانية', items: [
+      { label: 'α', latex: '\\alpha' }, { label: 'β', latex: '\\beta' }, { label: 'γ', latex: '\\gamma' },
+      { label: 'δ', latex: '\\delta' }, { label: 'θ', latex: '\\theta' }, { label: 'π', latex: '\\pi' }
+    ]},
+    { cat: 'العلاقات', items: [
+      { label: '≠', latex: '\\neq' }, { label: '≤', latex: '\\leq' }, { label: '≥', latex: '\\geq' },
+      { label: '≈', latex: '\\approx' }, { label: '∞', latex: '\\infty' }, { label: '±', latex: '\\pm' }
+    ]},
+    { cat: 'الدوال', items: [
+      { label: 'sin', latex: '\\sin' }, { label: 'cos', latex: '\\cos' }, { label: 'tan', latex: '\\tan' },
+      { label: 'log', latex: '\\log' }, { label: 'ln', latex: '\\ln' }, { label: 'exp', latex: '\\exp' }
+    ]}
+  ];
+
+  host.innerHTML = '';
+  TEMPLATES.forEach(cat => {
+    const lbl = document.createElement('div');
+    lbl.className = 'eq-section-label';
+    lbl.textContent = cat.cat;
+    host.appendChild(lbl);
+
+    const grid = document.createElement('div');
+    grid.className = 'eq-grid';
+
+    cat.items.forEach(item => {
+      const btn = document.createElement('button');
+      btn.className = 'eq-btn';
+      btn.type = 'button';
+
+      const inner = document.createElement('span');
       try {
-        const mod = await import('./interaction.js');
-        if (mod.openEquationEditor) {
-          mod.openEquationEditor(null);
+        if (window.katex) {
+          window.katex.render(item.latex, inner, {
+            throwOnError: false, displayMode: false, output: 'html'
+          });
         } else {
-          // fallback نهائي: أضف الصنف مباشرة
-          eq.classList.add('show');
+          inner.textContent = item.label;
         }
-      } catch (err) {
-        console.error('[ui-shell] تعذّر فتح المحرر:', err);
-        eq.classList.add('show');
+      } catch (e) {
+        inner.textContent = item.label;
       }
-    }, 200);
-  }, true); // capture — يضمن أن المستمع يُسجَّل قبل أي معالج آخر
+
+      btn.appendChild(inner);
+      btn.title = item.latex;
+      btn.addEventListener('click', () => {
+        const ta = document.getElementById('eqTextarea');
+        if (!ta) return;
+        const pos = ta.selectionStart || ta.value.length;
+        ta.value = ta.value.substring(0, pos) + item.latex + ta.value.substring(pos);
+        ta.focus();
+        try { ta.setSelectionRange(pos + item.latex.length, pos + item.latex.length); } catch (_) {}
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      grid.appendChild(btn);
+    });
+
+    host.appendChild(grid);
+  });
 }
 
 /* ============================================================
@@ -624,8 +729,7 @@ export function initUIShell() {
   initBottomPanel();
   initTopbarActions();
   initGlobalShortcuts();
-  setupEquationBackdrop();
-  setupEquationButtonFallback();
+  setupEquationBackdropMirror();
 
   setTimeout(() => {
     initLayersObserver();
@@ -640,5 +744,9 @@ if (typeof window !== 'undefined') {
     openPresent: openPresentMode,
     closePresent: closePresentMode,
     refreshLayers: refreshLayersPanel,
+    openEquation: () => {
+      const bd = document.getElementById('equationBackdrop');
+      if (bd) bd.classList.add('show');
+    }
   };
 }
