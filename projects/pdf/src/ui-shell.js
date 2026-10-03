@@ -272,14 +272,12 @@ function initTopbarActions() {
 }
 
 /* ============================================================
-   §7. EQUATION DIALOG MIRROR ★★★ الحل الجذري
+   §7. EQUATION DIALOG — نسخة محسّنة
    ============================================================
-   نسخة interaction.js الحالية تُضيف .show إلى #equationBackdrop
-   فقط، ولا تُضيفه إلى #equationEditor. نحل هذا بمراقب (Observer)
-   على الـ backdrop: عند إضافة .show نضيف نفس الكلاس للمحرر،
-   وعند الإزالة نزيله. أيضاً ننشئ #equationBackdrop إذا لم يوجد.
-
-   لا نمس interaction.js إطلاقاً.
+   الإصلاحات:
+   1) stopPropagation على المحرر لمنع وصول الأحداث إلى document
+   2) الإغلاق فقط عند النقر المباشر على الـ backdrop (e.target === backdrop)
+   3) تبويبات للفئات (كسور، أسس، …) بدل الأقسام المكدسة عمودياً
    ============================================================ */
 function setupEquationBackdropMirror() {
   /* 1) تأكد من وجود #equationBackdrop */
@@ -296,26 +294,24 @@ function setupEquationBackdropMirror() {
     return;
   }
 
-  /* 2) دوال مزامنة */
+  /* ★ 2) أوقف انتشار كل الأحداث من المحرر
+        هذا هو الإصلاح الحاسم لمشكلة "يُغلق عند أي نقرة" */
+  ['pointerdown', 'pointerup', 'click', 'mousedown', 'mouseup',
+   'touchstart', 'touchend', 'keydown', 'keyup'].forEach(evt => {
+    editor.addEventListener(evt, (e) => {
+      /* لكن اترك الزر X وزر إلغاء يعملان — نمرر لهما الحدث */
+      e.stopPropagation();
+    }, true);
+  });
+
+  /* 3) دوال المزامنة */
   function syncFromBackdrop() {
     const shown = backdrop.classList.contains('show');
     if (shown) {
       backdrop.style.display = 'block';
       editor.classList.add('show');
-      /* املأ الـ palette إن كانت فارغة */
-      const host = document.getElementById('eqPaletteHost');
-      if (host && !host.children.length) {
-        /* حاول من interaction.js أولاً */
-        import('./interaction.js').then(mod => {
-          if (mod.buildEquationPaletteInto) {
-            try { mod.buildEquationPaletteInto(host); } catch (_) {}
-          }
-          if (!host.children.length) buildFallbackPalette(host);
-        }).catch(() => {
-          if (!host.children.length) buildFallbackPalette(host);
-        });
-      }
-      /* ركز على الـ textarea */
+      ensureEquationTabs(editor);
+      ensureEquationPalette(editor);
       const ta = document.getElementById('eqTextarea');
       if (ta) setTimeout(() => { try { ta.focus(); } catch (_) {} }, 100);
     } else {
@@ -324,96 +320,199 @@ function setupEquationBackdropMirror() {
     }
   }
 
-  /* 3) راقب الـ backdrop */
+  /* 4) راقب الـ backdrop */
   const obs = new MutationObserver(syncFromBackdrop);
   obs.observe(backdrop, { attributes: true, attributeFilter: ['class'] });
-
-  /* 4) حالة أولية */
   backdrop.style.display = backdrop.classList.contains('show') ? 'block' : 'none';
 
-  /* 5) زر الإغلاق داخل المحرر → يُخفي الـ backdrop أيضاً */
-  /* interaction.js يربطه على closeEquationEditor، لكن لو فشل نضيف احتياطياً */
-  const closeBtn = document.getElementById('eqCloseBtn');
-  const cancelBtn = document.getElementById('eqCancelBtn');
-  const hideBoth = () => {
+  /* 5) الإغلاق */
+  function hideBoth() {
     editor.classList.remove('show');
     backdrop.classList.remove('show');
     backdrop.style.display = 'none';
-  };
-  if (closeBtn && !closeBtn._uiMirrorWired) {
-    closeBtn._uiMirrorWired = true;
-    closeBtn.addEventListener('click', hideBoth);
-  }
-  if (cancelBtn && !cancelBtn._uiMirrorWired) {
-    cancelBtn._uiMirrorWired = true;
-    cancelBtn.addEventListener('click', hideBoth);
   }
 
-  /* 6) النقر على الخلفية يغلق */
-  backdrop.addEventListener('click', hideBoth);
+  /* ★ النقر على الـ backdrop فقط (وليس أطفاله) يغلق */
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) hideBoth();
+  });
 
-  /* 7) زر المعادلة: إن لم يُضف interaction.js .show خلال 250ms، نضيفه نحن */
+  /* زر X و زر إلغاء */
+  const closeBtn = document.getElementById('eqCloseBtn');
+  const cancelBtn = document.getElementById('eqCancelBtn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideBoth();
+    });
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideBoth();
+    });
+  }
+
+  /* زر الإدراج — نتركه لـ interaction.js لكن نضمن عدم propagation */
+  const insertBtn = document.getElementById('eqInsertBtn');
+  if (insertBtn) {
+    insertBtn.addEventListener('click', (e) => e.stopPropagation(), true);
+  }
+
+  /* 6) Escape يغلق */
+  editor.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      hideBoth();
+    }
+  });
+
+  /* 7) زر المعادلة في الشريط — Fallback */
   const eqBtn = document.querySelector('#toolbar button[data-tool="equation"]');
-  if (eqBtn) {
+  if (eqBtn && !eqBtn._uiMirrorWired) {
+    eqBtn._uiMirrorWired = true;
     eqBtn.addEventListener('click', () => {
       setTimeout(() => {
         if (editor.classList.contains('show')) return;
         console.warn('[ui-shell] fallback: فتح المحرر يدوياً');
-        /* استدعِ openEquationEditor من interaction.js إن أمكن */
-        import('./interaction.js').then(mod => {
-          if (mod.openEquationEditor) {
-            try { mod.openEquationEditor(null); } catch (_) {}
-          }
-        }).catch(() => {});
-        /* ثم افرض الفتح بعد لحظة */
-        setTimeout(() => {
-          if (!editor.classList.contains('show')) {
-            backdrop.classList.add('show');
-            backdrop.style.display = 'block';
-            editor.classList.add('show');
-            const host = document.getElementById('eqPaletteHost');
-            if (host && !host.children.length) buildFallbackPalette(host);
-            const ta = document.getElementById('eqTextarea');
-            if (ta) setTimeout(() => { try { ta.focus(); } catch (_) {} }, 60);
-          }
-        }, 120);
+        backdrop.classList.add('show');
+        backdrop.style.display = 'block';
+        editor.classList.add('show');
+        ensureEquationTabs(editor);
+        ensureEquationPalette(editor);
+        const ta = document.getElementById('eqTextarea');
+        if (ta) setTimeout(() => { try { ta.focus(); } catch (_) {} }, 80);
       }, 250);
     }, true);
   }
 }
 
-/* Palette احتياطية (نفس بنية interaction.js) */
+/* ============================================================
+   تبويبات الفئات — تُبنى من بنية eqPaletteHost الموجودة
+   ============================================================ */
+function ensureEquationTabs(editor) {
+  const host = editor.querySelector('#eqPaletteHost');
+  if (!host) return;
+
+  /* إذا كانت التبويبات موجودة سابقاً، لا تعد بناءها */
+  if (host.parentElement.querySelector('.eq-cat-tabs')) return;
+
+  /* اجمع الأقسام: كل قسم = label + grid */
+  const sections = [];
+  let currentCat = null;
+
+  Array.from(host.children).forEach(child => {
+    if (child.classList.contains('eq-section-label')) {
+      currentCat = {
+        label: child.textContent.trim(),
+        labelEl: child,
+        gridEl: null,
+      };
+      sections.push(currentCat);
+    } else if (child.classList.contains('eq-grid') && currentCat) {
+      currentCat.gridEl = child;
+    }
+  });
+
+  if (sections.length < 2) return; // لا حاجة لتبويبات
+
+  /* أنشئ شريط التبويبات وأدرجه قبل الـ host */
+  const tabsBar = document.createElement('div');
+  tabsBar.className = 'eq-cat-tabs';
+
+  sections.forEach((sec, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'eq-cat-tab' + (i === 0 ? ' active' : '');
+    btn.textContent = sec.label;
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      /* بدّل النشاط */
+      tabsBar.querySelectorAll('.eq-cat-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      /* أخفِ كل الشبكات، أظهر النشطة */
+      host.querySelectorAll('.eq-grid').forEach(g => g.classList.remove('active'));
+      if (sec.gridEl) sec.gridEl.classList.add('active');
+    });
+
+    tabsBar.appendChild(btn);
+  });
+
+  host.parentElement.insertBefore(tabsBar, host);
+
+  /* فعّل الفئة الأولى */
+  if (sections[0].gridEl) sections[0].gridEl.classList.add('active');
+}
+
+/* ============================================================
+   تأكد من وجود محتوى palette
+   ============================================================ */
+function ensureEquationPalette(editor) {
+  const host = editor.querySelector('#eqPaletteHost');
+  if (!host) return;
+  if (host.children.length > 0) return;
+
+  /* حاول من interaction.js */
+  import('./interaction.js').then(mod => {
+    if (mod.buildEquationPaletteInto) {
+      try { mod.buildEquationPaletteInto(host); } catch (_) {}
+    }
+    if (!host.children.length) buildFallbackPalette(host);
+    ensureEquationTabs(editor);
+  }).catch(() => {
+    if (!host.children.length) buildFallbackPalette(host);
+    ensureEquationTabs(editor);
+  });
+}
+
+/* ============================================================
+   Palette احتياطية كاملة
+   ============================================================ */
 function buildFallbackPalette(host) {
   const TEMPLATES = [
     { cat: 'الكسور والجذور', items: [
       { label: 'a/b', latex: '\\frac{a}{b}' },
       { label: '√',   latex: '\\sqrt{x}' },
-      { label: 'ⁿ√',  latex: '\\sqrt[n]{x}' }
+      { label: 'ⁿ√',  latex: '\\sqrt[n]{x}' },
+      { label: 'x/y', latex: '\\frac{x}{y}' },
+      { label: '¹⁄₂', latex: '\\frac{1}{2}' },
     ]},
     { cat: 'الأسس', items: [
       { label: 'x²', latex: 'x^{2}' },
       { label: 'xₙ', latex: 'x_{n}' },
-      { label: 'xⁿ', latex: 'x^{n}' }
+      { label: 'xⁿ', latex: 'x^{n}' },
+      { label: 'xₐᵦ', latex: 'x_{a}^{b}' },
+      { label: 'eˣ', latex: 'e^{x}' },
     ]},
     { cat: 'المجاميع والتكاملات', items: [
       { label: '∑',   latex: '\\sum_{i=1}^{n}' },
       { label: '∏',   latex: '\\prod_{i=1}^{n}' },
       { label: '∫',   latex: '\\int_{a}^{b}' },
+      { label: '∬',   latex: '\\iint' },
       { label: 'lim', latex: '\\lim_{x \\to \\infty}' },
-      { label: 'd/dx', latex: '\\frac{d}{dx}' }
+      { label: 'd/dx', latex: '\\frac{d}{dx}' },
     ]},
     { cat: 'حروف يونانية', items: [
       { label: 'α', latex: '\\alpha' }, { label: 'β', latex: '\\beta' }, { label: 'γ', latex: '\\gamma' },
-      { label: 'δ', latex: '\\delta' }, { label: 'θ', latex: '\\theta' }, { label: 'π', latex: '\\pi' }
+      { label: 'δ', latex: '\\delta' }, { label: 'ε', latex: '\\epsilon' }, { label: 'θ', latex: '\\theta' },
+      { label: 'λ', latex: '\\lambda' }, { label: 'μ', latex: '\\mu' }, { label: 'π', latex: '\\pi' },
+      { label: 'σ', latex: '\\sigma' }, { label: 'φ', latex: '\\phi' }, { label: 'ω', latex: '\\omega' },
     ]},
     { cat: 'العلاقات', items: [
       { label: '≠', latex: '\\neq' }, { label: '≤', latex: '\\leq' }, { label: '≥', latex: '\\geq' },
-      { label: '≈', latex: '\\approx' }, { label: '∞', latex: '\\infty' }, { label: '±', latex: '\\pm' }
+      { label: '≈', latex: '\\approx' }, { label: '∞', latex: '\\infty' }, { label: '±', latex: '\\pm' },
+      { label: '→', latex: '\\to' }, { label: '⇒', latex: '\\Rightarrow' }, { label: '∈', latex: '\\in' },
     ]},
     { cat: 'الدوال', items: [
       { label: 'sin', latex: '\\sin' }, { label: 'cos', latex: '\\cos' }, { label: 'tan', latex: '\\tan' },
-      { label: 'log', latex: '\\log' }, { label: 'ln', latex: '\\ln' }, { label: 'exp', latex: '\\exp' }
-    ]}
+      { label: 'log', latex: '\\log' }, { label: 'ln', latex: '\\ln' }, { label: 'exp', latex: '\\exp' },
+    ]},
+    { cat: 'مصفوفات', items: [
+      { label: 'matrix', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
+      { label: 'cases',  latex: '\\begin{cases} a \\\\ b \\end{cases}' },
+      { label: 'vec',    latex: '\\vec{v}' },
+    ]},
   ];
 
   host.innerHTML = '';
@@ -446,7 +545,8 @@ function buildFallbackPalette(host) {
 
       btn.appendChild(inner);
       btn.title = item.latex;
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const ta = document.getElementById('eqTextarea');
         if (!ta) return;
         const pos = ta.selectionStart || ta.value.length;
@@ -461,7 +561,6 @@ function buildFallbackPalette(host) {
     host.appendChild(grid);
   });
 }
-
 /* ============================================================
    §8. PRESENT MODE
    ============================================================ */

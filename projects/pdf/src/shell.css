@@ -434,7 +434,7 @@ body.bp-expanded {
   z-index: 1255 !important;
 }
 
-/* ═══ EQUATION DIALOG ═══ */
+/* ═══ EQUATION DIALOG — شريط عريض بتبويبات ═══ */
 #equationBackdrop {
   position: fixed;
   inset: 0;
@@ -446,28 +446,25 @@ body.bp-expanded {
   animation: eqFadeIn .15s ease;
 }
 #equationBackdrop.show { display: block; }
-@keyframes eqFadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
+@keyframes eqFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 #equationEditor {
   position: fixed !important;
   left: 50% !important;
-  right: auto !important;
   top: 50% !important;
   bottom: auto !important;
+  right: auto !important;
   transform: translate(-50%, -50%) !important;
-  width: min(540px, calc(100vw - 40px)) !important;
-  max-width: 540px !important;
+  width: min(760px, calc(100vw - 40px)) !important;
+  max-width: 760px !important;
   max-height: 90vh !important;
   overflow-y: auto !important;
   z-index: 2150 !important;
   background: #1c2028 !important;
   border: 1px solid var(--sh-border-2) !important;
-  border-radius: 16px !important;
-  padding: 20px !important;
-  box-shadow: 0 30px 80px rgba(0,0,0,.7) !important;
+  border-radius: 14px !important;
+  padding: 16px !important;
+  box-shadow: 0 30px 80px rgba(0,0,0,.75) !important;
   scrollbar-width: thin;
   display: none !important;
   flex-direction: column !important;
@@ -481,37 +478,210 @@ body.bp-expanded {
   to   { opacity: 1; transform: translate(-50%, -50%) scale(1) !important; }
 }
 
+/* ── الرأس ── */
 #equationEditor .eq-title {
-  font-size: 14px !important;
-  padding-bottom: 12px !important;
-  border-bottom: 1px solid var(--sh-border) !important;
-  margin-bottom: 14px !important;
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
+  font-size: 14px !important;
+  font-weight: 700;
+  padding-bottom: 10px !important;
+  border-bottom: 1px solid var(--sh-border) !important;
+  margin-bottom: 12px !important;
+  flex-shrink: 0;
 }
-#equationEditor #eqTextarea {
-  min-height: 70px !important;
-}
-#equationEditor #eqPaletteHost {
-  max-height: 40vh !important;
-  overflow-y: auto !important;
-  padding-left: 4px;
-  margin-bottom: 10px;
-}
-#equationEditor #eqPreview {
-  margin-top: 8px;
-  min-height: 50px;
-  padding: 10px;
-  background: #fff;
-  color: #000;
-  border-radius: 8px;
+#equationEditor .eq-title button {
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid var(--sh-border);
+  color: var(--sh-text-muted);
+  cursor: pointer;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  direction: ltr;
+}
+#equationEditor .eq-title button:hover {
+  background: rgba(239,68,68,.2);
+  color: #fff;
+  border-color: rgba(239,68,68,.4);
 }
 
+/* ── شريط التبويبات (يُضاف من JS) ── */
+.eq-cat-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  background: rgba(0,0,0,.2);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.eq-cat-tabs::-webkit-scrollbar { display: none; }
+
+.eq-cat-tab {
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--sh-text-muted);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .12s;
+  flex-shrink: 0;
+}
+.eq-cat-tab:hover {
+  background: var(--sh-hover);
+  color: var(--sh-text);
+}
+.eq-cat-tab.active {
+  background: var(--sh-accent);
+  color: #fff;
+  border-color: var(--sh-accent);
+}
+
+/* ── منطقة الرموز ── */
+#equationEditor #eqPaletteHost {
+  max-height: 260px !important;
+  overflow-y: auto !important;
+  margin-bottom: 12px !important;
+  padding: 4px !important;
+  flex-shrink: 0;
+}
+
+/* أخفِ العناوين لأن التبويبات تؤدي الغرض */
+#equationEditor #eqPaletteHost .eq-section-label {
+  display: none !important;
+}
+
+/* أخفِ كل الشبكات، أظهر النشطة فقط */
+#equationEditor #eqPaletteHost .eq-grid {
+  display: none !important;
+}
+#equationEditor #eqPaletteHost .eq-grid.active {
+  display: grid !important;
+}
+
+#equationEditor #eqPaletteHost .eq-grid,
+#equationEditor .eq-grid {
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)) !important;
+  gap: 6px !important;
+  padding: 4px !important;
+}
+
+#equationEditor .eq-btn {
+  min-height: 52px !important;
+  padding: 8px 6px !important;
+  font-size: 16px !important;
+  background: rgba(255,255,255,.05) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  border-radius: 8px !important;
+  color: var(--sh-text) !important;
+  transition: all .12s !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+#equationEditor .eq-btn:hover {
+  background: rgba(74,126,255,.22) !important;
+  border-color: var(--sh-accent) !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+}
+#equationEditor .eq-btn:active {
+  transform: translateY(0) scale(.97);
+}
+
+/* ── Textarea ── */
+#equationEditor #eqTextarea {
+  width: 100% !important;
+  min-height: 64px !important;
+  font-size: 14px !important;
+  font-family: 'Courier New', 'SF Mono', monospace !important;
+  padding: 10px 12px !important;
+  border: 1px solid var(--sh-border) !important;
+  border-radius: 10px !important;
+  background: var(--sh-bg) !important;
+  color: var(--sh-text) !important;
+  outline: none !important;
+  resize: vertical !important;
+  direction: ltr !important;
+  text-align: left !important;
+  flex-shrink: 0;
+}
+#equationEditor #eqTextarea:focus {
+  border-color: var(--sh-accent) !important;
+  box-shadow: 0 0 0 3px rgba(74,126,255,.15) !important;
+}
+
+/* ── المعاينة ── */
+#equationEditor #eqPreview {
+  margin-top: 10px !important;
+  min-height: 80px !important;
+  padding: 16px !important;
+  background: #fff !important;
+  color: #000 !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  direction: ltr !important;
+  font-size: 20px !important;
+  overflow-x: auto !important;
+  flex-shrink: 0;
+}
+#equationEditor #eqPreview:empty::before {
+  content: 'معاينة المعادلة…';
+  color: #aaa;
+  font-style: italic;
+  font-size: 13px;
+  direction: rtl;
+}
+
+/* ── الأزرار ── */
+#equationEditor .eq-actions {
+  display: flex !important;
+  gap: 8px !important;
+  margin-top: 12px !important;
+  justify-content: flex-end !important;
+  flex-shrink: 0;
+}
+#equationEditor .eq-actions .btn-primary {
+  background: var(--sh-accent) !important;
+  color: #fff !important;
+  padding: 10px 22px !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  border: none !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  transition: background .12s;
+}
+#equationEditor .eq-actions .btn-primary:hover {
+  background: #3b6ee0 !important;
+}
+#equationEditor .eq-actions .btn-secondary {
+  background: transparent !important;
+  color: var(--sh-text-muted) !important;
+  border: 1px solid var(--sh-border-2) !important;
+  padding: 10px 22px !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+}
+#equationEditor .eq-actions .btn-secondary:hover {
+  color: var(--sh-text) !important;
+  border-color: var(--sh-text-muted) !important;
+}
 /* ═══ PRESENT MODE ═══ */
 #presentOverlay {
   position: fixed;
