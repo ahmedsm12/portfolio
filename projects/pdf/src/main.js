@@ -35,7 +35,7 @@ import {
   openEquationEditor, copyElement, pasteElement, updatePasteBtnState,
   uiHooks, undoAction, redoAction,
 } from './interaction.js';
-
+import { initUIShell } from './ui-shell.js';
 /* ============================================================
    §1. SET TOOL
    ============================================================ */
@@ -644,6 +644,8 @@ async function init() {
     /* عرض الوحدة مباشرة للتصحيح */
   import('./pdf.js').then(mod => { window.__PDF__ = mod; });
   import('./interaction.js').then(mod => { window.__INTERACTION__ = mod; });
+    /* ★ تهيئة الواجهة الجديدة */
+  initUIShell();
 }	
 
 /* ============================================================

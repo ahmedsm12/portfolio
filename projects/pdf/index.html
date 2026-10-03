@@ -4,12 +4,95 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
-<title>لوحة PDF التفاعلية</title>
+<title>لوحة الشرائح التفاعلية</title>
+
 <link rel="stylesheet" href="src/style.css">
+<link rel="stylesheet" href="src/shell.css">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
 </head>
 <body>
 
-<!-- ===== SIDEBAR ===== -->
+<!-- ═══════════════════════════════════════════════════════════
+     TOPBAR
+     ═══════════════════════════════════════════════════════════ -->
+<div id="topbar">
+  <div class="brand">
+    <div class="brand-icon">📄</div>
+    <span class="brand-name">لوحة الشرائح التفاعلية</span>
+    <span class="brand-version" id="appVersion">v0.5.0</span>
+  </div>
+
+  <button class="tb-btn" id="btnUndo" title="تراجع (Ctrl+Z)">
+    <span class="ico">↶</span><span class="lbl">تراجع</span>
+  </button>
+  <button class="tb-btn" id="btnRedo" title="إعادة (Ctrl+Y)">
+    <span class="ico">↷</span><span class="lbl">إعادة</span>
+  </button>
+
+  <div class="tb-divider"></div>
+
+  <button class="tb-btn" id="btnOpen" title="فتح ملف PDF أو مشروع .actpdf">
+    <span class="ico">📂</span><span class="lbl">فتح</span>
+  </button>
+  <button class="tb-btn" id="btnSave" title="حفظ المشروع (Ctrl+S)">
+    <span class="ico">💾</span><span class="lbl">حفظ</span>
+  </button>
+
+  <div class="spacer"></div>
+
+  <div class="save-badge" id="saveBadge">
+    <span class="save-dot"></span>
+    <span id="saveBadgeText">محفوظ</span>
+  </div>
+
+  <div class="tb-divider"></div>
+
+  <button class="tb-btn" id="btnPreview" title="معاينة">
+    <span class="ico">👁</span><span class="lbl">معاينة</span>
+  </button>
+  <button class="tb-btn primary" id="btnPresent" title="عرض تقديمي (F5)">
+    <span class="ico">▶</span><span class="lbl">عرض</span>
+  </button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     LEFT TOOLS — نفس #toolbar القديم، فقط تم نقله لليسار
+     ═══════════════════════════════════════════════════════════ -->
+<div id="toolbar">
+  <button data-tool="select" title="تحديد (V)">
+    <svg viewBox="0 0 24 24"><path d="M5.5 3.2 L18.8 12.2 L12.4 13.1 L15.6 20.2 L13.3 21.2 L10.2 14.2 L5.5 18.4 Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="currentColor"/></svg>
+  </button>
+  <button data-tool="hand" title="يد (H)">🖐️</button>
+  <button data-tool="pen" data-submenu="pen" title="قلم (P)" style="--indicator:#000000">✏️</button>
+  <button data-tool="highlighter" data-submenu="highlighter" title="تحديد (M)" style="--indicator:#eab308">🖍️</button>
+  <button data-tool="eraser" data-submenu="eraser" title="ممحاة (E)">🧽</button>
+  <button data-tool="laser" data-submenu="laser" title="ليزر (A)" style="--indicator:#ff0000">🔴</button>
+
+  <div class="tb-divider"></div>
+
+  <button data-tool="text" data-submenu="text" title="نص (T)" style="--indicator:#1e3a8a">
+    <svg viewBox="0 0 24 24"><path d="M3 4h18v3h-1.5V5.5h-6v13h2.5V20h-8v-1.5H10.5v-13h-6V7H3z"/></svg>
+  </button>
+  <button data-tool="equation" data-submenu="equation" title="معادلة" style="--indicator:#1e3a8a">∑</button>
+  <button data-tool="shape" data-submenu="shape" title="أشكال (S)">▭</button>
+
+  <div class="tb-divider"></div>
+
+  <button data-tool="embed" title="تضمين HTML">🔗</button>
+  <button data-tool="media" title="صورة / GIF / فيديو">🖼️</button>
+  <button data-tool="button" title="زر تفاعلي">🔘</button>
+
+  <div class="tb-divider"></div>
+
+  <button id="btnResetZoom" title="إعادة ضبط التكبير">🔄</button>
+  <button id="btnFullscreen" title="ملء الشاشة">⛶</button>
+  <button id="btnExport" title="تصدير PDF">⬇️</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDES SIDEBAR
+     ═══════════════════════════════════════════════════════════ -->
 <aside id="thumbnailSidebar">
   <div class="sidebar-header">
     <span class="sidebar-title">📑 الشرائح</span>
@@ -25,7 +108,9 @@
 </aside>
 <button id="btnShowSidebar" title="إظهار الشرائح">📑</button>
 
-<!-- ===== STAGE ===== -->
+<!-- ═══════════════════════════════════════════════════════════
+     STAGE
+     ═══════════════════════════════════════════════════════════ -->
 <div id="stageWrapper">
   <div id="stage" data-tool="select">
     <div id="stageContent">
@@ -48,56 +133,92 @@
       <canvas id="laserCanvas"></canvas>
     </div>
   </div>
+
   <div id="emptyState">
     <div class="icon">📄</div>
     <div>افتح ملف PDF للبدء</div>
     <button id="btnOpenEmpty">📂 اختر ملفاً</button>
   </div>
-  <div id="loading"><div class="spinner"></div><div id="loadingText">جارٍ التحميل…</div></div>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loadingText">جارٍ التحميل…</div>
+  </div>
 </div>
 
-<div id="saveStatus"></div>
+<!-- ═══════════════════════════════════════════════════════════
+     PROPERTIES PANEL (Right)
+     ═══════════════════════════════════════════════════════════ -->
+<aside id="propsRight">
+  <div class="props-tabs">
+    <button class="props-tab active" data-ptab="design">التصميم</button>
+    <button class="props-tab" data-ptab="anim">الحركة</button>
+    <button class="props-tab" data-ptab="effects">التأثيرات</button>
+  </div>
 
-<!-- ===== FLOATING TOOLBARS ===== -->
+  <div class="props-body">
+    <div class="props-panel" data-ppanel="design">
+      <div class="props-hint">
+        حدّد عنصراً على اللوحة لعرض خصائصه
+      </div>
+    </div>
+    <div class="props-panel" data-ppanel="anim" style="display:none">
+      <div class="props-hint">
+        الحركات ستكون متاحة عند ربط محرّك GSAP
+      </div>
+    </div>
+    <div class="props-panel" data-ppanel="effects" style="display:none">
+      <div class="props-hint">
+        التأثيرات القابلة للتحريك (Glow، Stroke، Shadow) ستظهر هنا
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     BOTTOM PANEL — Tabs + Body
+     ═══════════════════════════════════════════════════════════ -->
+<div id="bottomPanel" class="collapsed">
+  <div class="bp-tabs">
+    <button class="bp-tab active" data-btab="layers">
+      🗂 الطبقات <span class="count" id="layerCount">0</span>
+    </button>
+    <button class="bp-tab" data-btab="timeline">⏱ الجدول الزمني</button>
+    <button class="bp-tab" data-btab="notes">📝 ملاحظات</button>
+    <div class="spacer"></div>
+    <button class="bp-toggle" id="bpToggle" title="طي / توسيع">▴</button>
+  </div>
+
+  <div class="bp-body">
+    <div class="bp-content active" data-bpanel="layers">
+      <div id="layersList" class="layers-list">
+        <div class="bp-empty">لا توجد عناصر في هذه الشريحة</div>
+      </div>
+    </div>
+    <div class="bp-content" data-bpanel="timeline">
+      <div class="bp-empty">الجدول الزمني سيتوفّر عند إضافة الحركات</div>
+    </div>
+    <div class="bp-content" data-bpanel="notes">
+      <textarea id="notesTextarea" class="notes-area" placeholder="اكتب ملاحظاتك هنا (تظهر لك فقط في وضع العرض)"></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     OVERLAYS (existing elements — kept as-is)
+     ═══════════════════════════════════════════════════════════ -->
+<div id="saveStatus"></div>
 <div id="textContextToolbar"></div>
 <div id="shapeContextToolbar"></div>
 
-<!-- ===== TOOLBAR ===== -->
-<nav id="toolbar">
-  <button data-tool="hand" title="يد">🖐️</button>
-  <button data-tool="pen" data-submenu="pen" title="قلم" style="--indicator:#000000">✏️</button>
-  <button data-tool="highlighter" data-submenu="highlighter" title="قلم تحديد" style="--indicator:#eab308">🖍️</button>
-  <button data-tool="eraser" data-submenu="eraser" title="ممحاة">🧽</button>
-  <button data-tool="laser" data-submenu="laser" title="ليزر" style="--indicator:#ff0000">🔴</button>
-  <button data-tool="text" data-submenu="text" title="نص" style="--indicator:#1e3a8a"><svg viewBox="0 0 24 24"><path d="M3 4h18v3h-1.5V5.5h-6v13h2.5V20h-8v-1.5H10.5v-13h-6V7H3z"/></svg></button>
-  <button data-tool="equation" data-submenu="equation" title="معادلة" style="--indicator:#1e3a8a">∑</button>
-  <button data-tool="shape" data-submenu="shape" title="أشكال">▭</button>
-  <button data-tool="embed" title="تضمين">🔗</button>
-  <button data-tool="button" title="زر تفاعلي">🔘</button>
-  <button data-tool="media" title="ميديا">🖼️</button>
-  <button data-tool="select" title="تحديد">
-    <svg viewBox="0 0 24 24"><path d="M5.5 3.2 L18.8 12.2 L12.4 13.1 L15.6 20.2 L13.3 21.2 L10.2 14.2 L5.5 18.4 Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="currentColor"/></svg>
-  </button>
-  <div class="tb-divider"></div>
-  <button id="btnUndo" title="تراجع">↶</button>
-  <button id="btnRedo" title="إعادة">↷</button>
-  <button id="btnPaste" title="لصق" disabled>📥</button>
-  <div class="tb-divider"></div>
-  <button id="btnResetZoom" title="إعادة ضبط">🔄</button>
-  <button id="btnFullscreen" title="ملء الشاشة">⛶</button>
-  <button id="btnOpen" title="فتح ملف">📂</button>
-  <div class="tb-divider"></div>
-  <button id="btnExport" title="تصدير PDF">⬇️</button>
-  <button id="btnSave" title="حفظ .actpdf">💾</button>
-</nav>
-
 <div id="submenu"></div>
 
-<!-- ===== EQUATION EDITOR ===== -->
 <div id="equationEditor">
-  <div class="eq-title"><span>✏️ محرر المعادلات</span><button id="eqCloseBtn" title="إغلاق">✕</button></div>
+  <div class="eq-title">
+    <span>✏️ محرر المعادلات</span>
+    <button id="eqCloseBtn" title="إغلاق">✕</button>
+  </div>
   <div id="eqPaletteHost"></div>
-  <textarea id="eqTextarea" placeholder="اكتب معادلة LaTeX..."></textarea>
+  <textarea id="eqTextarea" placeholder="اكتب معادلة LaTeX…"></textarea>
   <div id="eqPreview"></div>
   <div class="eq-actions">
     <button class="btn-secondary" id="eqCancelBtn">إلغاء</button>
@@ -105,15 +226,51 @@
   </div>
 </div>
 
-<!-- ===== SLIDE CONTEXT MENU ===== -->
 <div id="slideContextMenu">
   <button data-action="cut"><span class="ctx-icon">✂️</span> قص الشريحة</button>
-  <button data-action="paste" id="ctxPasteBtn"><span class="ctx-icon">📋</span> لصق الشريحة</button>
+  <button data-action="paste"><span class="ctx-icon">📋</span> لصق الشريحة</button>
   <div class="ctx-sep"></div>
   <button data-action="new"><span class="ctx-icon">➕</span> شريحة جديدة</button>
   <button data-action="duplicate"><span class="ctx-icon">📑</span> تكرار الشريحة</button>
   <div class="ctx-sep"></div>
   <button data-action="delete" class="danger"><span class="ctx-icon">🗑️</span> حذف الشريحة</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PRESENT MODE OVERLAY
+     ═══════════════════════════════════════════════════════════ -->
+<div id="presentOverlay">
+  <div id="presentStage">
+    <canvas id="presentCanvas"></canvas>
+    <div id="presentLayerHost"></div>
+    <canvas id="presentLaser"></canvas>
+  </div>
+
+  <div id="presentToolbar">
+    <button data-ptool="select" class="active" title="تفاعل مع المحتوى">🖱️</button>
+    <button data-ptool="hand" title="يد — تحرك الصفحة">🖐️</button>
+    <div class="present-divider"></div>
+    <button data-ptool="pen" title="قلم">✏️</button>
+    <button data-ptool="highlighter" title="تحديد">🖍️</button>
+    <button data-ptool="laser" title="ليزر">🔴</button>
+    <button data-ptool="eraser" title="ممحاة">🧽</button>
+    <div class="present-divider"></div>
+    <button id="presentUndo" title="تراجع">↶</button>
+    <button id="presentRedo" title="إعادة" disabled>↷</button>
+    <button id="presentClear" title="مسح كل الرسومات">🗑️</button>
+    <div class="present-divider"></div>
+    <span id="presentTimer" class="present-timer">00:00</span>
+    <div class="present-divider"></div>
+    <button id="presentPrev" title="الصفحة السابقة">‹</button>
+    <span id="presentPageNum" class="present-page-num">— / —</span>
+    <button id="presentNext" title="الصفحة التالية">›</button>
+    <div class="present-divider"></div>
+    <button id="presentExit" title="خروج (Esc)">✕</button>
+  </div>
+
+  <div id="presentHint">
+    <kbd>Esc</kbd> للخروج • <kbd>←</kbd> <kbd>→</kbd> للتنقل • <kbd>P</kbd> قلم • <kbd>L</kbd> ليزر
+  </div>
 </div>
 
 <input type="file" id="fileInput" accept="application/pdf,image/*,.actpdf" style="display:none">

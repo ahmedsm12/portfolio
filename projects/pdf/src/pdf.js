@@ -254,6 +254,11 @@ export async function renderPage(pageNum) {
     loadPageState(pageNum);
     updatePageIndicator();
     updateUndoButtonsSafe();
+	  /* إشعار الواجهة الجديدة بتغيّر الصفحة */
+  document.dispatchEvent(new CustomEvent('ipb:pageChanged', {
+    detail: { page: pageNum }
+  }));
+  
     emptyState.style.display = 'none';
 
     setTimeout(() => { captureStageThumbnail(pageNum).catch(() => {}); }, 50);
