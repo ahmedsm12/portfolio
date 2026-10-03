@@ -1,8 +1,5 @@
 /* ============================================================
  * ui-shell.js — الواجهة الجديدة
- * ============================================================
- *  لا يستورد أي شيء من الوحدات الأخرى — يعمل عبر DOM + dynamic import.
- *  مستقل تماماً — إن فشل جزء لا يكسر التطبيق الأساسي.
  * ============================================================ */
 
 export const APP_VERSION = '0.5.0';
@@ -125,9 +122,7 @@ export function refreshLayersPanel() {
       if (el.tagName.toLowerCase() === 'g') return;
       const t = el.dataset.type || el.tagName.toLowerCase();
       items.push({
-        el: el,
-        kind: 'svg',
-        type: t,
+        el: el, kind: 'svg', type: t,
         name: t + ' ' + (el.dataset.id ? el.dataset.id.slice(-4) : '')
       });
     });
@@ -138,8 +133,7 @@ export function refreshLayersPanel() {
     txt.querySelectorAll('.pdf-text-box').forEach((el, i) => {
       const isEq = el.dataset.isEquation === 'true';
       items.push({
-        el: el,
-        kind: 'text',
+        el: el, kind: 'text',
         type: isEq ? 'equation' : 'text',
         name: (isEq ? 'معادلة ' : 'نص ') + (i + 1)
       });
@@ -150,9 +144,7 @@ export function refreshLayersPanel() {
   if (vid) {
     vid.querySelectorAll('.media-obj').forEach((el, i) => {
       items.push({
-        el: el,
-        kind: 'media',
-        type: 'media',
+        el: el, kind: 'media', type: 'media',
         name: el.dataset.title || ('ميديا ' + (i + 1))
       });
     });
@@ -162,9 +154,7 @@ export function refreshLayersPanel() {
   if (emb) {
     emb.querySelectorAll('.embed').forEach((el, i) => {
       items.push({
-        el: el,
-        kind: 'embed',
-        type: 'embed',
+        el: el, kind: 'embed', type: 'embed',
         name: 'تضمين: ' + (el.dataset.url || ('#' + (i + 1)))
       });
     });
@@ -174,9 +164,7 @@ export function refreshLayersPanel() {
   if (ib) {
     ib.querySelectorAll('.pdf-interactive-btn').forEach((el, i) => {
       items.push({
-        el: el,
-        kind: 'button',
-        type: 'button',
+        el: el, kind: 'button', type: 'button',
         name: el.dataset.text || ('زر ' + (i + 1))
       });
     });
@@ -252,7 +240,6 @@ function initTopbarActions() {
       } catch (e) { console.warn(e); }
     });
   }
-
   if (btnRedo) {
     btnRedo.addEventListener('click', async () => {
       try {
@@ -262,14 +249,12 @@ function initTopbarActions() {
       } catch (e) { console.warn(e); }
     });
   }
-
   if (btnOpen) {
     btnOpen.addEventListener('click', () => {
       const input = document.getElementById('fileInput');
       if (input) input.click();
     });
   }
-
   if (btnSave) {
     btnSave.addEventListener('click', async () => {
       setSaveBadge('جارٍ الحفظ…', true);
@@ -282,17 +267,98 @@ function initTopbarActions() {
       }
     });
   }
-
-  if (btnPreview) {
-    btnPreview.addEventListener('click', openPresentMode);
-  }
-  if (btnPresent) {
-    btnPresent.addEventListener('click', openPresentMode);
-  }
+  if (btnPreview) btnPreview.addEventListener('click', openPresentMode);
+  if (btnPresent) btnPresent.addEventListener('click', openPresentMode);
 }
 
 /* ============================================================
-   §7. PRESENT MODE
+   §7. EQUATION DIALOG — Backdrop + Fallback ★★★
+   ============================================================ */
+
+/**
+ * يضيف خلفية حقيقية (div) عندما يظهر المحرر، ويزيلها عند الإغلاق.
+ * يستمع لتغيّر class على #equationEditor.
+ */
+function setupEquationBackdrop() {
+  const eq = document.getElementById('equationEditor');
+  if (!eq) {
+    console.warn('[ui-shell] #equationEditor غير موجود');
+    return;
+  }
+
+  let backdrop = null;
+
+  function showBackdrop() {
+    if (backdrop) return;
+    backdrop = document.createElement('div');
+    backdrop.id = 'equationBackdrop';
+    backdrop.classList.add('show');
+    backdrop.addEventListener('click', async () => {
+      try {
+        const mod = await import('./interaction.js');
+        if (mod.closeEquationEditor) mod.closeEquationEditor();
+        else eq.classList.remove('show');
+      } catch (_) {
+        eq.classList.remove('show');
+      }
+    });
+    document.body.appendChild(backdrop);
+  }
+
+  function hideBackdrop() {
+    if (backdrop) {
+      backdrop.remove();
+      backdrop = null;
+    }
+  }
+
+  const observer = new MutationObserver(() => {
+    const shown = eq.classList.contains('show');
+    if (shown) showBackdrop();
+    else hideBackdrop();
+  });
+  observer.observe(eq, { attributes: true, attributeFilter: ['class'] });
+
+  /* حالة أولية */
+  if (eq.classList.contains('show')) showBackdrop();
+}
+
+/**
+ * مستمع احتياطي على زر المعادلة لضمان فتح المحرر.
+ * يُنفَّذ بعد 200ms من أي click — يتحقق إن كان المحرر مفتوحاً.
+ */
+function setupEquationButtonFallback() {
+  const eqBtn = document.querySelector('#toolbar button[data-tool="equation"]');
+  if (!eqBtn) {
+    console.warn('[ui-shell] زر المعادلة غير موجود في #toolbar');
+    return;
+  }
+
+  eqBtn.addEventListener('click', () => {
+    setTimeout(async () => {
+      const eq = document.getElementById('equationEditor');
+      if (!eq) return;
+      if (eq.classList.contains('show')) return; // فُتح بنجاح
+      // فشل الفتح → حاول يدوياً
+      console.warn('[ui-shell] محرر المعادلات لم يُفتح تلقائياً — محاولة يدوية');
+      try {
+        const mod = await import('./interaction.js');
+        if (mod.openEquationEditor) {
+          mod.openEquationEditor(null);
+        } else {
+          // fallback نهائي: أضف الصنف مباشرة
+          eq.classList.add('show');
+        }
+      } catch (err) {
+        console.error('[ui-shell] تعذّر فتح المحرر:', err);
+        eq.classList.add('show');
+      }
+    }, 200);
+  }, true); // capture — يضمن أن المستمع يُسجَّل قبل أي معالج آخر
+}
+
+/* ============================================================
+   §8. PRESENT MODE
    ============================================================ */
 const presentState = {
   active: false,
@@ -334,16 +400,12 @@ async function openPresentMode() {
 function closePresentMode() {
   if (!presentState.active) return;
   presentState.active = false;
-
   const overlay = document.getElementById('presentOverlay');
   if (overlay) overlay.classList.remove('active');
   document.body.classList.remove('present-active');
-
   stopPresentTimer();
   unbindPresentKeys();
-
   document.removeEventListener('ipb:pageChanged', onPresentPageChanged);
-
   presentState.undoStack = [];
   presentState.redoStack = [];
   updatePresentUndoRedo();
@@ -361,7 +423,6 @@ function copyStageToPresent() {
   const pdfCanvas = document.getElementById('pdfCanvas');
   const presentLayerHost = document.getElementById('presentLayerHost');
   const svgLayer = document.getElementById('svgLayer');
-
   if (!stage || !presentStage || !pdfCanvas || !presentCanvas) return;
 
   const stageRect = stage.getBoundingClientRect();
@@ -370,18 +431,13 @@ function copyStageToPresent() {
   const aspect = stageRect.width / stageRect.height;
   let w = vw;
   let h = w / aspect;
-  if (h > vh) {
-    h = vh;
-    w = h * aspect;
-  }
-
+  if (h > vh) { h = vh; w = h * aspect; }
   presentStage.style.width = w + 'px';
   presentStage.style.height = h + 'px';
 
   presentCanvas.width = pdfCanvas.width;
   presentCanvas.height = pdfCanvas.height;
-  const pctx = presentCanvas.getContext('2d');
-  pctx.drawImage(pdfCanvas, 0, 0);
+  presentCanvas.getContext('2d').drawImage(pdfCanvas, 0, 0);
 
   if (presentLayerHost && svgLayer) {
     presentLayerHost.innerHTML = '';
@@ -403,9 +459,7 @@ function copyStageToPresent() {
 function updatePresentPageNum() {
   const el = document.getElementById('presentPageNum');
   const indicator = document.getElementById('pageIndicator');
-  if (el && indicator) {
-    el.textContent = indicator.textContent || '— / —';
-  }
+  if (el && indicator) el.textContent = indicator.textContent || '— / —';
 }
 
 function setPresentTool(tool) {
@@ -423,18 +477,15 @@ function setPresentTool(tool) {
 function bindPresentToolbar() {
   const bar = document.getElementById('presentToolbar');
   if (!bar) return;
-
   bar.querySelectorAll('[data-ptool]').forEach(btn => {
     btn.addEventListener('click', () => setPresentTool(btn.dataset.ptool));
   });
-
   const u = document.getElementById('presentUndo');
   const r = document.getElementById('presentRedo');
   const clr = document.getElementById('presentClear');
   const prev = document.getElementById('presentPrev');
   const next = document.getElementById('presentNext');
   const exit = document.getElementById('presentExit');
-
   if (u) u.addEventListener('click', presentUndo);
   if (r) r.addEventListener('click', presentRedo);
   if (clr) clr.addEventListener('click', presentClearAll);
@@ -447,22 +498,16 @@ async function presentPrevPage() {
   try {
     const pdf = await import('./pdf.js');
     const state = (await import('./core.js')).state;
-    if (state.currentPage > 1) {
-      await pdf.goToPage(state.currentPage - 1);
-    }
+    if (state.currentPage > 1) await pdf.goToPage(state.currentPage - 1);
   } catch (e) { console.warn(e); }
 }
-
 async function presentNextPage() {
   try {
     const pdf = await import('./pdf.js');
     const state = (await import('./core.js')).state;
-    if (state.currentPage < state.totalPages) {
-      await pdf.goToPage(state.currentPage + 1);
-    }
+    if (state.currentPage < state.totalPages) await pdf.goToPage(state.currentPage + 1);
   } catch (e) { console.warn(e); }
 }
-
 function presentUndo() {
   if (!presentState.undoStack.length) return;
   const item = presentState.undoStack.pop();
@@ -470,7 +515,6 @@ function presentUndo() {
   if (item.el && item.el.parentNode) item.el.style.display = 'none';
   updatePresentUndoRedo();
 }
-
 function presentRedo() {
   if (!presentState.redoStack.length) return;
   const item = presentState.redoStack.pop();
@@ -478,41 +522,33 @@ function presentRedo() {
   if (item.el && item.el.parentNode) item.el.style.display = '';
   updatePresentUndoRedo();
 }
-
 function presentClearAll() {
   const host = document.getElementById('presentLayerHost');
-  if (host) {
-    host.querySelectorAll('[data-present-annot]').forEach(el => el.remove());
-  }
+  if (host) host.querySelectorAll('[data-present-annot]').forEach(el => el.remove());
   presentState.undoStack = [];
   presentState.redoStack = [];
   updatePresentUndoRedo();
 }
-
 function updatePresentUndoRedo() {
   const u = document.getElementById('presentUndo');
   const r = document.getElementById('presentRedo');
   if (u) u.disabled = presentState.undoStack.length === 0;
   if (r) r.disabled = presentState.redoStack.length === 0;
 }
-
 function resetPresentTimer() {
   presentState.timerStart = Date.now();
   updatePresentTimerDisplay();
 }
-
 function startPresentTimer() {
   stopPresentTimer();
   presentState.timerInterval = setInterval(updatePresentTimerDisplay, 1000);
 }
-
 function stopPresentTimer() {
   if (presentState.timerInterval) {
     clearInterval(presentState.timerInterval);
     presentState.timerInterval = null;
   }
 }
-
 function updatePresentTimerDisplay() {
   const el = document.getElementById('presentTimer');
   if (!el) return;
@@ -521,7 +557,6 @@ function updatePresentTimerDisplay() {
   const ss = String(elapsed % 60).padStart(2, '0');
   el.textContent = mm + ':' + ss;
 }
-
 function bindPresentKeys() {
   presentState.keyListener = (e) => {
     if (!presentState.active) return;
@@ -541,7 +576,6 @@ function bindPresentKeys() {
   };
   document.addEventListener('keydown', presentState.keyListener);
 }
-
 function unbindPresentKeys() {
   if (presentState.keyListener) {
     document.removeEventListener('keydown', presentState.keyListener);
@@ -550,45 +584,15 @@ function unbindPresentKeys() {
 }
 
 /* ============================================================
-   §8. EQUATION DIALOG — إغلاق عند النقر خارج المحرر
-   ============================================================
-   لا نعدّل interaction.js — فقط نراقب.
-   عندما يُفتح المحرر (class .show)، نضيف مستمع للنقر على الخلفية.
-   ============================================================ */
-function initEquationDialogGuard() {
-  const eq = document.getElementById('equationEditor');
-  if (!eq) return;
-
-  document.addEventListener('pointerdown', (e) => {
-    if (!eq.classList.contains('show')) return;
-    if (eq.contains(e.target)) return;
-
-    /* إغلاق آمن — نستدعي closeEquationEditor من interaction.js */
-    import('./interaction.js').then(mod => {
-      if (mod.closeEquationEditor) mod.closeEquationEditor();
-    }).catch(() => {
-      /* fallback: نزيل الصنف مباشرة */
-      eq.classList.remove('show');
-    });
-  }, true);
-}
-
-/* ============================================================
    §9. LAYERS OBSERVER
    ============================================================ */
 let _layersObserver = null;
-
 function initLayersObserver() {
   if (_layersObserver) return;
   const stageContent = document.getElementById('stageContent');
   if (!stageContent) return;
-  _layersObserver = new MutationObserver(() => {
-    refreshLayersPanel();
-  });
-  _layersObserver.observe(stageContent, {
-    childList: true,
-    subtree: true,
-  });
+  _layersObserver = new MutationObserver(() => refreshLayersPanel());
+  _layersObserver.observe(stageContent, { childList: true, subtree: true });
   refreshLayersPanel();
 }
 
@@ -620,7 +624,8 @@ export function initUIShell() {
   initBottomPanel();
   initTopbarActions();
   initGlobalShortcuts();
-  initEquationDialogGuard();
+  setupEquationBackdrop();
+  setupEquationButtonFallback();
 
   setTimeout(() => {
     initLayersObserver();
@@ -629,7 +634,6 @@ export function initUIShell() {
   }, 500);
 }
 
-/* Expose for debugging */
 if (typeof window !== 'undefined') {
   window.__UI_SHELL__ = {
     version: APP_VERSION,
