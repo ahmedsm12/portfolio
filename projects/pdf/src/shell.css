@@ -1,8 +1,8 @@
 /* ============================================================
- * shell.css — الواجهة الجديدة
+ * shell.css — الواجهة الجديدة (TopBar + Props + Bottom + Present)
  * ============================================================
- *  يُحمَّل بعد style.css ليتجاوز القواعد القديمة.
- *  لا يحذف أي شيء — فقط يعيد تحديد المواضع والأنماط.
+ *  يُحمَّل بعد style.css.
+ *  لا يحذف شيئاً — فقط يعيد تحديد المواضع ويضيف أنماطاً جديدة.
  * ============================================================ */
 
 /* ═══════════════════════════════════════════════════════════
@@ -29,6 +29,13 @@
   --sh-ok: #22c55e;
   --sh-err: #ef4444;
   --sh-radius: 10px;
+}
+
+body {
+  --bp-current-h: var(--bp-tabs-h);
+}
+body.bp-expanded {
+  --bp-current-h: calc(var(--bp-tabs-h) + var(--bp-body-h));
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -66,9 +73,7 @@
   font-size: 14px;
   flex-shrink: 0;
 }
-#topbar .brand-name {
-  color: var(--sh-text);
-}
+#topbar .brand-name { color: var(--sh-text); }
 #topbar .brand-version {
   font-size: 10px;
   color: var(--sh-text-dim);
@@ -126,12 +131,14 @@
   padding: 4px 10px;
   background: rgba(255,255,255,.03);
   border-radius: 20px;
+  white-space: nowrap;
 }
 #topbar .save-dot {
   width: 6px; height: 6px;
   border-radius: 50%;
   background: var(--sh-ok);
   box-shadow: 0 0 8px var(--sh-ok);
+  flex-shrink: 0;
 }
 #topbar .save-dot.saving {
   background: var(--sh-text-dim);
@@ -144,7 +151,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   3) TOOLBAR — إعادة تحديد الموضع لليسار
+   3) TOOLBAR — اليسار
    ═══════════════════════════════════════════════════════════ */
 #toolbar {
   position: fixed;
@@ -158,42 +165,46 @@
   scrollbar-width: thin;
 }
 #toolbar::-webkit-scrollbar { width: 3px; }
-#toolbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
+#toolbar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.1);
+  border-radius: 2px;
+}
 
 /* ═══════════════════════════════════════════════════════════
-   4) SLIDES SIDEBAR — إعادة تحديد الموضع
+   4) SLIDES SIDEBAR
    ═══════════════════════════════════════════════════════════ */
 #thumbnailSidebar {
   left: calc(var(--tools-w) + 4px);
   top: var(--topbar-h);
-  bottom: var(--bp-tabs-h);
+  bottom: var(--bp-current-h);
+  transition: bottom .2s ease;
 }
 
-/* زر إظهار الشرائح */
 #btnShowSidebar {
   left: calc(var(--tools-w) + 4px);
   top: calc(var(--topbar-h) + 10px);
 }
 
 /* ═══════════════════════════════════════════════════════════
-   5) STAGE WRAPPER — إعادة تحديد المنطقة
+   5) STAGE WRAPPER
    ═══════════════════════════════════════════════════════════ */
 #stageWrapper {
   top: var(--topbar-h);
-  bottom: var(--bp-tabs-h);
+  bottom: var(--bp-current-h);
   left: var(--tools-w);
   right: var(--props-w);
   padding-left: var(--sidebar-effective-w, 0px);
+  transition: bottom .2s ease;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   6) PROPERTIES PANEL (Right)
+   6) PROPERTIES PANEL (يمين)
    ═══════════════════════════════════════════════════════════ */
 #propsRight {
   position: fixed;
   right: 0;
   top: var(--topbar-h);
-  bottom: var(--bp-tabs-h);
+  bottom: var(--bp-current-h);
   width: var(--props-w);
   background: var(--sh-panel);
   border-left: 1px solid var(--sh-border);
@@ -201,6 +212,7 @@
   flex-direction: column;
   z-index: 1080;
   overflow: hidden;
+  transition: bottom .2s ease;
 }
 
 #propsRight .props-tabs {
@@ -245,10 +257,7 @@
   border-radius: var(--sh-radius);
 }
 
-/* Section blocks inside props */
-#propsRight .prop-section {
-  margin-bottom: 14px;
-}
+#propsRight .prop-section { margin-bottom: 14px; }
 #propsRight .prop-title {
   font-size: 10.5px;
   color: var(--sh-text-muted);
@@ -258,7 +267,6 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  cursor: pointer;
 }
 #propsRight .prop-row {
   display: grid;
@@ -285,9 +293,9 @@
   font-family: inherit;
   font-size: 12px;
   outline: none;
-  transition: border-color .12s;
   width: 100%;
   font-variant-numeric: tabular-nums;
+  transition: border-color .12s;
 }
 #propsRight .prop-input:focus {
   border-color: var(--sh-accent);
@@ -363,7 +371,10 @@
   justify-content: center;
   transition: background .12s;
 }
-#bottomPanel .bp-toggle:hover { background: var(--sh-hover); color: var(--sh-text); }
+#bottomPanel .bp-toggle:hover {
+  background: var(--sh-hover);
+  color: var(--sh-text);
+}
 
 #bottomPanel .bp-body {
   flex: 1;
@@ -452,21 +463,84 @@
 .layer-row .ly-toggle.on { color: var(--sh-accent); }
 
 /* ═══════════════════════════════════════════════════════════
-   8) SUBMENU — إعادة تحديد الموضع (الآن على اليسار)
+   8) SUBMENU + Floating toolbars (فوق كل شيء)
    ═══════════════════════════════════════════════════════════ */
 #submenu {
   right: auto;
   left: calc(var(--tools-w) + 4px);
+  z-index: 1250 !important;
 }
 
-/* Floating toolbars — إعادة تحديد التمركز */
 #textContextToolbar,
 #shapeContextToolbar {
-  z-index: 1600;
+  z-index: 1255 !important;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   9) PRESENT MODE
+   9) EQUATION EDITOR — كـ Dialog مركزي (بدون تعديل HTML)
+   ═══════════════════════════════════════════════════════════ */
+#equationEditor {
+  position: fixed !important;
+  left: 50% !important;
+  right: auto !important;
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+  width: min(540px, calc(100vw - 40px));
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  z-index: 2150 !important;
+  background: #1c2028;
+  border: 1px solid var(--sh-border-2);
+  border-radius: 16px;
+  padding: 20px !important;
+  box-shadow: 0 30px 80px rgba(0,0,0,.7);
+  scrollbar-width: thin;
+  display: none;
+  animation: eqPop .2s cubic-bezier(.2, .9, .3, 1.3);
+}
+#equationEditor.show {
+  display: flex !important;
+  flex-direction: column;
+}
+@keyframes eqPop {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(.94); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* خلفية داكنة عبر ::before — بدون تغيير HTML */
+#equationEditor.show::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, .72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: -1;
+  pointer-events: auto;
+}
+
+#equationEditor .eq-title {
+  font-size: 14px !important;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--sh-border);
+  margin-bottom: 14px !important;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#equationEditor #eqTextarea { min-height: 70px; }
+
+#equationEditor #eqPaletteHost {
+  max-height: 40vh;
+  overflow-y: auto;
+  padding-left: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   10) PRESENT MODE
    ═══════════════════════════════════════════════════════════ */
 #presentOverlay {
   position: fixed;
@@ -521,7 +595,9 @@
 }
 #presentOverlay:hover #presentToolbar,
 #presentToolbar:hover,
-#presentToolbar.show { transform: translateX(-50%) translateY(0); }
+#presentToolbar.show {
+  transform: translateX(-50%) translateY(0);
+}
 
 #presentToolbar button {
   width: 38px; height: 38px;
@@ -600,15 +676,16 @@
   margin: 0 1px;
 }
 
-/* Hide main shell when present mode is active */
-#presentOverlay.active ~ #topbar,
-#presentOverlay.active ~ #toolbar,
-#presentOverlay.active ~ #thumbnailSidebar,
-#presentOverlay.active ~ #propsRight,
-#presentOverlay.active ~ #bottomPanel { display: none; }
+/* إخفاء الواجهة عند العرض */
+body.present-active #topbar,
+body.present-active #toolbar,
+body.present-active #thumbnailSidebar,
+body.present-active #btnShowSidebar,
+body.present-active #propsRight,
+body.present-active #bottomPanel { display: none !important; }
 
 /* ═══════════════════════════════════════════════════════════
-   10) SCROLLBARS
+   11) SCROLLBARS
    ═══════════════════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -619,127 +696,14 @@
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.18); }
 
 /* ═══════════════════════════════════════════════════════════
-   11) RESPONSIVE
+   12) RESPONSIVE
    ═══════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
-  :root {
-    --props-w: 260px;
-  }
+  :root { --props-w: 260px; }
 }
 @media (max-width: 720px) {
-  :root {
-    --props-w: 0px;
-    --tools-w: 48px;
-  }
+  :root { --props-w: 0px; --tools-w: 48px; }
   #propsRight { display: none; }
   #topbar .brand-name { display: none; }
   #topbar .tb-btn .lbl { display: none; }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   12) إصلاح التعارضات
-   ═══════════════════════════════════════════════════════════ */
-
-/* ───────────────────────────────────────────
-   12.1) القائمة الفرعية ترتفع فوق شريط الشرائح
-   ─────────────────────────────────────────── */
-#submenu {
-  z-index: 1250 !important;   /* أعلى من sidebar (1100) */
-}
-
-/* القوائم الفرعية للـ interaction.js (نفس المشكلة) */
-#textContextToolbar,
-#shapeContextToolbar {
-  z-index: 1255 !important;
-}
-
-/* ───────────────────────────────────────────
-   12.2) شريط الشرائح واللوحة السفلية يتناسقان
-   ─────────────────────────────────────────── */
-body {
-  /* القيمة الافتراضية = ارتفاع تبويبات اللوحة فقط */
-  --bp-current-h: var(--bp-tabs-h);
-}
-body.bp-expanded {
-  /* عند التوسيع = التبويبات + الجسم */
-  --bp-current-h: calc(var(--bp-tabs-h) + var(--bp-body-h));
-}
-
-#thumbnailSidebar {
-  bottom: var(--bp-current-h);
-  transition: bottom .2s ease;
-}
-
-#stageWrapper {
-  bottom: var(--bp-current-h);
-  transition: bottom .2s ease;
-}
-
-#propsRight {
-  bottom: var(--bp-current-h);
-  transition: bottom .2s ease;
-}
-
-/* ───────────────────────────────────────────
-   12.3) محرر المعادلات → Dialog منفصل
-   ─────────────────────────────────────────── */
-#equationBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 2100;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(10, 12, 16, .7);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  animation: eqFadeIn .15s ease;
-}
-#equationBackdrop.show { display: flex; }
-@keyframes eqFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* تجاوز قواعد style.css القديمة */
-#equationEditor {
-  position: relative !important;
-  right: auto !important;
-  top: auto !important;
-  display: flex !important;
-  flex-direction: column;
-  width: 100%;
-  max-width: 540px;
-  max-height: 90vh;
-  overflow-y: auto;
-  padding: 20px !important;
-  background: #1c2028;
-  border: 1px solid var(--sh-border-2);
-  border-radius: 16px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.7);
-  animation: eqPop .2s cubic-bezier(.2, .9, .3, 1.3);
-  scrollbar-width: thin;
-}
-@keyframes eqPop {
-  from { opacity: 0; transform: scale(.94) translateY(8px); }
-  to   { opacity: 1; transform: none; }
-}
-
-/* حجم مناسب للـ textarea داخل dialog */
-#equationEditor #eqTextarea {
-  min-height: 70px;
-}
-#equationEditor #eqPaletteHost {
-  max-height: 40vh;
-  overflow-y: auto;
-  padding-left: 4px;
-}
-
-/* زر إغلاق أنيق في الرأس */
-#equationEditor .eq-title {
-  font-size: 14px !important;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--sh-border);
-  margin-bottom: 14px !important;
 }

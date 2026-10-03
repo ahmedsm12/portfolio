@@ -1,8 +1,8 @@
 /* ============================================================
- * ui-shell.js — الواجهة الجديدة (TopBar, Props, Bottom, Present)
+ * ui-shell.js — الواجهة الجديدة
  * ============================================================
  *  لا يستورد أي شيء من الوحدات الأخرى — يعمل عبر DOM + dynamic import.
- *  يعمل بشكل مستقل — إن فشل أي جزء، لا يكسر التطبيق الأساسي.
+ *  مستقل تماماً — إن فشل جزء لا يكسر التطبيق الأساسي.
  * ============================================================ */
 
 export const APP_VERSION = '0.5.0';
@@ -18,7 +18,6 @@ function applyVersion() {
 /* ============================================================
    §2. SAVE BADGE
    ============================================================ */
-let _saveBadgeTimer = null;
 function setSaveBadge(text, saving) {
   const txt = document.getElementById('saveBadgeText');
   const dot = document.querySelector('#saveBadge .save-dot');
@@ -40,7 +39,7 @@ function initPropsTabs() {
       panels.forEach(p => p.style.display = 'none');
       tab.classList.add('active');
       const key = tab.dataset.ptab;
-      const panel = root.querySelector(`.props-panel[data-ppanel="${key}"]`);
+      const panel = root.querySelector('.props-panel[data-ppanel="' + key + '"]');
       if (panel) panel.style.display = 'block';
     });
   });
@@ -52,12 +51,12 @@ function initPropsTabs() {
 function initBottomPanel() {
   const panel = document.getElementById('bottomPanel');
   if (!panel) return;
+
   const tabs = panel.querySelectorAll('.bp-tab');
   const contents = panel.querySelectorAll('.bp-content');
   const toggle = document.getElementById('bpToggle');
 
-  /* دالة موحّدة لتحديث الحالة + إبلاغ الـ CSS */
-  function setPanelExpanded(expanded) {
+  function setExpanded(expanded) {
     panel.classList.toggle('collapsed', !expanded);
     document.body.classList.toggle('bp-expanded', expanded);
     if (toggle) toggle.textContent = expanded ? '▾' : '▴';
@@ -66,10 +65,11 @@ function initBottomPanel() {
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       const key = tab.dataset.btab;
+      const wasActive = tab.classList.contains('active');
+      const isCollapsed = panel.classList.contains('collapsed');
 
-      // نفس التبويب مفتوح → اطوِ
-      if (tab.classList.contains('active') && !panel.classList.contains('collapsed')) {
-        setPanelExpanded(false);
+      if (wasActive && !isCollapsed) {
+        setExpanded(false);
         return;
       }
 
@@ -77,61 +77,30 @@ function initBottomPanel() {
       contents.forEach(c => c.classList.remove('active'));
       tab.classList.add('active');
 
-      const content = panel.querySelector(`.bp-content[data-bpanel="${key}"]`);
+      const content = panel.querySelector('.bp-content[data-bpanel="' + key + '"]');
       if (content) content.classList.add('active');
 
-      setPanelExpanded(true);
+      setExpanded(true);
     });
   });
 
   if (toggle) {
     toggle.addEventListener('click', () => {
-      setPanelExpanded(panel.classList.contains('collapsed'));
+      const currentlyExpanded = !panel.classList.contains('collapsed');
+      setExpanded(!currentlyExpanded);
     });
   }
 
-  /* الحالة الابتدائية: مطويّة */
-  setPanelExpanded(false);
-}
-  const panel = document.getElementById('bottomPanel');
-  if (!panel) return;
-  const tabs = panel.querySelectorAll('.bp-tab');
-  const contents = panel.querySelectorAll('.bp-content');
-  const toggle = document.getElementById('bpToggle');
-
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const key = tab.dataset.btab;
-      // If same tab & already expanded → collapse
-      if (tab.classList.contains('active') && !panel.classList.contains('collapsed')) {
-        panel.classList.add('collapsed');
-        if (toggle) toggle.textContent = '▴';
-        return;
-      }
-      tabs.forEach(t => t.classList.remove('active'));
-      contents.forEach(c => c.classList.remove('active'));
-      tab.classList.add('active');
-      const content = panel.querySelector(`.bp-content[data-bpanel="${key}"]`);
-      if (content) content.classList.add('active');
-      panel.classList.remove('collapsed');
-      if (toggle) toggle.textContent = '▾';
-    });
-  });
-
-  if (toggle) {
-    toggle.addEventListener('click', () => {
-      panel.classList.toggle('collapsed');
-      toggle.textContent = panel.classList.contains('collapsed') ? '▴' : '▾';
-    });
-  }
+  setExpanded(false);
 }
 
 /* ============================================================
-   §5. LAYERS PANEL — قراءة من DOM الحقيقي
+   §5. LAYERS PANEL
    ============================================================ */
 function getLayerIcon(type) {
   if (type === 'image') return '🖼';
   if (type === 'text') return 'T';
+  if (type === 'equation') return '∑';
   if (type === 'button') return '🔘';
   if (type === 'media') return '🎬';
   if (type === 'embed') return '🔗';
@@ -150,96 +119,101 @@ export function refreshLayersPanel() {
 
   const items = [];
 
-  // SVG annotations
   const svg = document.getElementById('svgLayer');
   if (svg) {
     svg.querySelectorAll('[data-annot]').forEach(el => {
       if (el.tagName.toLowerCase() === 'g') return;
       const t = el.dataset.type || el.tagName.toLowerCase();
       items.push({
-        el,
+        el: el,
         kind: 'svg',
         type: t,
-        name: t + ' ' + (el.dataset.id ? el.dataset.id.slice(-4) : ''),
+        name: t + ' ' + (el.dataset.id ? el.dataset.id.slice(-4) : '')
       });
     });
   }
 
-  // Text boxes
   const txt = document.getElementById('textLayer');
   if (txt) {
     txt.querySelectorAll('.pdf-text-box').forEach((el, i) => {
       const isEq = el.dataset.isEquation === 'true';
       items.push({
-        el,
+        el: el,
         kind: 'text',
         type: isEq ? 'equation' : 'text',
-        name: (isEq ? 'معادلة ' : 'نص ') + (i + 1),
+        name: (isEq ? 'معادلة ' : 'نص ') + (i + 1)
       });
     });
   }
 
-  // Media
   const vid = document.getElementById('videoLayer');
   if (vid) {
     vid.querySelectorAll('.media-obj').forEach((el, i) => {
       items.push({
-        el,
+        el: el,
         kind: 'media',
         type: 'media',
-        name: el.dataset.title || ('ميديا ' + (i + 1)),
+        name: el.dataset.title || ('ميديا ' + (i + 1))
       });
     });
   }
 
-  // Embeds
   const emb = document.getElementById('embedLayer');
   if (emb) {
     emb.querySelectorAll('.embed').forEach((el, i) => {
       items.push({
-        el,
+        el: el,
         kind: 'embed',
         type: 'embed',
-        name: 'تضمين: ' + (el.dataset.url || ('#' + (i + 1))),
+        name: 'تضمين: ' + (el.dataset.url || ('#' + (i + 1)))
       });
     });
   }
 
-  // Buttons
   const ib = document.getElementById('interactiveLayer');
   if (ib) {
     ib.querySelectorAll('.pdf-interactive-btn').forEach((el, i) => {
       items.push({
-        el,
+        el: el,
         kind: 'button',
         type: 'button',
-        name: el.dataset.text || ('زر ' + (i + 1)),
+        name: el.dataset.text || ('زر ' + (i + 1))
       });
     });
   }
 
-  // Reverse: front-most first
   items.reverse();
-
-  if (!items.length) {
-    list.innerHTML = '<div class="bp-empty">لا توجد عناصر في هذه الشريحة</div>';
-    if (count) count.textContent = '0';
-    return;
-  }
 
   if (count) count.textContent = String(items.length);
 
+  if (!items.length) {
+    list.innerHTML = '<div class="bp-empty">لا توجد عناصر في هذه الشريحة</div>';
+    return;
+  }
+
   list.innerHTML = '';
+
   items.forEach(item => {
     const row = document.createElement('div');
     row.className = 'layer-row';
-    row.innerHTML = `
-      <span class="ly-icon">${getLayerIcon(item.type)}</span>
-      <span class="ly-name"></span>
-      <span class="ly-toggle on" data-act="vis" title="إظهار/إخفاء">👁</span>
-    `;
-    row.querySelector('.ly-name').textContent = item.name;
-    row.dataset.layerType = item.kind;
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'ly-icon';
+    iconSpan.textContent = getLayerIcon(item.type);
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'ly-name';
+    nameSpan.textContent = item.name;
+
+    const visSpan = document.createElement('span');
+    visSpan.className = 'ly-toggle on';
+    visSpan.dataset.act = 'vis';
+    visSpan.title = 'إظهار / إخفاء';
+    visSpan.textContent = '👁';
+
+    row.appendChild(iconSpan);
+    row.appendChild(nameSpan);
+    row.appendChild(visSpan);
 
     row.addEventListener('click', (e) => {
       if (e.target.dataset.act === 'vis') {
@@ -247,12 +221,10 @@ export function refreshLayersPanel() {
         item.el.style.display = visible ? '' : 'none';
         return;
       }
-      // Select the element via the existing interaction system
       list.querySelectorAll('.layer-row').forEach(r => r.classList.remove('active'));
       row.classList.add('active');
-      // Dispatch a custom event the interaction layer can listen to
       document.dispatchEvent(new CustomEvent('ipb:selectLayer', {
-        detail: { el: item.el, kind: item.kind },
+        detail: { el: item.el, kind: item.kind }
       }));
     });
 
@@ -271,45 +243,52 @@ function initTopbarActions() {
   const btnPreview = document.getElementById('btnPreview');
   const btnPresent = document.getElementById('btnPresent');
 
-  btnUndo?.addEventListener('click', async () => {
-    try {
-      const core = await import('./core.js');
-      core.undo();
-      setSaveBadge('تم التراجع', false);
-    } catch (e) { console.warn(e); }
-  });
+  if (btnUndo) {
+    btnUndo.addEventListener('click', async () => {
+      try {
+        const core = await import('./core.js');
+        core.undo();
+        setSaveBadge('تم التراجع', false);
+      } catch (e) { console.warn(e); }
+    });
+  }
 
-  btnRedo?.addEventListener('click', async () => {
-    try {
-      const core = await import('./core.js');
-      core.redo();
-      setSaveBadge('تم الإعادة', false);
-    } catch (e) { console.warn(e); }
-  });
+  if (btnRedo) {
+    btnRedo.addEventListener('click', async () => {
+      try {
+        const core = await import('./core.js');
+        core.redo();
+        setSaveBadge('تم الإعادة', false);
+      } catch (e) { console.warn(e); }
+    });
+  }
 
-  btnOpen?.addEventListener('click', () => {
-    const input = document.getElementById('fileInput');
-    if (input) input.click();
-  });
+  if (btnOpen) {
+    btnOpen.addEventListener('click', () => {
+      const input = document.getElementById('fileInput');
+      if (input) input.click();
+    });
+  }
 
-  btnSave?.addEventListener('click', async () => {
-    setSaveBadge('جارٍ الحفظ…', true);
-    try {
-      const storage = await import('./storage.js');
-      await storage.saveProjectAsFile();
-      setSaveBadge('محفوظ الآن', false);
-    } catch (e) {
-      setSaveBadge('فشل الحفظ', false);
-    }
-  });
+  if (btnSave) {
+    btnSave.addEventListener('click', async () => {
+      setSaveBadge('جارٍ الحفظ…', true);
+      try {
+        const storage = await import('./storage.js');
+        await storage.saveProjectAsFile();
+        setSaveBadge('محفوظ الآن', false);
+      } catch (e) {
+        setSaveBadge('فشل الحفظ', false);
+      }
+    });
+  }
 
-  btnPreview?.addEventListener('click', () => {
-    openPresentMode();
-  });
-
-  btnPresent?.addEventListener('click', () => {
-    openPresentMode();
-  });
+  if (btnPreview) {
+    btnPreview.addEventListener('click', openPresentMode);
+  }
+  if (btnPresent) {
+    btnPresent.addEventListener('click', openPresentMode);
+  }
 }
 
 /* ============================================================
@@ -332,8 +311,8 @@ async function openPresentMode() {
   const overlay = document.getElementById('presentOverlay');
   if (!overlay) return;
   overlay.classList.add('active');
+  document.body.classList.add('present-active');
 
-  // Set toolbar default
   setPresentTool('select');
   updatePresentUndoRedo();
   resetPresentTimer();
@@ -343,18 +322,13 @@ async function openPresentMode() {
   bindPresentKeys();
   bindPresentToolbar();
 
-  // Show toolbar briefly on entry
   const bar = document.getElementById('presentToolbar');
   if (bar) {
     bar.classList.add('show');
     setTimeout(() => bar.classList.remove('show'), 2500);
   }
 
-  // Listen for state changes to update page number
   document.addEventListener('ipb:pageChanged', onPresentPageChanged);
-
-  // Listen for annotation changes to push to undo stack
-  document.addEventListener('ipb:annotationChanged', onPresentAnnotationChanged);
 }
 
 function closePresentMode() {
@@ -362,14 +336,13 @@ function closePresentMode() {
   presentState.active = false;
 
   const overlay = document.getElementById('presentOverlay');
-  overlay?.classList.remove('active');
+  if (overlay) overlay.classList.remove('active');
+  document.body.classList.remove('present-active');
 
   stopPresentTimer();
   unbindPresentKeys();
-  unbindPresentToolbar();
 
   document.removeEventListener('ipb:pageChanged', onPresentPageChanged);
-  document.removeEventListener('ipb:annotationChanged', onPresentAnnotationChanged);
 
   presentState.undoStack = [];
   presentState.redoStack = [];
@@ -379,14 +352,6 @@ function closePresentMode() {
 function onPresentPageChanged() {
   copyStageToPresent();
   updatePresentPageNum();
-}
-
-function onPresentAnnotationChanged(e) {
-  if (e.detail && e.detail.type === 'add') {
-    presentState.undoStack.push(e.detail);
-    presentState.redoStack = [];
-    updatePresentUndoRedo();
-  }
 }
 
 function copyStageToPresent() {
@@ -399,24 +364,25 @@ function copyStageToPresent() {
 
   if (!stage || !presentStage || !pdfCanvas || !presentCanvas) return;
 
-  // Match aspect ratio
   const stageRect = stage.getBoundingClientRect();
   const vw = window.innerWidth * 0.9;
   const vh = window.innerHeight * 0.9;
   const aspect = stageRect.width / stageRect.height;
-  let w = vw, h = w / aspect;
-  if (h > vh) { h = vh; w = h * aspect; }
+  let w = vw;
+  let h = w / aspect;
+  if (h > vh) {
+    h = vh;
+    w = h * aspect;
+  }
 
   presentStage.style.width = w + 'px';
   presentStage.style.height = h + 'px';
 
-  // Copy PDF canvas
   presentCanvas.width = pdfCanvas.width;
   presentCanvas.height = pdfCanvas.height;
   const pctx = presentCanvas.getContext('2d');
   pctx.drawImage(pdfCanvas, 0, 0);
 
-  // Copy SVG layer
   if (presentLayerHost && svgLayer) {
     presentLayerHost.innerHTML = '';
     const clone = svgLayer.cloneNode(true);
@@ -427,7 +393,6 @@ function copyStageToPresent() {
     presentLayerHost.appendChild(clone);
   }
 
-  // Setup laser canvas
   const presentLaser = document.getElementById('presentLaser');
   if (presentLaser) {
     presentLaser.width = pdfCanvas.width;
@@ -451,7 +416,7 @@ function setPresentTool(tool) {
     btn.classList.toggle('active', btn.dataset.ptool === tool);
   });
   document.dispatchEvent(new CustomEvent('ipb:presentToolChanged', {
-    detail: { tool },
+    detail: { tool: tool }
   }));
 }
 
@@ -460,22 +425,22 @@ function bindPresentToolbar() {
   if (!bar) return;
 
   bar.querySelectorAll('[data-ptool]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      setPresentTool(btn.dataset.ptool);
-    });
+    btn.addEventListener('click', () => setPresentTool(btn.dataset.ptool));
   });
 
-  document.getElementById('presentUndo')?.addEventListener('click', presentUndo);
-  document.getElementById('presentRedo')?.addEventListener('click', presentRedo);
-  document.getElementById('presentClear')?.addEventListener('click', presentClearAll);
-  document.getElementById('presentPrev')?.addEventListener('click', presentPrevPage);
-  document.getElementById('presentNext')?.addEventListener('click', presentNextPage);
-  document.getElementById('presentExit')?.addEventListener('click', closePresentMode);
-}
+  const u = document.getElementById('presentUndo');
+  const r = document.getElementById('presentRedo');
+  const clr = document.getElementById('presentClear');
+  const prev = document.getElementById('presentPrev');
+  const next = document.getElementById('presentNext');
+  const exit = document.getElementById('presentExit');
 
-function unbindPresentToolbar() {
-  // Simple approach: replace listeners by cloning nodes
-  // Not done here to keep it simple — the overlay is destroyed when we exit
+  if (u) u.addEventListener('click', presentUndo);
+  if (r) r.addEventListener('click', presentRedo);
+  if (clr) clr.addEventListener('click', presentClearAll);
+  if (prev) prev.addEventListener('click', presentPrevPage);
+  if (next) next.addEventListener('click', presentNextPage);
+  if (exit) exit.addEventListener('click', closePresentMode);
 }
 
 async function presentPrevPage() {
@@ -502,10 +467,7 @@ function presentUndo() {
   if (!presentState.undoStack.length) return;
   const item = presentState.undoStack.pop();
   presentState.redoStack.push(item);
-  // Apply undo action
-  if (item.el && item.el.parentNode) {
-    item.el.style.display = 'none';
-  }
+  if (item.el && item.el.parentNode) item.el.style.display = 'none';
   updatePresentUndoRedo();
 }
 
@@ -513,14 +475,11 @@ function presentRedo() {
   if (!presentState.redoStack.length) return;
   const item = presentState.redoStack.pop();
   presentState.undoStack.push(item);
-  if (item.el && item.el.parentNode) {
-    item.el.style.display = '';
-  }
+  if (item.el && item.el.parentNode) item.el.style.display = '';
   updatePresentUndoRedo();
 }
 
 function presentClearAll() {
-  // Remove all drawings from the present layer (visual only)
   const host = document.getElementById('presentLayerHost');
   if (host) {
     host.querySelectorAll('[data-present-annot]').forEach(el => el.remove());
@@ -541,16 +500,19 @@ function resetPresentTimer() {
   presentState.timerStart = Date.now();
   updatePresentTimerDisplay();
 }
+
 function startPresentTimer() {
   stopPresentTimer();
   presentState.timerInterval = setInterval(updatePresentTimerDisplay, 1000);
 }
+
 function stopPresentTimer() {
   if (presentState.timerInterval) {
     clearInterval(presentState.timerInterval);
     presentState.timerInterval = null;
   }
 }
+
 function updatePresentTimerDisplay() {
   const el = document.getElementById('presentTimer');
   if (!el) return;
@@ -573,8 +535,8 @@ function bindPresentKeys() {
     if (e.key === 'v' || e.key === 'V') { setPresentTool('select'); return; }
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
       e.preventDefault();
-      if (e.shiftKey) presentRedo(); else presentUndo();
-      return;
+      if (e.shiftKey) presentRedo();
+      else presentUndo();
     }
   };
   document.addEventListener('keydown', presentState.keyListener);
@@ -587,12 +549,35 @@ function unbindPresentKeys() {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   §8. HOOKS — مراقبة أحداث التطبيق
-   ═══════════════════════════════════════════════════════════ */
+/* ============================================================
+   §8. EQUATION DIALOG — إغلاق عند النقر خارج المحرر
+   ============================================================
+   لا نعدّل interaction.js — فقط نراقب.
+   عندما يُفتح المحرر (class .show)، نضيف مستمع للنقر على الخلفية.
+   ============================================================ */
+function initEquationDialogGuard() {
+  const eq = document.getElementById('equationEditor');
+  if (!eq) return;
 
-// Observe stage mutations to keep layers panel in sync
+  document.addEventListener('pointerdown', (e) => {
+    if (!eq.classList.contains('show')) return;
+    if (eq.contains(e.target)) return;
+
+    /* إغلاق آمن — نستدعي closeEquationEditor من interaction.js */
+    import('./interaction.js').then(mod => {
+      if (mod.closeEquationEditor) mod.closeEquationEditor();
+    }).catch(() => {
+      /* fallback: نزيل الصنف مباشرة */
+      eq.classList.remove('show');
+    });
+  }, true);
+}
+
+/* ============================================================
+   §9. LAYERS OBSERVER
+   ============================================================ */
 let _layersObserver = null;
+
 function initLayersObserver() {
   if (_layersObserver) return;
   const stageContent = document.getElementById('stageContent');
@@ -607,14 +592,15 @@ function initLayersObserver() {
   refreshLayersPanel();
 }
 
-// Sync page change events to update layers panel
 function initPageChangeListener() {
   document.addEventListener('ipb:pageChanged', () => {
     setTimeout(refreshLayersPanel, 50);
   });
 }
 
-// F5 shortcut from anywhere
+/* ============================================================
+   §10. GLOBAL SHORTCUTS
+   ============================================================ */
 function initGlobalShortcuts() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'F5') {
@@ -622,21 +608,20 @@ function initGlobalShortcuts() {
       if (presentState.active) closePresentMode();
       else openPresentMode();
     }
-    // Note: Esc inside present mode handled by its own listener
   });
 }
 
-/* ═══════════════════════════════════════════════════════════
-   §9. INIT
-   ═══════════════════════════════════════════════════════════ */
+/* ============================================================
+   §11. INIT
+   ============================================================ */
 export function initUIShell() {
   applyVersion();
   initPropsTabs();
   initBottomPanel();
   initTopbarActions();
   initGlobalShortcuts();
+  initEquationDialogGuard();
 
-  // Wait for stage + layers to appear
   setTimeout(() => {
     initLayersObserver();
     initPageChangeListener();
@@ -644,7 +629,7 @@ export function initUIShell() {
   }, 500);
 }
 
-/* Expose to window for debugging */
+/* Expose for debugging */
 if (typeof window !== 'undefined') {
   window.__UI_SHELL__ = {
     version: APP_VERSION,
