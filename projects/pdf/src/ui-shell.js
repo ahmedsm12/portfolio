@@ -272,12 +272,13 @@ function initTopbarActions() {
 }
 
 /* ============================================================
-   §7. EQUATION DIALOG — نسخة محسّنة
+   §7. EQUATION DIALOG ★★★ الإصلاح الجوهري
    ============================================================
-   الإصلاحات:
-   1) stopPropagation على المحرر لمنع وصول الأحداث إلى document
-   2) الإغلاق فقط عند النقر المباشر على الـ backdrop (e.target === backdrop)
-   3) تبويبات للفئات (كسور، أسس، …) بدل الأقسام المكدسة عمودياً
+   الأزرار كانت معطلة لأن stopPropagation كان في capture phase
+   (true) فيمنع الحدث من الوصول إلى الأزرار. الحل:
+   - استخدام bubble phase (بدون true)
+   - الحدث يصل للأزرار أولاً، تعمل، ثم يصعد إلى editor فيُوقف
+   - لا يصل إلى document (الذي يُغلق المحرر)
    ============================================================ */
 function setupEquationBackdropMirror() {
   /* 1) تأكد من وجود #equationBackdrop */
@@ -294,17 +295,53 @@ function setupEquationBackdropMirror() {
     return;
   }
 
-  /* ★ 2) أوقف انتشار كل الأحداث من المحرر
-        هذا هو الإصلاح الحاسم لمشكلة "يُغلق عند أي نقرة" */
-  ['pointerdown', 'pointerup', 'click', 'mousedown', 'mouseup',
-   'touchstart', 'touchend', 'keydown', 'keyup'].forEach(evt => {
-    editor.addEventListener(evt, (e) => {
-      /* لكن اترك الزر X وزر إلغاء يعملان — نمرر لهما الحدث */
-      e.stopPropagation();
-    }, true);
-  });
+  /* ★ 2) أوقف انتشار الأحداث في bubble phase
+        هذا يسمح للأزرار بالعمل ثم يمنع الصعود إلى document
+  */
+  if (!editor._uiShieldWired) {
+    editor._uiShieldWired = true;
 
-  /* 3) دوال المزامنة */
+    const shieldEvents = [
+      'pointerdown', 'pointerup', 'pointermove',
+      'mousedown', 'mouseup', 'mousemove',
+      'click', 'dblclick',
+      'touchstart', 'touchend', 'touchmove',
+      'keydown', 'keyup', 'keypress',
+      'wheel', 'contextmenu',
+    ];
+
+    shieldEvents.forEach(evt => {
+      editor.addEventListener(evt, (e) => {
+        /* bubble phase — اترك العناصر الفرعية تعمل */
+        e.stopPropagation();
+      }, false);
+    });
+  }
+
+  /* 3) نفس الحماية للـ backdrop */
+  if (!backdrop._uiShieldWired) {
+    backdrop._uiShieldWired = true;
+    ['pointerdown', 'click', 'mousedown', 'mouseup'].forEach(evt => {
+      backdrop.addEventListener(evt, (e) => {
+        if (e.target === backdrop) {
+          /* النقر على الخلفية نفسها → أغلق */
+          e.stopPropagation();
+          hideBoth();
+        } else {
+          /* النقر على عنصر داخل المحرر (منتقل) → اتركه */
+          e.stopPropagation();
+        }
+      }, false);
+    });
+  }
+
+  /* 4) دوال المزامنة */
+  function hideBoth() {
+    editor.classList.remove('show');
+    backdrop.classList.remove('show');
+    backdrop.style.display = 'none';
+  }
+
   function syncFromBackdrop() {
     const shown = backdrop.classList.contains('show');
     if (shown) {
@@ -320,54 +357,41 @@ function setupEquationBackdropMirror() {
     }
   }
 
-  /* 4) راقب الـ backdrop */
+  /* 5) راقب الـ backdrop */
   const obs = new MutationObserver(syncFromBackdrop);
   obs.observe(backdrop, { attributes: true, attributeFilter: ['class'] });
   backdrop.style.display = backdrop.classList.contains('show') ? 'block' : 'none';
 
-  /* 5) الإغلاق */
-  function hideBoth() {
-    editor.classList.remove('show');
-    backdrop.classList.remove('show');
-    backdrop.style.display = 'none';
-  }
-
-  /* ★ النقر على الـ backdrop فقط (وليس أطفاله) يغلق */
-  backdrop.addEventListener('click', (e) => {
-    if (e.target === backdrop) hideBoth();
-  });
-
-  /* زر X و زر إلغاء */
+  /* 6) زر X و زر إلغاء */
   const closeBtn = document.getElementById('eqCloseBtn');
   const cancelBtn = document.getElementById('eqCancelBtn');
-  if (closeBtn) {
+  if (closeBtn && !closeBtn._uiWired) {
+    closeBtn._uiWired = true;
     closeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       hideBoth();
     });
   }
-  if (cancelBtn) {
+  if (cancelBtn && !cancelBtn._uiWired) {
+    cancelBtn._uiWired = true;
     cancelBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       hideBoth();
     });
   }
 
-  /* زر الإدراج — نتركه لـ interaction.js لكن نضمن عدم propagation */
-  const insertBtn = document.getElementById('eqInsertBtn');
-  if (insertBtn) {
-    insertBtn.addEventListener('click', (e) => e.stopPropagation(), true);
+  /* 7) Escape يغلق */
+  if (!editor._uiEscapeWired) {
+    editor._uiEscapeWired = true;
+    editor.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        hideBoth();
+      }
+    });
   }
 
-  /* 6) Escape يغلق */
-  editor.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      hideBoth();
-    }
-  });
-
-  /* 7) زر المعادلة في الشريط — Fallback */
+  /* 8) زر المعادلة في الشريط */
   const eqBtn = document.querySelector('#toolbar button[data-tool="equation"]');
   if (eqBtn && !eqBtn._uiMirrorWired) {
     eqBtn._uiMirrorWired = true;
@@ -383,21 +407,18 @@ function setupEquationBackdropMirror() {
         const ta = document.getElementById('eqTextarea');
         if (ta) setTimeout(() => { try { ta.focus(); } catch (_) {} }, 80);
       }, 250);
-    }, true);
+    }, true); /* capture على الزر — لكن الزر نفسه داخل toolbar، لا مشكلة */
   }
 }
 
 /* ============================================================
-   تبويبات الفئات — تُبنى من بنية eqPaletteHost الموجودة
+   تبويبات الفئات
    ============================================================ */
 function ensureEquationTabs(editor) {
   const host = editor.querySelector('#eqPaletteHost');
   if (!host) return;
-
-  /* إذا كانت التبويبات موجودة سابقاً، لا تعد بناءها */
   if (host.parentElement.querySelector('.eq-cat-tabs')) return;
 
-  /* اجمع الأقسام: كل قسم = label + grid */
   const sections = [];
   let currentCat = null;
 
@@ -405,7 +426,6 @@ function ensureEquationTabs(editor) {
     if (child.classList.contains('eq-section-label')) {
       currentCat = {
         label: child.textContent.trim(),
-        labelEl: child,
         gridEl: null,
       };
       sections.push(currentCat);
@@ -414,9 +434,8 @@ function ensureEquationTabs(editor) {
     }
   });
 
-  if (sections.length < 2) return; // لا حاجة لتبويبات
+  if (sections.length < 2) return;
 
-  /* أنشئ شريط التبويبات وأدرجه قبل الـ host */
   const tabsBar = document.createElement('div');
   tabsBar.className = 'eq-cat-tabs';
 
@@ -428,10 +447,8 @@ function ensureEquationTabs(editor) {
 
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      /* بدّل النشاط */
       tabsBar.querySelectorAll('.eq-cat-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      /* أخفِ كل الشبكات، أظهر النشطة */
       host.querySelectorAll('.eq-grid').forEach(g => g.classList.remove('active'));
       if (sec.gridEl) sec.gridEl.classList.add('active');
     });
@@ -441,7 +458,6 @@ function ensureEquationTabs(editor) {
 
   host.parentElement.insertBefore(tabsBar, host);
 
-  /* فعّل الفئة الأولى */
   if (sections[0].gridEl) sections[0].gridEl.classList.add('active');
 }
 
@@ -453,7 +469,6 @@ function ensureEquationPalette(editor) {
   if (!host) return;
   if (host.children.length > 0) return;
 
-  /* حاول من interaction.js */
   import('./interaction.js').then(mod => {
     if (mod.buildEquationPaletteInto) {
       try { mod.buildEquationPaletteInto(host); } catch (_) {}
@@ -467,7 +482,7 @@ function ensureEquationPalette(editor) {
 }
 
 /* ============================================================
-   Palette احتياطية كاملة
+   Palette احتياطية
    ============================================================ */
 function buildFallbackPalette(host) {
   const TEMPLATES = [
@@ -561,6 +576,7 @@ function buildFallbackPalette(host) {
     host.appendChild(grid);
   });
 }
+
 /* ============================================================
    §8. PRESENT MODE
    ============================================================ */
