@@ -56,6 +56,49 @@ function initBottomPanel() {
   const contents = panel.querySelectorAll('.bp-content');
   const toggle = document.getElementById('bpToggle');
 
+  /* دالة موحّدة لتحديث الحالة + إبلاغ الـ CSS */
+  function setPanelExpanded(expanded) {
+    panel.classList.toggle('collapsed', !expanded);
+    document.body.classList.toggle('bp-expanded', expanded);
+    if (toggle) toggle.textContent = expanded ? '▾' : '▴';
+  }
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const key = tab.dataset.btab;
+
+      // نفس التبويب مفتوح → اطوِ
+      if (tab.classList.contains('active') && !panel.classList.contains('collapsed')) {
+        setPanelExpanded(false);
+        return;
+      }
+
+      tabs.forEach(t => t.classList.remove('active'));
+      contents.forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+
+      const content = panel.querySelector(`.bp-content[data-bpanel="${key}"]`);
+      if (content) content.classList.add('active');
+
+      setPanelExpanded(true);
+    });
+  });
+
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      setPanelExpanded(panel.classList.contains('collapsed'));
+    });
+  }
+
+  /* الحالة الابتدائية: مطويّة */
+  setPanelExpanded(false);
+}
+  const panel = document.getElementById('bottomPanel');
+  if (!panel) return;
+  const tabs = panel.querySelectorAll('.bp-tab');
+  const contents = panel.querySelectorAll('.bp-content');
+  const toggle = document.getElementById('bpToggle');
+
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       const key = tab.dataset.btab;

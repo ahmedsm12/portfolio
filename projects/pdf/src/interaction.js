@@ -3,6 +3,14 @@
  * ============================================================ */
 
 import {
+  // ... (كل ما هو موجود حالياً)
+} from './core.js';
+
+/* ★ جديد: مرجع لخلفية محرر المعادلات */
+const equationBackdropEl = () => document.getElementById('equationBackdrop');
+
+
+import {
   $, SVG_NS, EQUATION_TEMPLATES, LASER_FADE_MS, KATEX_CSS, KATEX_JS,
   stage, stageContent, svgLayer, embedLayer, videoLayer, textLayer,
   interactiveLayer, transientCanvas, laserCanvas, transCtx, laserCtx,
@@ -860,13 +868,16 @@ export function openEquationEditor(el) {
   textarea.value = raw;
   updateEqPreview();
   buildEquationPaletteInto($('eqPaletteHost'));
-  equationEditor.classList.add('show');
-  positionEquationEditor();
+  /* ★ نفتح الخلفية (الـ dialog) بدل المحرر */
+  const backdrop = equationBackdropEl();
+  if (backdrop) backdrop.classList.add('show');
   setTimeout(() => { textarea.focus(); textarea.select(); }, 50);
 }
 
 export function closeEquationEditor() {
-  equationEditor.classList.remove('show');
+  /* ★ نغلق الخلفية (الـ dialog) */
+  const backdrop = equationBackdropEl();
+  if (backdrop) backdrop.classList.remove('show');
   _eqCurrentTarget = null;
 }
 
@@ -904,6 +915,16 @@ export function bindEquationEditor() {
       selectTextBox(el);
     }
   });
+    /* ★ إغلاق عند النقر خارج الـ dialog */
+  const backdrop = equationBackdropEl();
+  if (backdrop) {
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) {
+        closeEquationEditor();
+        uiHooks.setTool('select');
+      }
+    });
+  }
 }
 
 /* ============================================================

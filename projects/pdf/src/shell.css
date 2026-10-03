@@ -635,3 +635,111 @@
   #topbar .brand-name { display: none; }
   #topbar .tb-btn .lbl { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   12) إصلاح التعارضات
+   ═══════════════════════════════════════════════════════════ */
+
+/* ───────────────────────────────────────────
+   12.1) القائمة الفرعية ترتفع فوق شريط الشرائح
+   ─────────────────────────────────────────── */
+#submenu {
+  z-index: 1250 !important;   /* أعلى من sidebar (1100) */
+}
+
+/* القوائم الفرعية للـ interaction.js (نفس المشكلة) */
+#textContextToolbar,
+#shapeContextToolbar {
+  z-index: 1255 !important;
+}
+
+/* ───────────────────────────────────────────
+   12.2) شريط الشرائح واللوحة السفلية يتناسقان
+   ─────────────────────────────────────────── */
+body {
+  /* القيمة الافتراضية = ارتفاع تبويبات اللوحة فقط */
+  --bp-current-h: var(--bp-tabs-h);
+}
+body.bp-expanded {
+  /* عند التوسيع = التبويبات + الجسم */
+  --bp-current-h: calc(var(--bp-tabs-h) + var(--bp-body-h));
+}
+
+#thumbnailSidebar {
+  bottom: var(--bp-current-h);
+  transition: bottom .2s ease;
+}
+
+#stageWrapper {
+  bottom: var(--bp-current-h);
+  transition: bottom .2s ease;
+}
+
+#propsRight {
+  bottom: var(--bp-current-h);
+  transition: bottom .2s ease;
+}
+
+/* ───────────────────────────────────────────
+   12.3) محرر المعادلات → Dialog منفصل
+   ─────────────────────────────────────────── */
+#equationBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 12, 16, .7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: eqFadeIn .15s ease;
+}
+#equationBackdrop.show { display: flex; }
+@keyframes eqFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* تجاوز قواعد style.css القديمة */
+#equationEditor {
+  position: relative !important;
+  right: auto !important;
+  top: auto !important;
+  display: flex !important;
+  flex-direction: column;
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 20px !important;
+  background: #1c2028;
+  border: 1px solid var(--sh-border-2);
+  border-radius: 16px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.7);
+  animation: eqPop .2s cubic-bezier(.2, .9, .3, 1.3);
+  scrollbar-width: thin;
+}
+@keyframes eqPop {
+  from { opacity: 0; transform: scale(.94) translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* حجم مناسب للـ textarea داخل dialog */
+#equationEditor #eqTextarea {
+  min-height: 70px;
+}
+#equationEditor #eqPaletteHost {
+  max-height: 40vh;
+  overflow-y: auto;
+  padding-left: 4px;
+}
+
+/* زر إغلاق أنيق في الرأس */
+#equationEditor .eq-title {
+  font-size: 14px !important;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--sh-border);
+  margin-bottom: 14px !important;
+}
