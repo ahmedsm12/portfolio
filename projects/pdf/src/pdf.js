@@ -153,10 +153,18 @@ export async function renderPage(pageNum) {
       vp1W = vp1.width; vp1H = vp1.height; aspect = vp1.height / vp1.width;
     } else if (bg.type === 'blank') {
       if (state.pdfDoc) {
+        /* مشروع PDF موجود → استخدم أبعاد أول صفحة كمرجع للشرائح الفارغة */
         const page = await state.pdfDoc.getPage(1);
         const vp1 = page.getViewport({ scale: 1 });
         vp1W = vp1.width; vp1H = vp1.height; aspect = vp1.height / vp1.width;
-      } else { vp1W = .707; vp1H = 1; aspect = 1 / .707; }
+      } else if (state.projectDims && state.projectDims.width && state.projectDims.height) {
+        /* ★ مشروع جديد بدون PDF → استخدم أبعاد المشروع المخصصة */
+        vp1W = state.projectDims.width;
+        vp1H = state.projectDims.height;
+        aspect = vp1H / vp1W;
+      } else {
+        vp1W = .707; vp1H = 1; aspect = 1 / .707;
+      }
     } else {
       vp1W = 1; vp1H = (state.pdfH / state.pdfW) || 1.414; aspect = vp1H / vp1W;
     }
@@ -181,13 +189,21 @@ export async function renderPage(pageNum) {
     });
     svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
 
+    /* ★ لون خلفية الشريحة */
+    let fillColor = '#ffffff';
+    if (bg.type === 'blank') {
+      if (bg.color) fillColor = bg.color;
+      else if (state.projectDims && state.projectDims.bg) fillColor = state.projectDims.bg;
+    }
+
+    const ctx = pdfCanvas.getContext('2d', { alpha: false });
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = fillColor;
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
     const cached = state.pageCache.get(pageNum);
 
     if (cached) {
-      const ctx = pdfCanvas.getContext('2d', { alpha: false });
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvasW, canvasH);
       const img = new Image();
       await new Promise(res => { img.onload = res; img.onerror = res; img.src = cached.dataUrl; });
       ctx.imageSmoothingEnabled = true;
@@ -216,25 +232,18 @@ export async function renderPage(pageNum) {
         } catch (__) {}
       }
     } else if (bg.type === 'blank') {
-      const ctx = pdfCanvas.getContext('2d', { alpha: false });
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvasW, canvasH);
+      /* شريحة فارغة — الخلفية مرسومة أعلاه، لا شيء إضافي */
       try {
         const cc = document.createElement('canvas');
         const cw = Math.min(canvasW, CACHE_WIDTH);
         const ch = Math.round(cw * canvasH / canvasW);
         cc.width = cw; cc.height = ch;
         const cctx = cc.getContext('2d', { alpha: false });
-        cctx.fillStyle = '#fff';
+        cctx.fillStyle = fillColor;
         cctx.fillRect(0, 0, cw, ch);
         state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.95) });
       } catch (_) {}
     } else if (state.pdfBlob) {
-      const ctx = pdfCanvas.getContext('2d', { alpha: false });
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvasW, canvasH);
       const url = URL.createObjectURL(state.pdfBlob);
       try {
         const img = await new Promise((res, rej) => {
@@ -254,15 +263,9 @@ export async function renderPage(pageNum) {
     loadPageState(pageNum);
     updatePageIndicator();
     updateUndoButtonsSafe();
-	  /* إشعار الواجهة الجديدة بتغيّر الصفحة */
-  document.dispatchEvent(new CustomEvent('ipb:pageChanged', {
-    detail: { page: pageNum }
-  }));
-  
     emptyState.style.display = 'none';
 
     setTimeout(() => { captureStageThumbnail(pageNum).catch(() => {}); }, 50);
-
   } catch (err) {
     console.error(err);
     toast('تعذّر عرض الصفحة', 'error');
@@ -270,7 +273,6 @@ export async function renderPage(pageNum) {
     if (!hasCache) setLoading(false);
   }
 }
-
 /* ============================================================
    §6. PRELOAD
    ============================================================ */

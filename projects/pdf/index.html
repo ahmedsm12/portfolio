@@ -13,9 +13,7 @@
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════════════════
-     TOPBAR
-     ═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════ TOPBAR ═══════════════════ -->
 <div id="topbar">
   <div class="brand">
     <div class="brand-icon">📄</div>
@@ -32,6 +30,9 @@
 
   <div class="tb-divider"></div>
 
+  <button class="tb-btn accent" id="btnNew" title="مشروع جديد (Ctrl+N)">
+    <span class="ico">✨</span><span class="lbl">جديد</span>
+  </button>
   <button class="tb-btn" id="btnOpen" title="فتح ملف PDF أو مشروع .actpdf">
     <span class="ico">📂</span><span class="lbl">فتح</span>
   </button>
@@ -56,9 +57,7 @@
   </button>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     LEFT TOOLS — نفس #toolbar القديم، فقط تم نقله لليسار
-     ═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════ TOOLBAR ═══════════════════ -->
 <div id="toolbar">
   <button data-tool="select" title="تحديد (V)">
     <svg viewBox="0 0 24 24"><path d="M5.5 3.2 L18.8 12.2 L12.4 13.1 L15.6 20.2 L13.3 21.2 L10.2 14.2 L5.5 18.4 Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="currentColor"/></svg>
@@ -90,9 +89,7 @@
   <button id="btnExport" title="تصدير PDF">⬇️</button>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     SLIDES SIDEBAR
-     ═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════ SLIDES SIDEBAR ═══════════════════ -->
 <aside id="thumbnailSidebar">
   <div class="sidebar-header">
     <span class="sidebar-title">📑 الشرائح</span>
@@ -108,9 +105,7 @@
 </aside>
 <button id="btnShowSidebar" title="إظهار الشرائح">📑</button>
 
-<!-- ═══════════════════════════════════════════════════════════
-     STAGE
-     ═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════ STAGE ═══════════════════ -->
 <div id="stageWrapper">
   <div id="stage" data-tool="select">
     <div id="stageContent">
@@ -135,19 +130,22 @@
   </div>
 
   <div id="emptyState">
-    <div class="icon">📄</div>
-    <div>افتح ملف PDF للبدء</div>
-    <button id="btnOpenEmpty">📂 اختر ملفاً</button>
+    <div class="icon">🎨</div>
+    <div class="empty-title">ابدأ مشروعاً جديداً</div>
+    <div class="empty-desc">صمّم شرائح تفاعلية من الصفر أو افتح ملف PDF موجود</div>
+    <div class="empty-actions">
+      <button id="btnNewEmpty" class="primary-btn">✨ مشروع جديد</button>
+      <button id="btnOpenEmpty">📂 فتح ملف</button>
+    </div>
   </div>
+
   <div id="loading">
     <div class="spinner"></div>
     <div id="loadingText">جارٍ التحميل…</div>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     PROPERTIES PANEL (Right)
-     ═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════ PROPS PANEL ═══════════════════ -->
 <aside id="propsRight">
   <div class="props-tabs">
     <button class="props-tab active" data-ptab="design">التصميم</button>
@@ -157,26 +155,21 @@
 
   <div class="props-body">
     <div class="props-panel" data-ppanel="design">
-      <div class="props-hint">
+      <div id="documentInfoPanel"></div>
+      <div class="props-hint" id="elementPropsHint">
         حدّد عنصراً على اللوحة لعرض خصائصه
       </div>
     </div>
     <div class="props-panel" data-ppanel="anim" style="display:none">
-      <div class="props-hint">
-        الحركات ستكون متاحة عند ربط محرّك GSAP
-      </div>
+      <div class="props-hint">الحركات ستكون متاحة عند ربط محرّك GSAP</div>
     </div>
     <div class="props-panel" data-ppanel="effects" style="display:none">
-      <div class="props-hint">
-        التأثيرات القابلة للتحريك (Glow، Stroke، Shadow) ستظهر هنا
-      </div>
+      <div class="props-hint">التأثيرات القابلة للتحريك ستظهر هنا</div>
     </div>
   </div>
 </aside>
 
-<!-- ═══════════════════════════════════════════════════════════
-     BOTTOM PANEL — Tabs + Body
-     ═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════ BOTTOM PANEL ═══════════════════ -->
 <div id="bottomPanel" class="collapsed">
   <div class="bp-tabs">
     <button class="bp-tab active" data-btab="layers">
@@ -203,28 +196,23 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     OVERLAYS (existing elements — kept as-is)
-     ═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════ OVERLAYS ═══════════════════ -->
 <div id="saveStatus"></div>
 <div id="textContextToolbar"></div>
 <div id="shapeContextToolbar"></div>
-
 <div id="submenu"></div>
 
-<div id="equationBackdrop">
-  <div id="equationEditor">
-    <div class="eq-title">
-      <span>✏️ محرر المعادلات</span>
-      <button id="eqCloseBtn" title="إغلاق">✕</button>
-    </div>
-    <div id="eqPaletteHost"></div>
-    <textarea id="eqTextarea" placeholder="اكتب معادلة LaTeX…"></textarea>
-    <div id="eqPreview"></div>
-    <div class="eq-actions">
-      <button class="btn-secondary" id="eqCancelBtn">إلغاء</button>
-      <button class="btn-primary" id="eqInsertBtn">إدراج</button>
-    </div>
+<div id="equationEditor">
+  <div class="eq-title">
+    <span>✏️ محرر المعادلات</span>
+    <button id="eqCloseBtn" title="إغلاق">✕</button>
+  </div>
+  <div id="eqPaletteHost"></div>
+  <textarea id="eqTextarea" placeholder="اكتب معادلة LaTeX…"></textarea>
+  <div id="eqPreview"></div>
+  <div class="eq-actions">
+    <button class="btn-secondary" id="eqCancelBtn">إلغاء</button>
+    <button class="btn-primary" id="eqInsertBtn">إدراج</button>
   </div>
 </div>
 
@@ -238,9 +226,7 @@
   <button data-action="delete" class="danger"><span class="ctx-icon">🗑️</span> حذف الشريحة</button>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     PRESENT MODE OVERLAY
-     ═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════ PRESENT MODE ═══════════════════ -->
 <div id="presentOverlay">
   <div id="presentStage">
     <canvas id="presentCanvas"></canvas>

@@ -578,6 +578,73 @@ function buildFallbackPalette(host) {
 }
 
 /* ============================================================
+   §7.5. DOCUMENT INFO PANEL — يعرض معلومات المشروع الحالي
+   ============================================================ */
+function initDocumentInfoPanel() {
+  const container = document.getElementById('documentInfoPanel');
+  const hint = document.getElementById('elementPropsHint');
+  if (!container) return;
+
+  async function refresh() {
+    const core = await import('./core.js');
+    const state = core.state;
+    const hasProject = state.slides && state.slides.length > 0;
+
+    if (!hasProject) {
+      container.innerHTML = '';
+      if (hint) hint.style.display = 'block';
+      return;
+    }
+
+    if (hint) hint.style.display = 'block';
+
+    const dims = state.projectDims || (state.pdfDoc ? { width: state.pdfW, height: state.pdfH, unit: 'px', bg: '#ffffff' } : null);
+    const source = state.pdfDoc ? 'PDF' : 'مخصص';
+
+    container.innerHTML = `
+      <div class="prop-section" style="padding:12px;background:rgba(255,255,255,.03);border:1px solid var(--sh-border);border-radius:10px;margin-bottom:12px">
+        <div class="prop-title" style="margin-bottom:8px">
+          <span>📋 المشروع</span>
+          <span style="font-size:10px;color:var(--sh-text-dim)">${source}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:11.5px">
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--sh-text-muted)">الأبعاد</span>
+            <strong style="font-variant-numeric:tabular-nums">${dims ? dims.width + ' × ' + dims.height : '—'}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--sh-text-muted)">الشرائح</span>
+            <strong>${state.totalPages}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--sh-text-muted)">الحالي</span>
+            <strong>${state.currentPage}</strong>
+          </div>
+        </div>
+        <button type="button" id="btnEditProjectDims" style="width:100%;margin-top:10px;padding:7px;border-radius:7px;background:rgba(74,126,255,.12);border:1px solid rgba(74,126,255,.25);color:#a8c4ff;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer">
+          ✏️ تعديل إعدادات المشروع
+        </button>
+      </div>
+    `;
+
+    const editBtn = container.querySelector('#btnEditProjectDims');
+    if (editBtn) {
+      editBtn.addEventListener('click', async () => {
+        const np = await import('./new-project.js');
+        np.openNewProjectDialog();
+      });
+    }
+  }
+
+  refresh();
+
+  /* استمع لأحداث المشروع */
+  document.addEventListener('ipb:pageChanged', refresh);
+  document.addEventListener('ipb:projectCreated', refresh);
+}
+
+
+/* ============================================================
    §8. PRESENT MODE
    ============================================================ */
 const presentState = {
@@ -846,13 +913,15 @@ export function initUIShell() {
   initGlobalShortcuts();
   setupEquationBackdropMirror();
 
+  /* ★ إضافة: عرض معلومات المستند في اللوحة اليمنى */
+  initDocumentInfoPanel();
+
   setTimeout(() => {
     initLayersObserver();
     initPageChangeListener();
     refreshLayersPanel();
   }, 500);
 }
-
 if (typeof window !== 'undefined') {
   window.__UI_SHELL__ = {
     version: APP_VERSION,

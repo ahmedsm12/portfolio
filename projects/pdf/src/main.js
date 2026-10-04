@@ -36,6 +36,9 @@ import {
   uiHooks, undoAction, redoAction,
 } from './interaction.js';
 import { initUIShell } from './ui-shell.js';
+
+import { initNewProject } from './new-project.js';
+
 /* ============================================================
    §1. SET TOOL
    ============================================================ */
@@ -479,8 +482,12 @@ function bindFileInput() {
     fileInput.value = '';
   });
 
-  $('btnOpenEmpty').addEventListener('click', () => fileInput.click());
-}
+	  /* زر فتح ملف في شاشة البداية */
+	  const btnOpenEmpty = document.getElementById('btnOpenEmpty');
+	  if (btnOpenEmpty) {
+		btnOpenEmpty.addEventListener('click', () => fileInput.click());
+	  }
+  }
 
 function bindGlobalListeners() {
   document.addEventListener('dragover', e => e.preventDefault());
@@ -646,6 +653,8 @@ async function init() {
   import('./interaction.js').then(mod => { window.__INTERACTION__ = mod; });
     /* ★ تهيئة الواجهة الجديدة */
   initUIShell();
+    /* ★ تهيئة زر "مشروع جديد" */
+  initNewProject();
 }	
 
 /* ============================================================
