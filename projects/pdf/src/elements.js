@@ -91,7 +91,12 @@ export function addEmbedElement(url, x, y, w, h, save) {
 }
 
 /* ============================================================
-   §2. MEDIA (image / gif / video)
+   §2. MEDIA (image / gif / video) — نسخة مبسّطة كالأشكال
+   ============================================================
+   - لا إطار، لا خلفية افتراضية
+   - السحب من أي مكان على العنصر (في وضع التحديد)
+   - شريط العنوان عائم فوق العنصر (hover/select فقط)
+   - الفيديو يعمل في وضع hand
    ============================================================ */
 export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save) {
   const el = document.createElement('div');
@@ -104,41 +109,18 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
   el.style.width = w || '50%';
   el.style.height = h || '40%';
 
+  /* Blob URL من الـ registry إن وُجد */
   let actualUrl = url;
   const storedBlob = mediaBlobs.get(mediaId);
   if (storedBlob) {
-    try { if (actualUrl && actualUrl.startsWith('blob:')) URL.revokeObjectURL(actualUrl); } catch (_) {}
+    try {
+      if (actualUrl && actualUrl.startsWith('blob:')) URL.revokeObjectURL(actualUrl);
+    } catch (_) {}
     actualUrl = URL.createObjectURL(storedBlob);
   }
   el.dataset.url = actualUrl;
 
-  const header = document.createElement('div');
-  header.className = 'media-header';
-
-  const titleEl = document.createElement('span');
-  titleEl.className = 'media-title';
-  titleEl.textContent = title || (mediaType === 'video' ? 'فيديو' : 'صورة');
-
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'media-close';
-  closeBtn.textContent = '×';
-  closeBtn.addEventListener('pointerdown', e => e.stopPropagation());
-  closeBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    const pre = snapshot();
-    if (state.selected && state.selected.el === el) state.selected = null;
-    try {
-      const v = el.querySelector('video'); if (v) { v.pause(); v.src = ''; }
-      const im = el.querySelector('img'); if (im) im.src = '';
-    } catch (_) {}
-    el.remove();
-    commitChange(pre);
-  });
-
-  header.appendChild(titleEl);
-  header.appendChild(closeBtn);
-
+  /* ─── المحتوى (img أو video) ─── */
   const content = document.createElement('div');
   content.className = 'media-content';
 
@@ -152,12 +134,16 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     video.addEventListener('error', () => el.classList.add('media-error'));
     content.appendChild(video);
 
+    /* زر تشغيل مركزي */
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
     playBtn.className = 'media-play-btn';
     playBtn.innerHTML = '▶';
-    playBtn.addEventListener('click', ev => {
-      ev.stopPropagation();
+    playBtn.title = 'تشغيل / إيقاف';
+    playBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    playBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      e.preventDefault();
       if (state.tool !== 'hand' && state.tool !== 'select') return;
       if (video.paused) video.play().catch(() => toast('تعذّر تشغيل الفيديو', 'error'));
       else video.pause();
@@ -165,14 +151,9 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     video.addEventListener('play', () => playBtn.classList.add('hidden'));
     video.addEventListener('pause', () => playBtn.classList.remove('hidden'));
     video.addEventListener('ended', () => playBtn.classList.remove('hidden'));
-    video.addEventListener('click', ev => {
-      ev.stopPropagation();
-      if (state.tool !== 'hand') return;
-      if (video.paused) video.play().catch(() => {});
-      else video.pause();
-    });
     el.appendChild(playBtn);
   } else {
+    /* صورة أو GIF */
     const img = document.createElement('img');
     img.src = actualUrl;
     img.alt = title || '';
@@ -181,35 +162,112 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     content.appendChild(img);
   }
 
+  /* ─── شريط العنوان العائم ─── */
+  const header = document.createElement('div');
+  header.className = 'media-header';
+
+  const titleEl = document.createElement('span');
+  titleEl.className = 'media-title';
+  titleEl.textContent = title || (mediaType === 'video' ? 'فيديو' : 'صورة');
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'media-close';
+  closeBtn.textContent = '×';
+  closeBtn.title = 'حذف';
+  closeBtn.addEventListener('pointerdown', e => e.stopPropagation());
+  closeBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    e.preventDefault();
+    const pre = snapshot();
+    if (state.selected && state.selected.el === el) state.selected = null;
+    try {
+      const v = el.querySelector('video');
+      if (v) { v.pause(); v.src = ''; }
+      const im = el.querySelector('img');
+      if (im) im.src = '';
+    } catch (_) {}
+    el.remove();
+    commitChange(pre);
+  });
+
+  header.appendChild(titleEl);
+  header.appendChild(closeBtn);
+
+  /* ─── مقبض التحجيم ─── */
   const resize = document.createElement('div');
   resize.className = 'media-resize';
 
-  el.appendChild(header);
+  /* ─── التجميع ─── */
   el.appendChild(content);
+  el.appendChild(header);
   el.appendChild(resize);
   videoLayer.appendChild(el);
 
+  /* ═══════════════════════════════════════════════════════
+     التفاعل: نفس أسلوب SVG shapes
+     - في وضع التحديد: pointerdown من أي مكان → تحديد + سحب
+     - في وضع hand: pointerdown → play/pause للفيديو
+     ═══════════════════════════════════════════════════════ */
+
+  /* سحب من الشريط العلوي (يظهر فقط عند hover/select) */
   header.addEventListener('pointerdown', e => {
     if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     try { header.setPointerCapture(e.pointerId); } catch (_) {}
     if (typeof el.__selectMedia === 'function') el.__selectMedia(el);
     if (typeof el.__startMediaDrag === 'function') el.__startMediaDrag(el, e, 'move');
   });
+
+  /* سحب من أي مكان على العنصر (وضع التحديد) */
+  el.addEventListener('pointerdown', e => {
+    if (state.tool !== 'select') return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.classList.contains('media-resize')) return;
+    if (e.target.classList.contains('media-close')) return;
+    if (e.target.classList.contains('media-play-btn')) return;
+    if (e.target.closest('.media-header')) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    if (typeof el.__selectMedia === 'function') el.__selectMedia(el);
+    if (typeof el.__startMediaDrag === 'function') el.__startMediaDrag(el, e, 'move');
+  });
+
+  /* في وضع hand: pointerdown على الفيديو → play/pause */
+  if (mediaType === 'video') {
+    const video = el.querySelector('video');
+    if (video) {
+      video.addEventListener('pointerdown', e => {
+        if (state.tool !== 'hand') return;
+        e.stopPropagation();
+      });
+      video.addEventListener('click', e => {
+        if (state.tool !== 'hand') return;
+        e.stopPropagation();
+        e.preventDefault();
+        if (video.paused) video.play().catch(() => {});
+        else video.pause();
+      });
+    }
+  }
+
+  /* تحجيم */
   resize.addEventListener('pointerdown', e => {
-    if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    e.preventDefault(); e.stopPropagation();
+    if (state.tool !== 'select') return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
     try { resize.setPointerCapture(e.pointerId); } catch (_) {}
     if (typeof el.__selectMedia === 'function') el.__selectMedia(el);
     if (typeof el.__startMediaDrag === 'function') el.__startMediaDrag(el, e, 'resize');
   });
 
-  if (save !== false) {
-    import('./core.js').then(m => m.savePageNow());
-  }
+  if (save !== false) savePageNow();
   return el;
 }
-
 /* ============================================================
    §3. INTERACTIVE BUTTON
    ============================================================ */

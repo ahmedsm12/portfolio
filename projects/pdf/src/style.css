@@ -974,3 +974,198 @@ body.props-hidden .props-toggle-btn::before {
 @media (max-width: 720px) {
   .props-toggle-btn { display: none; }
 }
+/* ═══════════════════════════════════════════════════════════
+   17) MEDIA AS SHAPES — بلا إطار، شفاف، قابل للسحب من أي مكان
+   ═══════════════════════════════════════════════════════════ */
+
+/* إعادة تعريف أساسية لكل عناصر media */
+#videoLayer .media-obj {
+  position: absolute;
+  pointer-events: auto;
+  display: block;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  outline: none;
+  transition: outline-color .12s;
+}
+
+/* مؤشر خفيف عند hover */
+#stage[data-tool="select"] #videoLayer .media-obj:hover {
+  outline: 1.5px solid rgba(74,126,255,.55);
+  outline-offset: 0;
+}
+
+/* حدود واضحة عند التحديد */
+#videoLayer .media-obj.selected {
+  outline: 2px solid var(--sh-accent) !important;
+  outline-offset: 0;
+  box-shadow: 0 0 0 5px rgba(74,126,255,.18) !important;
+}
+
+/* المحتوى يملأ العنصر بالكامل */
+#videoLayer .media-obj .media-content {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent !important;
+  overflow: hidden;
+}
+
+#videoLayer .media-obj .media-content img,
+#videoLayer .media-obj .media-content video {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  background: transparent;
+  border-radius: 0;
+}
+
+/* شريط العنوان عائم فوق العنصر — يظهر عند hover/select فقط */
+#videoLayer .media-obj .media-header {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  gap: 6px;
+  background: linear-gradient(180deg, var(--sh-accent), #3b6ee0);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+  z-index: 15;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+  cursor: move;
+}
+#videoLayer .media-obj .media-header::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #3b6ee0;
+}
+#stage[data-tool="select"] #videoLayer .media-obj:hover .media-header,
+#stage[data-tool="select"] #videoLayer .media-obj.selected .media-header {
+  opacity: 1;
+  pointer-events: auto;
+}
+#stage:not([data-tool="select"]) #videoLayer .media-obj .media-header {
+  display: none;
+}
+
+#videoLayer .media-obj .media-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+  text-align: left;
+  font-weight: 500;
+}
+
+#videoLayer .media-obj .media-close {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: rgba(0,0,0,.25);
+  border: none;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+#videoLayer .media-obj .media-close:hover {
+  background: rgba(0,0,0,.55);
+}
+
+/* مقبض التحجيم */
+#videoLayer .media-obj .media-resize {
+  position: absolute;
+  bottom: -7px;
+  right: -7px;
+  width: 14px;
+  height: 14px;
+  background: var(--sh-accent);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  cursor: nwse-resize;
+  z-index: 12;
+  display: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,.35);
+}
+#stage[data-tool="select"] #videoLayer .media-obj.selected .media-resize {
+  display: block;
+}
+
+/* زر التشغيل للفيديو */
+#videoLayer .media-obj .media-play-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.55);
+  border: 2px solid rgba(255,255,255,.9);
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0 0 4px;
+  z-index: 8;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 6px 22px rgba(0,0,0,.4);
+  line-height: 1;
+  transition: opacity .2s, transform .15s;
+}
+#videoLayer .media-obj .media-play-btn:hover {
+  background: rgba(0,0,0,.75);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+#videoLayer .media-obj .media-play-btn.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#videoLayer .media-obj.media-error::after {
+  content: '⚠ تعذّر تحميل الملف';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0,0,0,.85);
+  font-size: 12px;
+  padding: 12px;
+  text-align: center;
+  border-radius: 6px;
+}

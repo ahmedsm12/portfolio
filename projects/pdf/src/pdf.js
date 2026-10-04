@@ -342,8 +342,32 @@ export async function preloadAllPages(token) {
 }
 
 /* ============================================================
-   §7. THUMBNAIL CAPTURE
+   §7. THUMBNAIL CAPTURE — نسخة html2canvas على كامل stage
+   ============================================================
+   تحلّ المشاكل:
+   - الصور كانت تُرسم كمستطيلات رمادية → الآن تُصوَّر فعلياً
+   - المعادلات كانت تُعرض كنص $...$ → الآن KaTeX يُصوَّر
+   - النصوص والأزرار تُصوَّر أيضاً
+   - الفيديوهات والـ iframes تُتجاهل (يستحيل تصويرها)
    ============================================================ */
+let _html2canvasPromise = null;
+
+function ensureHtml2Canvas() {
+  if (window.html2canvas) return Promise.resolve(window.html2canvas);
+  if (_html2canvasPromise) return _html2canvasPromise;
+  _html2canvasPromise = new Promise((resolve) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload = () => resolve(window.html2canvas);
+    s.onerror = () => {
+      console.warn('html2canvas load failed');
+      resolve(null);
+    };
+    document.head.appendChild(s);
+  });
+  return _html2canvasPromise;
+}
+
 export async function captureStageThumbnail(pageNum) {
   if (!pageNum || pageNum < 1 || pageNum > state.totalPages) return;
   if (state.currentPage !== pageNum) return;
@@ -354,118 +378,109 @@ export async function captureStageThumbnail(pageNum) {
     const aspect = state.cssW / state.cssH;
     const TH = Math.round(TW / aspect);
 
-    const canvas = document.createElement('canvas');
-    canvas.width = TW;
-    canvas.height = TH;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, TW, TH);
+    const html2canvas = await ensureHtml2Canvas();
+    if (!html2canvas) return;
 
-    try { ctx.drawImage(pdfCanvas, 0, 0, TW, TH); } catch (_) {}
+    const stageEl = document.getElementById('stage');
+    const contentEl = document.getElementById('stageContent');
+    if (!stageEl || !contentEl) return;
 
-    try {
-      const svgClone = svgLayer.cloneNode(true);
-      svgClone.querySelectorAll('.selection-overlay, .handle').forEach(n => n.remove());
-      svgClone.setAttribute('width', state.pdfW);
-      svgClone.setAttribute('height', state.pdfH);
-      svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      const svgStr = new XMLSerializer().serializeToString(svgClone);
-      const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-      const svgUrl = URL.createObjectURL(svgBlob);
-      try {
-        const svgImg = await new Promise((res, rej) => {
-          const i = new Image();
-          i.onload = () => res(i);
-          i.onerror = rej;
-          i.src = svgUrl;
-        });
-        ctx.drawImage(svgImg, 0, 0, TW, TH);
-      } finally { URL.revokeObjectURL(svgUrl); }
-    } catch (_) {}
+    /* إخفاء طبقات التفاعل المؤقتة */
+    const transient = document.getElementById('transientCanvas');
+    const laser = document.getElementById('laserCanvas');
+    const prevTransientDisplay = transient ? transient.style.display : '';
+    const prevLaserDisplay = laser ? laser.style.display : '';
+    if (transient) transient.style.display = 'none';
+    if (laser) laser.style.display = 'none';
 
-    const saved = state.pages[pageNum];
-    if (saved) {
-      const scale = TW / state.cssW;
-      ctx.textBaseline = 'top';
+    /* إخفاء مربعات التحديد يدوياً (html2canvas قد يتجاهل الـ onclone) */
+    const selectionOverlays = contentEl.querySelectorAll('.selection-overlay');
+    const prevDisplays = [];
+    selectionOverlays.forEach(o => {
+      prevDisplays.push({ el: o, display: o.style.display });
+      o.style.display = 'none';
+    });
 
-      (saved.texts || []).forEach(spec => {
-        try {
-          const x = parseFloat(spec.x) / 100 * TW;
-          const y = parseFloat(spec.y) / 100 * TH;
-          const w = parseFloat(spec.w) * scale;
-          const fontSize = (spec.fontSize || 20) * scale;
-          const text = stripMathToPlain(spec.text || '');
-          if (!text) return;
-          ctx.fillStyle = spec.color || '#000';
-          ctx.font = `${spec.fontStyle === 'italic' ? 'italic ' : ''}${spec.fontWeight === 'bold' ? 'bold ' : ''}${fontSize}px ${spec.fontFamily || 'system-ui'}`;
-          ctx.textAlign = spec.align === 'center' ? 'center'
-                        : spec.align === 'left' ? 'left' : 'right';
-          const drawX = spec.align === 'center' ? x + w / 2
-                      : spec.align === 'left' ? x : x + w;
-          ctx.fillText(text, drawX, y, w);
-        } catch (_) {}
-      });
+    /* إزالة التحويل مؤقتاً للحصول على الصفحة كاملة */
+    const prevTransform = contentEl.style.transform;
+    const prevTransition = contentEl.style.transition;
+    contentEl.style.transform = 'none';
+    contentEl.style.transition = 'none';
 
-      (saved.buttons || []).forEach(spec => {
-        try {
-          const x = parseFloat(spec.x) / 100 * TW;
-          const y = parseFloat(spec.y) / 100 * TH;
-          const w = parseFloat(spec.w) * scale;
-          const h = parseFloat(spec.h) * scale;
-          const r = Math.min((spec.borderRadius || 12) * scale, Math.min(w, h) / 2);
-          ctx.fillStyle = hexToRgba(spec.fillColor, spec.fillOpacity);
-          roundRect(ctx, x, y, w, h, r);
-          ctx.fill();
-          ctx.strokeStyle = hexToRgba(spec.borderColor, spec.borderOpacity);
-          ctx.lineWidth = 1;
-          ctx.stroke();
-          const fontSize = (spec.fontSize || 18) * scale;
-          const text = stripMathToPlain(spec.text || '');
-          if (text) {
-            ctx.fillStyle = spec.textColor || '#000';
-            ctx.font = `600 ${fontSize}px system-ui`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, x + w / 2, y + h / 2, w - 4);
-            ctx.textBaseline = 'top';
-          }
-        } catch (_) {}
-      });
+    /* انتظر إطارين لضمان الرسم */
+    await new Promise(r => requestAnimationFrame(r));
+    await new Promise(r => requestAnimationFrame(r));
+    await new Promise(r => setTimeout(r, 80));
 
-      const mediaList = saved.media || saved.videos || [];
-      mediaList.forEach(spec => {
-        try {
-          const x = parseFloat(spec.x) / 100 * TW;
-          const y = parseFloat(spec.y) / 100 * TH;
-          const w = parseFloat(spec.w) / 100 * TW;
-          const h = parseFloat(spec.h) / 100 * TH;
-          ctx.fillStyle = '#2b2b2b';
-          ctx.fillRect(x, y, w, h);
-        } catch (_) {}
-      });
-      (saved.embeds || []).forEach(spec => {
-        try {
-          const x = parseFloat(spec.x) / 100 * TW;
-          const y = parseFloat(spec.y) / 100 * TH;
-          const w = parseFloat(spec.w) / 100 * TW;
-          const h = parseFloat(spec.h) / 100 * TH;
-          ctx.fillStyle = '#e6eeff';
-          ctx.fillRect(x, y, w, h);
-          ctx.strokeStyle = '#4a7eff';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-        } catch (_) {}
-      });
+    /* انتظر الخطوط (KaTeX) */
+    if (document.fonts && document.fonts.ready) {
+      try { await document.fonts.ready; } catch (_) {}
     }
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    /* التقاط */
+    let canvas;
+    try {
+      canvas = await html2canvas(stageEl, {
+        backgroundColor: null,
+        scale: 1,
+        logging: false,
+        useCORS: true,
+        allowTaint: false,
+        width: state.cssW,
+        height: state.cssH,
+        windowWidth: state.cssW,
+        windowHeight: state.cssH,
+        ignoreElements: (el) => {
+          const tag = el.tagName;
+          if (tag === 'VIDEO') return true;
+          if (tag === 'IFRAME') return true;
+          if (el.id === 'transientCanvas') return true;
+          if (el.id === 'laserCanvas') return true;
+          if (el.classList && el.classList.contains('selection-overlay')) return true;
+          if (el.classList && el.classList.contains('handle')) return true;
+          if (el.classList && el.classList.contains('media-play-btn')) return true;
+          if (el.classList && el.classList.contains('media-resize')) return true;
+          return false;
+        }
+      });
+    } finally {
+      /* استعد كل شيء */
+      contentEl.style.transform = prevTransform;
+      contentEl.style.transition = prevTransition;
+      if (transient) transient.style.display = prevTransientDisplay;
+      if (laser) laser.style.display = prevLaserDisplay;
+      prevDisplays.forEach(item => { item.el.style.display = item.display; });
+    }
+
+    /* ضبط الحجم النهائي */
+    let finalCanvas = canvas;
+    if (canvas.width !== TW || canvas.height !== TH) {
+      const resized = document.createElement('canvas');
+      resized.width = TW;
+      resized.height = TH;
+      const rctx = resized.getContext('2d');
+
+      /* خلفية الشريحة */
+      let bgColor = '#ffffff';
+      const slide = state.slides[pageNum - 1];
+      if (slide && slide.bg && slide.bg.type === 'blank' && slide.bg.color) {
+        bgColor = slide.bg.color;
+      } else if (state.projectDims && state.projectDims.bg) {
+        bgColor = state.projectDims.bg;
+      }
+      rctx.fillStyle = bgColor;
+      rctx.fillRect(0, 0, TW, TH);
+      rctx.drawImage(canvas, 0, 0, TW, TH);
+      finalCanvas = resized;
+    }
+
+    const dataUrl = finalCanvas.toDataURL('image/jpeg', 0.85);
     state.thumbCache.set(pageNum, { dataUrl, userEdited: true });
     updateThumbnailImg(pageNum);
   } catch (e) {
     console.warn('captureStageThumbnail failed:', e);
   }
 }
-
 /* ============================================================
    §8. CACHE SHIFTING
    ============================================================ */
