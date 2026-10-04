@@ -853,3 +853,124 @@ html,body{
   #submenu{right:50px;min-width:82px}
   #textContextToolbar,#shapeContextToolbar{font-size:11px}
 }
+/* ═══════════════════════════════════════════════════════════
+   14) FIX: EQUATION GRIDS ALWAYS VISIBLE
+   ═══════════════════════════════════════════════════════════ */
+#equationEditor #eqPaletteHost .eq-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)) !important;
+  gap: 6px !important;
+  padding: 4px !important;
+}
+#equationEditor #eqPaletteHost .eq-grid:not(.active) {
+  display: none !important;
+}
+/* ضمان أن أول grid يظهر حتى لو فشل JS */
+#equationEditor.show #eqPaletteHost .eq-grid:first-of-type {
+  display: grid !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   15) FIX: IMAGES WITHOUT FRAME
+   ═══════════════════════════════════════════════════════════ */
+#videoLayer .media-obj[data-media-type="image"] {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+#videoLayer .media-obj[data-media-type="image"] .media-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  background: linear-gradient(180deg, rgba(74,126,255,.85), rgba(74,126,255,.1));
+  border-radius: 6px 6px 0 0;
+}
+#videoLayer .media-obj[data-media-type="image"] .media-content {
+  background: transparent !important;
+}
+#videoLayer .media-obj[data-media-type="image"] .media-content img {
+  background: transparent !important;
+  object-fit: contain;
+  box-shadow: none;
+}
+#videoLayer .media-obj[data-media-type="image"].selected {
+  box-shadow: 0 0 0 2px var(--sh-accent), 0 0 0 6px rgba(74,126,255,.25) !important;
+}
+#videoLayer .media-obj[data-media-type="image"]:hover {
+  box-shadow: 0 0 0 1.5px rgba(74,126,255,.5) !important;
+}
+#videoLayer .media-obj[data-media-type="image"] .media-resize {
+  bottom: -6px;
+  right: -6px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   16) PROPS PANEL TOGGLE
+   ═══════════════════════════════════════════════════════════ */
+#propsRight {
+  transition: transform .22s ease, bottom .2s ease;
+}
+
+#stageWrapper {
+  transition: bottom .2s ease, right .22s ease;
+}
+
+body.props-hidden #propsRight {
+  transform: translateX(100%);
+  pointer-events: none;
+}
+body.props-hidden #stageWrapper {
+  right: 0;
+}
+
+.props-toggle-btn {
+  position: fixed;
+  right: 320px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 54px;
+  background: var(--sh-panel);
+  border: 1px solid var(--sh-border);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: var(--sh-text-muted);
+  cursor: pointer;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1079;
+  transition: right .22s ease, background .12s, color .12s;
+  font-family: inherit;
+  padding: 0;
+}
+.props-toggle-btn:hover {
+  background: var(--sh-panel-2);
+  color: var(--sh-text);
+}
+body.props-hidden .props-toggle-btn {
+  right: 0;
+}
+body.props-hidden .props-toggle-btn::before {
+  content: '‹';
+}
+.props-toggle-btn::before {
+  content: '›';
+}
+.props-toggle-btn {
+  font-size: 0;
+}
+.props-toggle-btn::before {
+  font-size: 16px;
+}
+
+@media (max-width: 900px) {
+  .props-toggle-btn { right: 260px; }
+}
+@media (max-width: 720px) {
+  .props-toggle-btn { display: none; }
+}

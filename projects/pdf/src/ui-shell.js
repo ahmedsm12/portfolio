@@ -272,16 +272,46 @@ function initTopbarActions() {
 }
 
 /* ============================================================
-   §7. EQUATION DIALOG ★★★ الإصلاح الجوهري
+   §7. PROPS PANEL TOGGLE ★★★ جديد
+   ============================================================ */
+function initPropsToggle() {
+  /* زر عائم على الحافة اليمنى */
+  let btn = document.getElementById('btnToggleProps');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'btnToggleProps';
+    btn.className = 'props-toggle-btn';
+    btn.title = 'إخفاء / إظهار لوحة الخصائص';
+    document.body.appendChild(btn);
+  }
+
+  btn.addEventListener('click', () => {
+    document.body.classList.toggle('props-hidden');
+    /* بعد إخفاء اللوحة، المساحة للـ stage تتغير → أعد حساب الأبعاد */
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 260);
+  });
+
+  /* اختصار لوحة المفاتيح Ctrl+. */
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === '.') {
+      e.preventDefault();
+      document.body.classList.toggle('props-hidden');
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
+    }
+  });
+}
+
+/* ============================================================
+   §8. EQUATION DIALOG — النسخة المُصلَحة
    ============================================================
-   الأزرار كانت معطلة لأن stopPropagation كان في capture phase
-   (true) فيمنع الحدث من الوصول إلى الأزرار. الحل:
-   - استخدام bubble phase (بدون true)
-   - الحدث يصل للأزرار أولاً، تعمل، ثم يصعد إلى editor فيُوقف
-   - لا يصل إلى document (الذي يُغلق المحرر)
+   الإصلاحات:
+   - grids تُبنى بفئة .active على أول فئة
+   - عند إعادة الفتح، يُفعَّل أول grid إن لم يكن أي grid نشطاً
+   - التبويبات تستخدم index بدل مرجع مباشر (يبقى صالحاً بعد إعادة البناء)
    ============================================================ */
 function setupEquationBackdropMirror() {
-  /* 1) تأكد من وجود #equationBackdrop */
   let backdrop = document.getElementById('equationBackdrop');
   if (!backdrop) {
     backdrop = document.createElement('div');
@@ -295,47 +325,34 @@ function setupEquationBackdropMirror() {
     return;
   }
 
-  /* ★ 2) أوقف انتشار الأحداث في bubble phase
-        هذا يسمح للأزرار بالعمل ثم يمنع الصعود إلى document
-  */
+  /* درع الأحداث — bubble phase */
   if (!editor._uiShieldWired) {
     editor._uiShieldWired = true;
-
     const shieldEvents = [
       'pointerdown', 'pointerup', 'pointermove',
       'mousedown', 'mouseup', 'mousemove',
       'click', 'dblclick',
       'touchstart', 'touchend', 'touchmove',
       'keydown', 'keyup', 'keypress',
-      'wheel', 'contextmenu',
+      'wheel', 'contextmenu'
     ];
-
     shieldEvents.forEach(evt => {
       editor.addEventListener(evt, (e) => {
-        /* bubble phase — اترك العناصر الفرعية تعمل */
         e.stopPropagation();
       }, false);
     });
   }
 
-  /* 3) نفس الحماية للـ backdrop */
   if (!backdrop._uiShieldWired) {
     backdrop._uiShieldWired = true;
     ['pointerdown', 'click', 'mousedown', 'mouseup'].forEach(evt => {
       backdrop.addEventListener(evt, (e) => {
-        if (e.target === backdrop) {
-          /* النقر على الخلفية نفسها → أغلق */
-          e.stopPropagation();
-          hideBoth();
-        } else {
-          /* النقر على عنصر داخل المحرر (منتقل) → اتركه */
-          e.stopPropagation();
-        }
+        e.stopPropagation();
+        if (e.target === backdrop) hideBoth();
       }, false);
     });
   }
 
-  /* 4) دوال المزامنة */
   function hideBoth() {
     editor.classList.remove('show');
     backdrop.classList.remove('show');
@@ -347,8 +364,8 @@ function setupEquationBackdropMirror() {
     if (shown) {
       backdrop.style.display = 'block';
       editor.classList.add('show');
-      ensureEquationTabs(editor);
       ensureEquationPalette(editor);
+      ensureEquationTabs(editor);
       const ta = document.getElementById('eqTextarea');
       if (ta) setTimeout(() => { try { ta.focus(); } catch (_) {} }, 100);
     } else {
@@ -357,12 +374,11 @@ function setupEquationBackdropMirror() {
     }
   }
 
-  /* 5) راقب الـ backdrop */
   const obs = new MutationObserver(syncFromBackdrop);
   obs.observe(backdrop, { attributes: true, attributeFilter: ['class'] });
   backdrop.style.display = backdrop.classList.contains('show') ? 'block' : 'none';
 
-  /* 6) زر X و زر إلغاء */
+  /* أزرار الإغلاق */
   const closeBtn = document.getElementById('eqCloseBtn');
   const cancelBtn = document.getElementById('eqCancelBtn');
   if (closeBtn && !closeBtn._uiWired) {
@@ -380,7 +396,7 @@ function setupEquationBackdropMirror() {
     });
   }
 
-  /* 7) Escape يغلق */
+  /* Escape */
   if (!editor._uiEscapeWired) {
     editor._uiEscapeWired = true;
     editor.addEventListener('keydown', (e) => {
@@ -391,53 +407,84 @@ function setupEquationBackdropMirror() {
     });
   }
 
-  /* 8) زر المعادلة في الشريط */
+  /* زر المعادلة في الشريط */
   const eqBtn = document.querySelector('#toolbar button[data-tool="equation"]');
   if (eqBtn && !eqBtn._uiMirrorWired) {
     eqBtn._uiMirrorWired = true;
     eqBtn.addEventListener('click', () => {
       setTimeout(() => {
-        if (editor.classList.contains('show')) return;
+        if (editor.classList.contains('show')) {
+          /* مفتوح بالفعل — تأكد من grid نشط */
+          ensureEquationTabs(editor);
+          return;
+        }
         console.warn('[ui-shell] fallback: فتح المحرر يدوياً');
         backdrop.classList.add('show');
         backdrop.style.display = 'block';
         editor.classList.add('show');
-        ensureEquationTabs(editor);
         ensureEquationPalette(editor);
+        ensureEquationTabs(editor);
         const ta = document.getElementById('eqTextarea');
         if (ta) setTimeout(() => { try { ta.focus(); } catch (_) {} }, 80);
       }, 250);
-    }, true); /* capture على الزر — لكن الزر نفسه داخل toolbar، لا مشكلة */
+    }, true);
   }
 }
 
 /* ============================================================
-   تبويبات الفئات
+   §8.1 EQUATION TABS — الإصلاح الجذري
    ============================================================ */
 function ensureEquationTabs(editor) {
   const host = editor.querySelector('#eqPaletteHost');
   if (!host) return;
-  if (host.parentElement.querySelector('.eq-cat-tabs')) return;
 
+  const existingTabs = host.parentElement.querySelector('.eq-cat-tabs');
+
+  if (existingTabs) {
+    /* ★ التبويبات موجودة — تأكد فقط من وجود grid نشط */
+    if (!host.querySelector('.eq-grid.active')) {
+      const firstGrid = host.querySelector('.eq-grid');
+      if (firstGrid) firstGrid.classList.add('active');
+    }
+    if (!existingTabs.querySelector('.eq-cat-tab.active')) {
+      const firstTab = existingTabs.querySelector('.eq-cat-tab');
+      if (firstTab) firstTab.classList.add('active');
+    }
+    return;
+  }
+
+  /* جمع الأقسام من DOM */
   const sections = [];
   let currentCat = null;
 
   Array.from(host.children).forEach(child => {
     if (child.classList.contains('eq-section-label')) {
-      currentCat = {
-        label: child.textContent.trim(),
-        gridEl: null,
-      };
+      currentCat = { label: child.textContent.trim() };
       sections.push(currentCat);
     } else if (child.classList.contains('eq-grid') && currentCat) {
-      currentCat.gridEl = child;
+      /* لا شيء هنا */
     }
   });
 
   if (sections.length < 2) return;
 
+  /* شريط التبويبات */
   const tabsBar = document.createElement('div');
   tabsBar.className = 'eq-cat-tabs';
+
+  /* أضف زر "الكل" */
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = 'eq-cat-tab';
+  allBtn.textContent = '★ الكل';
+  allBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    tabsBar.querySelectorAll('.eq-cat-tab').forEach(b => b.classList.remove('active'));
+    allBtn.classList.add('active');
+    /* أظهر كل الشبكات */
+    host.querySelectorAll('.eq-grid').forEach(g => g.classList.add('active'));
+  });
+  tabsBar.appendChild(allBtn);
 
   sections.forEach((sec, i) => {
     const btn = document.createElement('button');
@@ -449,20 +496,27 @@ function ensureEquationTabs(editor) {
       e.stopPropagation();
       tabsBar.querySelectorAll('.eq-cat-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      host.querySelectorAll('.eq-grid').forEach(g => g.classList.remove('active'));
-      if (sec.gridEl) sec.gridEl.classList.add('active');
+      /* ★ استخدم index بدل مرجع — يبقى صالحاً بعد إعادة البناء */
+      const grids = host.querySelectorAll('.eq-grid');
+      grids.forEach((g, j) => g.classList.toggle('active', j === i));
     });
 
     tabsBar.appendChild(btn);
   });
 
+  /* إذا شريط التبويبات موجود سابقاً لأي سبب، أزله */
+  const old = host.parentElement.querySelector('.eq-cat-tabs');
+  if (old) old.remove();
+
   host.parentElement.insertBefore(tabsBar, host);
 
-  if (sections[0].gridEl) sections[0].gridEl.classList.add('active');
+  /* ★ فعّل أول grid */
+  const grids = host.querySelectorAll('.eq-grid');
+  grids.forEach((g, i) => g.classList.toggle('active', i === 0));
 }
 
 /* ============================================================
-   تأكد من وجود محتوى palette
+   §8.2 ENSURE PALETTE
    ============================================================ */
 function ensureEquationPalette(editor) {
   const host = editor.querySelector('#eqPaletteHost');
@@ -482,7 +536,7 @@ function ensureEquationPalette(editor) {
 }
 
 /* ============================================================
-   Palette احتياطية
+   §8.3 FALLBACK PALETTE
    ============================================================ */
 function buildFallbackPalette(host) {
   const TEMPLATES = [
@@ -492,6 +546,7 @@ function buildFallbackPalette(host) {
       { label: 'ⁿ√',  latex: '\\sqrt[n]{x}' },
       { label: 'x/y', latex: '\\frac{x}{y}' },
       { label: '¹⁄₂', latex: '\\frac{1}{2}' },
+      { label: 'a+b/c', latex: '\\frac{a+b}{c}' },
     ]},
     { cat: 'الأسس', items: [
       { label: 'x²', latex: 'x^{2}' },
@@ -499,34 +554,101 @@ function buildFallbackPalette(host) {
       { label: 'xⁿ', latex: 'x^{n}' },
       { label: 'xₐᵦ', latex: 'x_{a}^{b}' },
       { label: 'eˣ', latex: 'e^{x}' },
+      { label: 'a⁺ᵇ', latex: 'a^{n+1}' },
     ]},
     { cat: 'المجاميع والتكاملات', items: [
       { label: '∑',   latex: '\\sum_{i=1}^{n}' },
       { label: '∏',   latex: '\\prod_{i=1}^{n}' },
       { label: '∫',   latex: '\\int_{a}^{b}' },
       { label: '∬',   latex: '\\iint' },
+      { label: '∮',   latex: '\\oint' },
       { label: 'lim', latex: '\\lim_{x \\to \\infty}' },
       { label: 'd/dx', latex: '\\frac{d}{dx}' },
+      { label: '∂/∂x', latex: '\\frac{\\partial}{\\partial x}' },
+      { label: '∞',   latex: '\\infty' },
     ]},
     { cat: 'حروف يونانية', items: [
-      { label: 'α', latex: '\\alpha' }, { label: 'β', latex: '\\beta' }, { label: 'γ', latex: '\\gamma' },
-      { label: 'δ', latex: '\\delta' }, { label: 'ε', latex: '\\epsilon' }, { label: 'θ', latex: '\\theta' },
-      { label: 'λ', latex: '\\lambda' }, { label: 'μ', latex: '\\mu' }, { label: 'π', latex: '\\pi' },
-      { label: 'σ', latex: '\\sigma' }, { label: 'φ', latex: '\\phi' }, { label: 'ω', latex: '\\omega' },
+      { label: 'α', latex: '\\alpha' },
+      { label: 'β', latex: '\\beta' },
+      { label: 'γ', latex: '\\gamma' },
+      { label: 'δ', latex: '\\delta' },
+      { label: 'ε', latex: '\\epsilon' },
+      { label: 'θ', latex: '\\theta' },
+      { label: 'λ', latex: '\\lambda' },
+      { label: 'μ', latex: '\\mu' },
+      { label: 'π', latex: '\\pi' },
+      { label: 'ρ', latex: '\\rho' },
+      { label: 'σ', latex: '\\sigma' },
+      { label: 'τ', latex: '\\tau' },
+      { label: 'φ', latex: '\\phi' },
+      { label: 'χ', latex: '\\chi' },
+      { label: 'ψ', latex: '\\psi' },
+      { label: 'ω', latex: '\\omega' },
+      { label: 'Δ', latex: '\\Delta' },
+      { label: 'Σ', latex: '\\Sigma' },
     ]},
-    { cat: 'العلاقات', items: [
-      { label: '≠', latex: '\\neq' }, { label: '≤', latex: '\\leq' }, { label: '≥', latex: '\\geq' },
-      { label: '≈', latex: '\\approx' }, { label: '∞', latex: '\\infty' }, { label: '±', latex: '\\pm' },
-      { label: '→', latex: '\\to' }, { label: '⇒', latex: '\\Rightarrow' }, { label: '∈', latex: '\\in' },
+    { cat: 'العلاقات والعمليات', items: [
+      { label: '≠',  latex: '\\neq' },
+      { label: '≤',  latex: '\\leq' },
+      { label: '≥',  latex: '\\geq' },
+      { label: '≈',  latex: '\\approx' },
+      { label: '≡',  latex: '\\equiv' },
+      { label: '∝',  latex: '\\propto' },
+      { label: '±',  latex: '\\pm' },
+      { label: '×',  latex: '\\times' },
+      { label: '÷',  latex: '\\div' },
+      { label: '·',  latex: '\\cdot' },
+      { label: '→',  latex: '\\to' },
+      { label: '⇒',  latex: '\\Rightarrow' },
+      { label: '⇔',  latex: '\\Leftrightarrow' },
+      { label: '∈',  latex: '\\in' },
+      { label: '∉',  latex: '\\notin' },
+      { label: '⊂',  latex: '\\subset' },
+      { label: '∪',  latex: '\\cup' },
+      { label: '∩',  latex: '\\cap' },
+      { label: '∀',  latex: '\\forall' },
+      { label: '∃',  latex: '\\exists' },
     ]},
     { cat: 'الدوال', items: [
-      { label: 'sin', latex: '\\sin' }, { label: 'cos', latex: '\\cos' }, { label: 'tan', latex: '\\tan' },
-      { label: 'log', latex: '\\log' }, { label: 'ln', latex: '\\ln' }, { label: 'exp', latex: '\\exp' },
+      { label: 'sin',  latex: '\\sin' },
+      { label: 'cos',  latex: '\\cos' },
+      { label: 'tan',  latex: '\\tan' },
+      { label: 'cot',  latex: '\\cot' },
+      { label: 'sec',  latex: '\\sec' },
+      { label: 'csc',  latex: '\\csc' },
+      { label: 'log',  latex: '\\log' },
+      { label: 'ln',   latex: '\\ln' },
+      { label: 'exp',  latex: '\\exp' },
+      { label: 'sin⁻¹', latex: '\\arcsin' },
+      { label: 'cos⁻¹', latex: '\\arccos' },
+      { label: 'tan⁻¹', latex: '\\arctan' },
     ]},
     { cat: 'مصفوفات', items: [
-      { label: 'matrix', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
-      { label: 'cases',  latex: '\\begin{cases} a \\\\ b \\end{cases}' },
-      { label: 'vec',    latex: '\\vec{v}' },
+      { label: 'matrix 2×2', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
+      { label: 'matrix 3×3', latex: '\\begin{pmatrix} a & b & c \\\\ d & e & f \\\\ g & h & i \\end{pmatrix}' },
+      { label: 'cases',      latex: '\\begin{cases} a \\\\ b \\end{cases}' },
+      { label: 'vec',        latex: '\\vec{v}' },
+      { label: 'hat',        latex: '\\hat{x}' },
+      { label: 'bar',        latex: '\\bar{x}' },
+      { label: 'det',        latex: '\\det A' },
+    ]},
+    { cat: 'أحرف لاتينية', items: [
+      { label: 'x',  latex: 'x' },
+      { label: 'y',  latex: 'y' },
+      { label: 'z',  latex: 'z' },
+      { label: 'a',  latex: 'a' },
+      { label: 'b',  latex: 'b' },
+      { label: 'c',  latex: 'c' },
+      { label: 'f(x)', latex: 'f(x)' },
+      { label: 'dx',  latex: 'dx' },
+      { label: 'dy',  latex: 'dy' },
+      { label: '≠0', latex: '\\neq 0' },
+      { label: 'x∈ℝ', latex: 'x \\in \\mathbb{R}' },
+      { label: 'ℕ',  latex: '\\mathbb{N}' },
+      { label: 'ℤ',  latex: '\\mathbb{Z}' },
+      { label: 'ℚ',  latex: '\\mathbb{Q}' },
+      { label: 'ℝ',  latex: '\\mathbb{R}' },
+      { label: 'ℂ',  latex: '\\mathbb{C}' },
     ]},
   ];
 
@@ -565,9 +687,12 @@ function buildFallbackPalette(host) {
         const ta = document.getElementById('eqTextarea');
         if (!ta) return;
         const pos = ta.selectionStart || ta.value.length;
-        ta.value = ta.value.substring(0, pos) + item.latex + ta.value.substring(pos);
+        const before = ta.value.substring(0, pos);
+        const after = ta.value.substring(pos);
+        ta.value = before + item.latex + after;
+        const newPos = pos + item.latex.length;
         ta.focus();
-        try { ta.setSelectionRange(pos + item.latex.length, pos + item.latex.length); } catch (_) {}
+        try { ta.setSelectionRange(newPos, newPos); } catch (_) {}
         ta.dispatchEvent(new Event('input', { bubbles: true }));
       });
       grid.appendChild(btn);
@@ -578,74 +703,7 @@ function buildFallbackPalette(host) {
 }
 
 /* ============================================================
-   §7.5. DOCUMENT INFO PANEL — يعرض معلومات المشروع الحالي
-   ============================================================ */
-function initDocumentInfoPanel() {
-  const container = document.getElementById('documentInfoPanel');
-  const hint = document.getElementById('elementPropsHint');
-  if (!container) return;
-
-  async function refresh() {
-    const core = await import('./core.js');
-    const state = core.state;
-    const hasProject = state.slides && state.slides.length > 0;
-
-    if (!hasProject) {
-      container.innerHTML = '';
-      if (hint) hint.style.display = 'block';
-      return;
-    }
-
-    if (hint) hint.style.display = 'block';
-
-    const dims = state.projectDims || (state.pdfDoc ? { width: state.pdfW, height: state.pdfH, unit: 'px', bg: '#ffffff' } : null);
-    const source = state.pdfDoc ? 'PDF' : 'مخصص';
-
-    container.innerHTML = `
-      <div class="prop-section" style="padding:12px;background:rgba(255,255,255,.03);border:1px solid var(--sh-border);border-radius:10px;margin-bottom:12px">
-        <div class="prop-title" style="margin-bottom:8px">
-          <span>📋 المشروع</span>
-          <span style="font-size:10px;color:var(--sh-text-dim)">${source}</span>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;font-size:11.5px">
-          <div style="display:flex;justify-content:space-between">
-            <span style="color:var(--sh-text-muted)">الأبعاد</span>
-            <strong style="font-variant-numeric:tabular-nums">${dims ? dims.width + ' × ' + dims.height : '—'}</strong>
-          </div>
-          <div style="display:flex;justify-content:space-between">
-            <span style="color:var(--sh-text-muted)">الشرائح</span>
-            <strong>${state.totalPages}</strong>
-          </div>
-          <div style="display:flex;justify-content:space-between">
-            <span style="color:var(--sh-text-muted)">الحالي</span>
-            <strong>${state.currentPage}</strong>
-          </div>
-        </div>
-        <button type="button" id="btnEditProjectDims" style="width:100%;margin-top:10px;padding:7px;border-radius:7px;background:rgba(74,126,255,.12);border:1px solid rgba(74,126,255,.25);color:#a8c4ff;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer">
-          ✏️ تعديل إعدادات المشروع
-        </button>
-      </div>
-    `;
-
-    const editBtn = container.querySelector('#btnEditProjectDims');
-    if (editBtn) {
-      editBtn.addEventListener('click', async () => {
-        const np = await import('./new-project.js');
-        np.openNewProjectDialog();
-      });
-    }
-  }
-
-  refresh();
-
-  /* استمع لأحداث المشروع */
-  document.addEventListener('ipb:pageChanged', refresh);
-  document.addEventListener('ipb:projectCreated', refresh);
-}
-
-
-/* ============================================================
-   §8. PRESENT MODE
+   §9. PRESENT MODE
    ============================================================ */
 const presentState = {
   active: false,
@@ -871,7 +929,7 @@ function unbindPresentKeys() {
 }
 
 /* ============================================================
-   §9. LAYERS OBSERVER
+   §10. LAYERS OBSERVER
    ============================================================ */
 let _layersObserver = null;
 function initLayersObserver() {
@@ -890,7 +948,7 @@ function initPageChangeListener() {
 }
 
 /* ============================================================
-   §10. GLOBAL SHORTCUTS
+   §11. GLOBAL SHORTCUTS
    ============================================================ */
 function initGlobalShortcuts() {
   document.addEventListener('keydown', (e) => {
@@ -903,7 +961,7 @@ function initGlobalShortcuts() {
 }
 
 /* ============================================================
-   §11. INIT
+   §12. INIT
    ============================================================ */
 export function initUIShell() {
   applyVersion();
@@ -912,9 +970,7 @@ export function initUIShell() {
   initTopbarActions();
   initGlobalShortcuts();
   setupEquationBackdropMirror();
-
-  /* ★ إضافة: عرض معلومات المستند في اللوحة اليمنى */
-  initDocumentInfoPanel();
+  initPropsToggle();
 
   setTimeout(() => {
     initLayersObserver();
@@ -922,6 +978,7 @@ export function initUIShell() {
     refreshLayersPanel();
   }, 500);
 }
+
 if (typeof window !== 'undefined') {
   window.__UI_SHELL__ = {
     version: APP_VERSION,
