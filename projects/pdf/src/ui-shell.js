@@ -272,10 +272,203 @@ function initTopbarActions() {
 }
 
 /* ============================================================
-   §7. PROPS PANEL TOGGLE ★★★ جديد
+   §7. CLOSE PROJECT — Dialog + Reset ★★★ جديد
+   ============================================================ */
+function initCloseProject() {
+  const btn = document.getElementById('btnCloseProject');
+  if (!btn) return;
+  btn.addEventListener('click', showCloseDialog);
+
+  /* Ctrl+W */
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
+      e.preventDefault();
+      showCloseDialog();
+    }
+  });
+}
+
+function showCloseDialog() {
+  /* هل هناك مشروع مفتوح؟ */
+  import('./core.js').then(core => {
+    const state = core.state;
+    const hasProject = state.slides && state.slides.length > 0 &&
+                       (state.pdfDoc || state.pdfBlob || state.projectDims);
+
+    if (!hasProject) {
+      /* لا يوجد مشروع — لا حاجة للسؤال */
+      resetToEmptyState();
+      return;
+    }
+
+    openConfirmDialog({
+      title: 'إغلاق المشروع',
+      message: 'هل تريد حفظ المشروع قبل الإغلاق؟',
+      subtitle: state.pdfName || 'مشروع جديد',
+      primaryLabel: '💾 حفظ وإغلاق',
+      secondaryLabel: 'عدم الحفظ',
+      cancelLabel: 'إلغاء',
+      onPrimary: async () => {
+        try {
+          const storage = await import('./storage.js');
+          await storage.saveProjectAsFile();
+        } catch (e) {
+          console.warn('save failed', e);
+        }
+        resetToEmptyState();
+      },
+      onSecondary: () => {
+        resetToEmptyState();
+      }
+    });
+  }).catch(err => console.error(err));
+}
+
+/**
+ * Dialog تأكيد احترافي
+ */
+function openConfirmDialog(opts) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'ipb-confirm-backdrop';
+
+  const dialog = document.createElement('div');
+  dialog.className = 'ipb-confirm-dialog';
+
+  dialog.innerHTML = `
+    <div class="ipb-confirm-icon">⚠️</div>
+    <h2 class="ipb-confirm-title"></h2>
+    <p class="ipb-confirm-subtitle"></p>
+    <p class="ipb-confirm-message"></p>
+    <div class="ipb-confirm-actions">
+      <button type="button" class="ipb-confirm-btn ipb-confirm-cancel"></button>
+      <button type="button" class="ipb-confirm-btn ipb-confirm-secondary"></button>
+      <button type="button" class="ipb-confirm-btn ipb-confirm-primary"></button>
+    </div>
+  `;
+
+  dialog.querySelector('.ipb-confirm-title').textContent = opts.title || 'تأكيد';
+  dialog.querySelector('.ipb-confirm-subtitle').textContent = opts.subtitle || '';
+  dialog.querySelector('.ipb-confirm-message').textContent = opts.message || '';
+  dialog.querySelector('.ipb-confirm-primary').textContent = opts.primaryLabel || 'حفظ';
+  dialog.querySelector('.ipb-confirm-secondary').textContent = opts.secondaryLabel || 'عدم الحفظ';
+  dialog.querySelector('.ipb-confirm-cancel').textContent = opts.cancelLabel || 'إلغاء';
+
+  backdrop.appendChild(dialog);
+  document.body.appendChild(backdrop);
+
+  function close() {
+    backdrop.classList.remove('show');
+    setTimeout(() => backdrop.remove(), 180);
+  }
+
+  dialog.querySelector('.ipb-confirm-primary').addEventListener('click', () => {
+    close();
+    if (opts.onPrimary) opts.onPrimary();
+  });
+  dialog.querySelector('.ipb-confirm-secondary').addEventListener('click', () => {
+    close();
+    if (opts.onSecondary) opts.onSecondary();
+  });
+  dialog.querySelector('.ipb-confirm-cancel').addEventListener('click', () => {
+    close();
+    if (opts.onCancel) opts.onCancel();
+  });
+
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) close();
+  });
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') {
+      document.removeEventListener('keydown', onEsc);
+      close();
+    }
+  });
+
+  requestAnimationFrame(() => backdrop.classList.add('show'));
+  /* تركيز زر الحفظ */
+  setTimeout(() => {
+    try { dialog.querySelector('.ipb-confirm-primary').focus(); } catch (_) {}
+  }, 100);
+}
+
+/**
+ * إعادة التطبيق إلى الحالة الفارغة
+ */
+function resetToEmptyState() {
+  import('./core.js').then(core => {
+    const state = core.state;
+
+    /* إخفاء وضع العرض لو كان مفتوحاً */
+    document.body.classList.remove('present-active');
+    const presentOverlay = document.getElementById('presentOverlay');
+    if (presentOverlay) presentOverlay.classList.remove('active');
+
+    /* تفريغ الحالة */
+    state.pdfDoc = null;
+    state.pdfBlob = null;
+    state.pdfName = '';
+    state.pdfIsImage = false;
+    state.slides = [];
+    state.totalPages = 0;
+    state.currentPage = 1;
+    state.pages = {};
+    state.history = {};
+    state.selected = null;
+    state.projectDims = null;
+    state.pageCache.clear();
+    state.thumbCache.clear();
+    state.view = { scale: 1, tx: 0, ty: 0 };
+
+    /* تفريغ الطبقات */
+    ['svgLayer', 'embedLayer', 'videoLayer', 'textLayer', 'interactiveLayer'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    });
+
+    /* تفريغ canvas */
+    const pdfCanvas = document.getElementById('pdfCanvas');
+    if (pdfCanvas) {
+      const ctx = pdfCanvas.getContext('2d');
+      ctx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
+    }
+
+    /* تفريغ الـ thumbs */
+    const thumbsList = document.getElementById('thumbsList');
+    if (thumbsList) {
+      thumbsList.innerHTML = '<div class="thumbs-empty">لا توجد صفحات<br>افتح ملفاً للبدء</div>';
+    }
+
+    /* إعادة مؤشر الصفحة */
+    const pageIndicator = document.getElementById('pageIndicator');
+    if (pageIndicator) pageIndicator.textContent = '';
+
+    /* إظهار شاشة البداية */
+    const emptyState = document.getElementById('emptyState');
+    if (emptyState) emptyState.style.display = 'flex';
+
+    /* إخفاء الـ loading */
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) loadingEl.classList.remove('show');
+
+    /* تفريغ مؤشر الحفظ */
+    setSaveBadge('لا مشروع', false);
+
+    /* تفريغ لوحة الخصائص */
+    const docInfo = document.getElementById('documentInfoPanel');
+    if (docInfo) docInfo.innerHTML = '';
+
+    /* تحديث الطبقات */
+    refreshLayersPanel();
+
+    /* إشعار الواجهة */
+    document.dispatchEvent(new CustomEvent('ipb:projectClosed'));
+  }).catch(err => console.error(err));
+}
+
+/* ============================================================
+   §8. PROPS PANEL TOGGLE
    ============================================================ */
 function initPropsToggle() {
-  /* زر عائم على الحافة اليمنى */
   let btn = document.getElementById('btnToggleProps');
   if (!btn) {
     btn = document.createElement('button');
@@ -287,13 +480,9 @@ function initPropsToggle() {
 
   btn.addEventListener('click', () => {
     document.body.classList.toggle('props-hidden');
-    /* بعد إخفاء اللوحة، المساحة للـ stage تتغير → أعد حساب الأبعاد */
-    setTimeout(() => {
-      window.dispatchEvent(new Event('resize'));
-    }, 260);
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
   });
 
-  /* اختصار لوحة المفاتيح Ctrl+. */
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === '.') {
       e.preventDefault();
@@ -304,12 +493,7 @@ function initPropsToggle() {
 }
 
 /* ============================================================
-   §8. EQUATION DIALOG — النسخة المُصلَحة
-   ============================================================
-   الإصلاحات:
-   - grids تُبنى بفئة .active على أول فئة
-   - عند إعادة الفتح، يُفعَّل أول grid إن لم يكن أي grid نشطاً
-   - التبويبات تستخدم index بدل مرجع مباشر (يبقى صالحاً بعد إعادة البناء)
+   §9. EQUATION DIALOG
    ============================================================ */
 function setupEquationBackdropMirror() {
   let backdrop = document.getElementById('equationBackdrop');
@@ -320,12 +504,8 @@ function setupEquationBackdropMirror() {
   }
 
   const editor = document.getElementById('equationEditor');
-  if (!editor) {
-    console.warn('[ui-shell] #equationEditor غير موجود');
-    return;
-  }
+  if (!editor) return;
 
-  /* درع الأحداث — bubble phase */
   if (!editor._uiShieldWired) {
     editor._uiShieldWired = true;
     const shieldEvents = [
@@ -337,9 +517,7 @@ function setupEquationBackdropMirror() {
       'wheel', 'contextmenu'
     ];
     shieldEvents.forEach(evt => {
-      editor.addEventListener(evt, (e) => {
-        e.stopPropagation();
-      }, false);
+      editor.addEventListener(evt, (e) => { e.stopPropagation(); }, false);
     });
   }
 
@@ -378,47 +556,33 @@ function setupEquationBackdropMirror() {
   obs.observe(backdrop, { attributes: true, attributeFilter: ['class'] });
   backdrop.style.display = backdrop.classList.contains('show') ? 'block' : 'none';
 
-  /* أزرار الإغلاق */
   const closeBtn = document.getElementById('eqCloseBtn');
   const cancelBtn = document.getElementById('eqCancelBtn');
   if (closeBtn && !closeBtn._uiWired) {
     closeBtn._uiWired = true;
-    closeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      hideBoth();
-    });
+    closeBtn.addEventListener('click', (e) => { e.stopPropagation(); hideBoth(); });
   }
   if (cancelBtn && !cancelBtn._uiWired) {
     cancelBtn._uiWired = true;
-    cancelBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      hideBoth();
-    });
+    cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); hideBoth(); });
   }
 
-  /* Escape */
   if (!editor._uiEscapeWired) {
     editor._uiEscapeWired = true;
     editor.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        hideBoth();
-      }
+      if (e.key === 'Escape') { e.stopPropagation(); hideBoth(); }
     });
   }
 
-  /* زر المعادلة في الشريط */
   const eqBtn = document.querySelector('#toolbar button[data-tool="equation"]');
   if (eqBtn && !eqBtn._uiMirrorWired) {
     eqBtn._uiMirrorWired = true;
     eqBtn.addEventListener('click', () => {
       setTimeout(() => {
         if (editor.classList.contains('show')) {
-          /* مفتوح بالفعل — تأكد من grid نشط */
           ensureEquationTabs(editor);
           return;
         }
-        console.warn('[ui-shell] fallback: فتح المحرر يدوياً');
         backdrop.classList.add('show');
         backdrop.style.display = 'block';
         editor.classList.add('show');
@@ -431,48 +595,31 @@ function setupEquationBackdropMirror() {
   }
 }
 
-/* ============================================================
-   §8.1 EQUATION TABS — الإصلاح الجذري
-   ============================================================ */
 function ensureEquationTabs(editor) {
   const host = editor.querySelector('#eqPaletteHost');
   if (!host) return;
-
   const existingTabs = host.parentElement.querySelector('.eq-cat-tabs');
-
   if (existingTabs) {
-    /* ★ التبويبات موجودة — تأكد فقط من وجود grid نشط */
     if (!host.querySelector('.eq-grid.active')) {
       const firstGrid = host.querySelector('.eq-grid');
       if (firstGrid) firstGrid.classList.add('active');
     }
-    if (!existingTabs.querySelector('.eq-cat-tab.active')) {
-      const firstTab = existingTabs.querySelector('.eq-cat-tab');
-      if (firstTab) firstTab.classList.add('active');
-    }
     return;
   }
 
-  /* جمع الأقسام من DOM */
   const sections = [];
   let currentCat = null;
-
   Array.from(host.children).forEach(child => {
     if (child.classList.contains('eq-section-label')) {
       currentCat = { label: child.textContent.trim() };
       sections.push(currentCat);
-    } else if (child.classList.contains('eq-grid') && currentCat) {
-      /* لا شيء هنا */
     }
   });
-
   if (sections.length < 2) return;
 
-  /* شريط التبويبات */
   const tabsBar = document.createElement('div');
   tabsBar.className = 'eq-cat-tabs';
 
-  /* أضف زر "الكل" */
   const allBtn = document.createElement('button');
   allBtn.type = 'button';
   allBtn.className = 'eq-cat-tab';
@@ -481,7 +628,6 @@ function ensureEquationTabs(editor) {
     e.stopPropagation();
     tabsBar.querySelectorAll('.eq-cat-tab').forEach(b => b.classList.remove('active'));
     allBtn.classList.add('active');
-    /* أظهر كل الشبكات */
     host.querySelectorAll('.eq-grid').forEach(g => g.classList.add('active'));
   });
   tabsBar.appendChild(allBtn);
@@ -491,33 +637,20 @@ function ensureEquationTabs(editor) {
     btn.type = 'button';
     btn.className = 'eq-cat-tab' + (i === 0 ? ' active' : '');
     btn.textContent = sec.label;
-
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       tabsBar.querySelectorAll('.eq-cat-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      /* ★ استخدم index بدل مرجع — يبقى صالحاً بعد إعادة البناء */
       const grids = host.querySelectorAll('.eq-grid');
       grids.forEach((g, j) => g.classList.toggle('active', j === i));
     });
-
     tabsBar.appendChild(btn);
   });
 
-  /* إذا شريط التبويبات موجود سابقاً لأي سبب، أزله */
-  const old = host.parentElement.querySelector('.eq-cat-tabs');
-  if (old) old.remove();
-
   host.parentElement.insertBefore(tabsBar, host);
-
-  /* ★ فعّل أول grid */
-  const grids = host.querySelectorAll('.eq-grid');
-  grids.forEach((g, i) => g.classList.toggle('active', i === 0));
+  host.querySelectorAll('.eq-grid').forEach((g, i) => g.classList.toggle('active', i === 0));
 }
 
-/* ============================================================
-   §8.2 ENSURE PALETTE
-   ============================================================ */
 function ensureEquationPalette(editor) {
   const host = editor.querySelector('#eqPaletteHost');
   if (!host) return;
@@ -535,9 +668,6 @@ function ensureEquationPalette(editor) {
   });
 }
 
-/* ============================================================
-   §8.3 FALLBACK PALETTE
-   ============================================================ */
 function buildFallbackPalette(host) {
   const TEMPLATES = [
     { cat: 'الكسور والجذور', items: [
@@ -546,7 +676,7 @@ function buildFallbackPalette(host) {
       { label: 'ⁿ√',  latex: '\\sqrt[n]{x}' },
       { label: 'x/y', latex: '\\frac{x}{y}' },
       { label: '¹⁄₂', latex: '\\frac{1}{2}' },
-      { label: 'a+b/c', latex: '\\frac{a+b}{c}' },
+      { label: 'a+b/c', latex: '\\frac{a+b}{c}' }
     ]},
     { cat: 'الأسس', items: [
       { label: 'x²', latex: 'x^{2}' },
@@ -554,7 +684,7 @@ function buildFallbackPalette(host) {
       { label: 'xⁿ', latex: 'x^{n}' },
       { label: 'xₐᵦ', latex: 'x_{a}^{b}' },
       { label: 'eˣ', latex: 'e^{x}' },
-      { label: 'a⁺ᵇ', latex: 'a^{n+1}' },
+      { label: 'a⁺ᵇ', latex: 'a^{n+1}' }
     ]},
     { cat: 'المجاميع والتكاملات', items: [
       { label: '∑',   latex: '\\sum_{i=1}^{n}' },
@@ -565,63 +695,30 @@ function buildFallbackPalette(host) {
       { label: 'lim', latex: '\\lim_{x \\to \\infty}' },
       { label: 'd/dx', latex: '\\frac{d}{dx}' },
       { label: '∂/∂x', latex: '\\frac{\\partial}{\\partial x}' },
-      { label: '∞',   latex: '\\infty' },
+      { label: '∞',   latex: '\\infty' }
     ]},
     { cat: 'حروف يونانية', items: [
-      { label: 'α', latex: '\\alpha' },
-      { label: 'β', latex: '\\beta' },
-      { label: 'γ', latex: '\\gamma' },
-      { label: 'δ', latex: '\\delta' },
-      { label: 'ε', latex: '\\epsilon' },
-      { label: 'θ', latex: '\\theta' },
-      { label: 'λ', latex: '\\lambda' },
-      { label: 'μ', latex: '\\mu' },
-      { label: 'π', latex: '\\pi' },
-      { label: 'ρ', latex: '\\rho' },
-      { label: 'σ', latex: '\\sigma' },
-      { label: 'τ', latex: '\\tau' },
-      { label: 'φ', latex: '\\phi' },
-      { label: 'χ', latex: '\\chi' },
-      { label: 'ψ', latex: '\\psi' },
-      { label: 'ω', latex: '\\omega' },
-      { label: 'Δ', latex: '\\Delta' },
-      { label: 'Σ', latex: '\\Sigma' },
+      { label: 'α', latex: '\\alpha' }, { label: 'β', latex: '\\beta' }, { label: 'γ', latex: '\\gamma' },
+      { label: 'δ', latex: '\\delta' }, { label: 'ε', latex: '\\epsilon' }, { label: 'θ', latex: '\\theta' },
+      { label: 'λ', latex: '\\lambda' }, { label: 'μ', latex: '\\mu' }, { label: 'π', latex: '\\pi' },
+      { label: 'ρ', latex: '\\rho' }, { label: 'σ', latex: '\\sigma' }, { label: 'τ', latex: '\\tau' },
+      { label: 'φ', latex: '\\phi' }, { label: 'χ', latex: '\\chi' }, { label: 'ψ', latex: '\\psi' },
+      { label: 'ω', latex: '\\omega' }, { label: 'Δ', latex: '\\Delta' }, { label: 'Σ', latex: '\\Sigma' }
     ]},
     { cat: 'العلاقات والعمليات', items: [
-      { label: '≠',  latex: '\\neq' },
-      { label: '≤',  latex: '\\leq' },
-      { label: '≥',  latex: '\\geq' },
-      { label: '≈',  latex: '\\approx' },
-      { label: '≡',  latex: '\\equiv' },
-      { label: '∝',  latex: '\\propto' },
-      { label: '±',  latex: '\\pm' },
-      { label: '×',  latex: '\\times' },
-      { label: '÷',  latex: '\\div' },
-      { label: '·',  latex: '\\cdot' },
-      { label: '→',  latex: '\\to' },
-      { label: '⇒',  latex: '\\Rightarrow' },
-      { label: '⇔',  latex: '\\Leftrightarrow' },
-      { label: '∈',  latex: '\\in' },
-      { label: '∉',  latex: '\\notin' },
-      { label: '⊂',  latex: '\\subset' },
-      { label: '∪',  latex: '\\cup' },
-      { label: '∩',  latex: '\\cap' },
-      { label: '∀',  latex: '\\forall' },
-      { label: '∃',  latex: '\\exists' },
+      { label: '≠',  latex: '\\neq' }, { label: '≤', latex: '\\leq' }, { label: '≥', latex: '\\geq' },
+      { label: '≈',  latex: '\\approx' }, { label: '≡', latex: '\\equiv' }, { label: '∝', latex: '\\propto' },
+      { label: '±',  latex: '\\pm' }, { label: '×', latex: '\\times' }, { label: '÷', latex: '\\div' },
+      { label: '·',  latex: '\\cdot' }, { label: '→', latex: '\\to' }, { label: '⇒', latex: '\\Rightarrow' },
+      { label: '⇔',  latex: '\\Leftrightarrow' }, { label: '∈', latex: '\\in' }, { label: '∉', latex: '\\notin' },
+      { label: '⊂',  latex: '\\subset' }, { label: '∪', latex: '\\cup' }, { label: '∩', latex: '\\cap' },
+      { label: '∀',  latex: '\\forall' }, { label: '∃', latex: '\\exists' }
     ]},
     { cat: 'الدوال', items: [
-      { label: 'sin',  latex: '\\sin' },
-      { label: 'cos',  latex: '\\cos' },
-      { label: 'tan',  latex: '\\tan' },
-      { label: 'cot',  latex: '\\cot' },
-      { label: 'sec',  latex: '\\sec' },
-      { label: 'csc',  latex: '\\csc' },
-      { label: 'log',  latex: '\\log' },
-      { label: 'ln',   latex: '\\ln' },
-      { label: 'exp',  latex: '\\exp' },
-      { label: 'sin⁻¹', latex: '\\arcsin' },
-      { label: 'cos⁻¹', latex: '\\arccos' },
-      { label: 'tan⁻¹', latex: '\\arctan' },
+      { label: 'sin',  latex: '\\sin' }, { label: 'cos', latex: '\\cos' }, { label: 'tan', latex: '\\tan' },
+      { label: 'cot',  latex: '\\cot' }, { label: 'sec', latex: '\\sec' }, { label: 'csc', latex: '\\csc' },
+      { label: 'log',  latex: '\\log' }, { label: 'ln',  latex: '\\ln' },  { label: 'exp', latex: '\\exp' },
+      { label: 'sin⁻¹', latex: '\\arcsin' }, { label: 'cos⁻¹', latex: '\\arccos' }, { label: 'tan⁻¹', latex: '\\arctan' }
     ]},
     { cat: 'مصفوفات', items: [
       { label: 'matrix 2×2', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
@@ -630,26 +727,17 @@ function buildFallbackPalette(host) {
       { label: 'vec',        latex: '\\vec{v}' },
       { label: 'hat',        latex: '\\hat{x}' },
       { label: 'bar',        latex: '\\bar{x}' },
-      { label: 'det',        latex: '\\det A' },
+      { label: 'det',        latex: '\\det A' }
     ]},
     { cat: 'أحرف لاتينية', items: [
-      { label: 'x',  latex: 'x' },
-      { label: 'y',  latex: 'y' },
-      { label: 'z',  latex: 'z' },
-      { label: 'a',  latex: 'a' },
-      { label: 'b',  latex: 'b' },
-      { label: 'c',  latex: 'c' },
-      { label: 'f(x)', latex: 'f(x)' },
-      { label: 'dx',  latex: 'dx' },
-      { label: 'dy',  latex: 'dy' },
-      { label: '≠0', latex: '\\neq 0' },
-      { label: 'x∈ℝ', latex: 'x \\in \\mathbb{R}' },
-      { label: 'ℕ',  latex: '\\mathbb{N}' },
-      { label: 'ℤ',  latex: '\\mathbb{Z}' },
-      { label: 'ℚ',  latex: '\\mathbb{Q}' },
-      { label: 'ℝ',  latex: '\\mathbb{R}' },
-      { label: 'ℂ',  latex: '\\mathbb{C}' },
-    ]},
+      { label: 'x',  latex: 'x' }, { label: 'y', latex: 'y' }, { label: 'z', latex: 'z' },
+      { label: 'a',  latex: 'a' }, { label: 'b', latex: 'b' }, { label: 'c', latex: 'c' },
+      { label: 'f(x)', latex: 'f(x)' }, { label: 'dx', latex: 'dx' }, { label: 'dy', latex: 'dy' },
+      { label: '≠0', latex: '\\neq 0' }, { label: 'x∈ℝ', latex: 'x \\in \\mathbb{R}' },
+      { label: 'ℕ', latex: '\\mathbb{N}' }, { label: 'ℤ', latex: '\\mathbb{Z}' },
+      { label: 'ℚ', latex: '\\mathbb{Q}' }, { label: 'ℝ', latex: '\\mathbb{R}' },
+      { label: 'ℂ', latex: '\\mathbb{C}' }
+    ]}
   ];
 
   host.innerHTML = '';
@@ -676,9 +764,7 @@ function buildFallbackPalette(host) {
         } else {
           inner.textContent = item.label;
         }
-      } catch (e) {
-        inner.textContent = item.label;
-      }
+      } catch (e) { inner.textContent = item.label; }
 
       btn.appendChild(inner);
       btn.title = item.latex;
@@ -687,9 +773,7 @@ function buildFallbackPalette(host) {
         const ta = document.getElementById('eqTextarea');
         if (!ta) return;
         const pos = ta.selectionStart || ta.value.length;
-        const before = ta.value.substring(0, pos);
-        const after = ta.value.substring(pos);
-        ta.value = before + item.latex + after;
+        ta.value = ta.value.substring(0, pos) + item.latex + ta.value.substring(pos);
         const newPos = pos + item.latex.length;
         ta.focus();
         try { ta.setSelectionRange(newPos, newPos); } catch (_) {}
@@ -703,7 +787,7 @@ function buildFallbackPalette(host) {
 }
 
 /* ============================================================
-   §9. PRESENT MODE
+   §10. PRESENT MODE
    ============================================================ */
 const presentState = {
   active: false,
@@ -929,7 +1013,7 @@ function unbindPresentKeys() {
 }
 
 /* ============================================================
-   §10. LAYERS OBSERVER
+   §11. LAYERS OBSERVER
    ============================================================ */
 let _layersObserver = null;
 function initLayersObserver() {
@@ -948,7 +1032,7 @@ function initPageChangeListener() {
 }
 
 /* ============================================================
-   §11. GLOBAL SHORTCUTS
+   §12. GLOBAL SHORTCUTS
    ============================================================ */
 function initGlobalShortcuts() {
   document.addEventListener('keydown', (e) => {
@@ -961,7 +1045,7 @@ function initGlobalShortcuts() {
 }
 
 /* ============================================================
-   §12. INIT
+   §13. INIT
    ============================================================ */
 export function initUIShell() {
   applyVersion();
@@ -971,6 +1055,7 @@ export function initUIShell() {
   initGlobalShortcuts();
   setupEquationBackdropMirror();
   initPropsToggle();
+  initCloseProject();
 
   setTimeout(() => {
     initLayersObserver();
@@ -985,9 +1070,6 @@ if (typeof window !== 'undefined') {
     openPresent: openPresentMode,
     closePresent: closePresentMode,
     refreshLayers: refreshLayersPanel,
-    openEquation: () => {
-      const bd = document.getElementById('equationBackdrop');
-      if (bd) bd.classList.add('show');
-    }
+    closeProject: showCloseDialog
   };
 }

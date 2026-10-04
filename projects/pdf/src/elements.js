@@ -1,5 +1,7 @@
 /* ============================================================
  * elements.js — مصانع العناصر (embed / media / button)
+ * ============================================================
+ *  ★ media: بلا إطار، بلا شريط عنوان — كالأشكال تماماً
  * ============================================================ */
 
 import {
@@ -9,8 +11,8 @@ import {
   renderTextWithMath,
   playCorrectSound, playWrongSound,
   toast,
-  commitChange, snapshot,
-  serializeButton, serializeMedia, serializeEmbed,
+  commitChange, snapshot, savePageNow,
+  serializeButton,
   embedLayer, videoLayer, interactiveLayer, stage,
 } from './core.js';
 
@@ -68,7 +70,6 @@ export function addEmbedElement(url, x, y, w, h, save) {
   el.appendChild(resize);
   embedLayer.appendChild(el);
 
-  /* drag/resize binding — used by interaction.js when selection is set */
   header.addEventListener('pointerdown', e => {
     if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault(); e.stopPropagation();
@@ -84,19 +85,17 @@ export function addEmbedElement(url, x, y, w, h, save) {
     if (typeof el.__startEmbedDrag === 'function') el.__startEmbedDrag(el, e, 'resize');
   });
 
-  if (save !== false) {
-    import('./core.js').then(m => m.savePageNow());
-  }
+  if (save !== false) savePageNow();
   return el;
 }
 
 /* ============================================================
-   §2. MEDIA (image / gif / video) — نسخة مبسّطة كالأشكال
+   §2. MEDIA — بلا إطار، بلا شريط — كالأشكال
    ============================================================
-   - لا إطار، لا خلفية افتراضية
-   - السحب من أي مكان على العنصر (في وضع التحديد)
-   - شريط العنوان عائم فوق العنصر (hover/select فقط)
-   - الفيديو يعمل في وضع hand
+   - لا header
+   - لا close button مضمّن (الحذف عبر Delete أو الزر العائم الأحمر)
+   - لا border
+   - outline عند hover/select فقط
    ============================================================ */
 export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save) {
   const el = document.createElement('div');
@@ -120,7 +119,7 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
   }
   el.dataset.url = actualUrl;
 
-  /* ─── المحتوى (img أو video) ─── */
+  /* ─── المحتوى ─── */
   const content = document.createElement('div');
   content.className = 'media-content';
 
@@ -142,8 +141,7 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     playBtn.title = 'تشغيل / إيقاف';
     playBtn.addEventListener('pointerdown', e => e.stopPropagation());
     playBtn.addEventListener('click', e => {
-      e.stopPropagation();
-      e.preventDefault();
+      e.stopPropagation(); e.preventDefault();
       if (state.tool !== 'hand' && state.tool !== 'select') return;
       if (video.paused) video.play().catch(() => toast('تعذّر تشغيل الفيديو', 'error'));
       else video.pause();
@@ -162,72 +160,24 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     content.appendChild(img);
   }
 
-  /* ─── شريط العنوان العائم ─── */
-  const header = document.createElement('div');
-  header.className = 'media-header';
-
-  const titleEl = document.createElement('span');
-  titleEl.className = 'media-title';
-  titleEl.textContent = title || (mediaType === 'video' ? 'فيديو' : 'صورة');
-
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'media-close';
-  closeBtn.textContent = '×';
-  closeBtn.title = 'حذف';
-  closeBtn.addEventListener('pointerdown', e => e.stopPropagation());
-  closeBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    e.preventDefault();
-    const pre = snapshot();
-    if (state.selected && state.selected.el === el) state.selected = null;
-    try {
-      const v = el.querySelector('video');
-      if (v) { v.pause(); v.src = ''; }
-      const im = el.querySelector('img');
-      if (im) im.src = '';
-    } catch (_) {}
-    el.remove();
-    commitChange(pre);
-  });
-
-  header.appendChild(titleEl);
-  header.appendChild(closeBtn);
-
   /* ─── مقبض التحجيم ─── */
   const resize = document.createElement('div');
   resize.className = 'media-resize';
 
-  /* ─── التجميع ─── */
   el.appendChild(content);
-  el.appendChild(header);
   el.appendChild(resize);
   videoLayer.appendChild(el);
 
   /* ═══════════════════════════════════════════════════════
      التفاعل: نفس أسلوب SVG shapes
-     - في وضع التحديد: pointerdown من أي مكان → تحديد + سحب
-     - في وضع hand: pointerdown → play/pause للفيديو
      ═══════════════════════════════════════════════════════ */
-
-  /* سحب من الشريط العلوي (يظهر فقط عند hover/select) */
-  header.addEventListener('pointerdown', e => {
-    if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    try { header.setPointerCapture(e.pointerId); } catch (_) {}
-    if (typeof el.__selectMedia === 'function') el.__selectMedia(el);
-    if (typeof el.__startMediaDrag === 'function') el.__startMediaDrag(el, e, 'move');
-  });
 
   /* سحب من أي مكان على العنصر (وضع التحديد) */
   el.addEventListener('pointerdown', e => {
     if (state.tool !== 'select') return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (e.target.classList.contains('media-resize')) return;
-    if (e.target.classList.contains('media-close')) return;
     if (e.target.classList.contains('media-play-btn')) return;
-    if (e.target.closest('.media-header')) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -246,8 +196,7 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
       });
       video.addEventListener('click', e => {
         if (state.tool !== 'hand') return;
-        e.stopPropagation();
-        e.preventDefault();
+        e.stopPropagation(); e.preventDefault();
         if (video.paused) video.play().catch(() => {});
         else video.pause();
       });
@@ -258,8 +207,7 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
   resize.addEventListener('pointerdown', e => {
     if (state.tool !== 'select') return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     try { resize.setPointerCapture(e.pointerId); } catch (_) {}
     if (typeof el.__selectMedia === 'function') el.__selectMedia(el);
     if (typeof el.__startMediaDrag === 'function') el.__startMediaDrag(el, e, 'resize');
@@ -268,6 +216,7 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
   if (save !== false) savePageNow();
   return el;
 }
+
 /* ============================================================
    §3. INTERACTIVE BUTTON
    ============================================================ */
@@ -363,9 +312,7 @@ export function addButtonElement(spec, save) {
   });
 
   interactiveLayer.appendChild(el);
-  if (save !== false) {
-    import('./core.js').then(m => m.savePageNow());
-  }
+  if (save !== false) savePageNow();
   return el;
 }
 
@@ -523,7 +470,7 @@ export function openButtonDialog(existingSpec, existingEl) {
       const pre = snapshot();
       addButtonElement(spec, false);
       commitChange(pre);
-      import('./toolbar.js').then(m => m.setTool('select'));
+      import('./toolbar.js').then(m => m.setTool && m.setTool('select')).catch(() => {});
     }
     close();
   }
@@ -592,7 +539,7 @@ export function openMediaPicker() {
       if (placed > 0) {
         commitChange(pre);
         toast(`تمت إضافة ${placed} عنصر ✅`, 'ok');
-        import('./toolbar.js').then(m => m.setTool('select'));
+        import('./toolbar.js').then(m => m.setTool && m.setTool('select')).catch(() => {});
       } else {
         toast('لم يتم اختيار أي ملف صالح', 'warn');
       }
@@ -633,7 +580,7 @@ export function openEmbedDialog() {
     addEmbedElement(url);
     commitChange(pre);
     close();
-    import('./toolbar.js').then(m => m.setTool('select'));
+    import('./toolbar.js').then(m => m.setTool && m.setTool('select')).catch(() => {});
   }
 
   b.querySelector('[data-action="cancel"]').addEventListener('click', close);
@@ -643,29 +590,4 @@ export function openEmbedDialog() {
     if (e.key === 'Enter') submit();
     if (e.key === 'Escape') close();
   });
-}
-
-/* ============================================================
-   §7. HOOKS — تُعيّنها interaction.js لكسر الاعتماد الدائري
-   ============================================================ */
-export function installElementHooks(hooks) {
-  /* hooks: { selectEmbed, startEmbedDrag, selectMedia, startMediaDrag, selectButton, startButtonDrag } */
-  if (hooks.selectEmbed)    window.__selectEmbed    = hooks.selectEmbed;
-  if (hooks.startEmbedDrag) window.__startEmbedDrag = hooks.startEmbedDrag;
-  if (hooks.selectMedia)    window.__selectMedia    = hooks.selectMedia;
-  if (hooks.startMediaDrag) window.__startMediaDrag = hooks.startMediaDrag;
-  if (hooks.selectButton)   window.__selectButton   = hooks.selectButton;
-  if (hooks.startButtonDrag) window.__startButtonDrag = hooks.startButtonDrag;
-
-  /* حقن على النماذج الأولية */
-  const attach = (proto, api) => {
-    proto.__selectEmbed    = api.selectEmbed;
-    proto.__startEmbedDrag = api.startEmbedDrag;
-    proto.__selectMedia    = api.selectMedia;
-    proto.__startMediaDrag = api.startMediaDrag;
-    proto.__selectButton   = api.selectButton;
-    proto.__startButtonDrag= api.startButtonDrag;
-  };
-  /* لا حاجة لعمل شيء هنا — الدوال في addXXX تستدعي عبر el.__xxx
-     التي نمررها من interaction.js. في Part 3 سنمرر hooks. */
 }

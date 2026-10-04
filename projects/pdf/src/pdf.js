@@ -342,13 +342,12 @@ export async function preloadAllPages(token) {
 }
 
 /* ============================================================
-   §7. THUMBNAIL CAPTURE — نسخة html2canvas على كامل stage
+   §7. THUMBNAIL CAPTURE — نسخة نهائية
    ============================================================
-   تحلّ المشاكل:
-   - الصور كانت تُرسم كمستطيلات رمادية → الآن تُصوَّر فعلياً
-   - المعادلات كانت تُعرض كنص $...$ → الآن KaTeX يُصوَّر
-   - النصوص والأزرار تُصوَّر أيضاً
-   - الفيديوهات والـ iframes تُتجاهل (يستحيل تصويرها)
+   - تُخفي كل مربعات التحديد والـ handles مؤقتاً قبل التصوير
+   - تُخفي أزرار التحكم العائمة (delete btn, play btn)
+   - تُخفي transient/laser canvases
+   - تستخدم html2canvas لالتقاط الصور والمعادلات والنصوص فعلياً
    ============================================================ */
 let _html2canvasPromise = null;
 
@@ -359,10 +358,7 @@ function ensureHtml2Canvas() {
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
     s.onload = () => resolve(window.html2canvas);
-    s.onerror = () => {
-      console.warn('html2canvas load failed');
-      resolve(null);
-    };
+    s.onerror = () => { console.warn('html2canvas load failed'); resolve(null); };
     document.head.appendChild(s);
   });
   return _html2canvasPromise;
@@ -385,34 +381,66 @@ export async function captureStageThumbnail(pageNum) {
     const contentEl = document.getElementById('stageContent');
     if (!stageEl || !contentEl) return;
 
-    /* إخفاء طبقات التفاعل المؤقتة */
-    const transient = document.getElementById('transientCanvas');
-    const laser = document.getElementById('laserCanvas');
-    const prevTransientDisplay = transient ? transient.style.display : '';
-    const prevLaserDisplay = laser ? laser.style.display : '';
-    if (transient) transient.style.display = 'none';
-    if (laser) laser.style.display = 'none';
+    /* ═══ إخفاء مؤقت لكل ما يجب ألا يظهر في الـ thumbnail ═══ */
+    const hidden = [];
 
-    /* إخفاء مربعات التحديد يدوياً (html2canvas قد يتجاهل الـ onclone) */
-    const selectionOverlays = contentEl.querySelectorAll('.selection-overlay');
-    const prevDisplays = [];
-    selectionOverlays.forEach(o => {
-      prevDisplays.push({ el: o, display: o.style.display });
-      o.style.display = 'none';
+    function hideEl(el) {
+      if (!el) return;
+      hidden.push({ el: el, display: el.style.display, visibility: el.style.visibility });
+      el.style.display = 'none';
+    }
+
+    function hideClass(selector) {
+      document.querySelectorAll(selector).forEach(el => {
+        hidden.push({ el: el, display: el.style.display, visibility: el.style.visibility });
+        el.style.visibility = 'hidden';
+      });
+    }
+
+    /* 1. الـ canvases العابرة */
+    hideEl(document.getElementById('transientCanvas'));
+    hideEl(document.getElementById('laserCanvas'));
+
+    /* 2. كل مربعات التحديد والـ handles */
+    hideClass('.selection-overlay');
+    hideClass('.handle');
+    hideClass('.selection-outline');
+
+    /* 3. أزرار الحذف العائمة */
+    hideClass('.element-delete-btn');
+
+    /* 4. أزرار الفيديو ومقابض التحجيم */
+    hideClass('.media-play-btn');
+    hideClass('.media-resize');
+    hideClass('.embed-resize');
+    hideClass('.pdf-interactive-btn-resize');
+    hideClass('.pdf-text-resize');
+
+    /* 5. إزالة class "selected" من كل العناصر */
+    const selectedEls = document.querySelectorAll('.selected');
+    selectedEls.forEach(el => {
+      el.classList.remove('selected');
+      hidden.push({ el: el, hadSelected: true, display: el.style.display });
     });
 
-    /* إزالة التحويل مؤقتاً للحصول على الصفحة كاملة */
+    /* 6. أزرار وقوائم عائمة */
+    hideEl(document.getElementById('slideContextMenu'));
+    hideEl(document.getElementById('textContextToolbar'));
+    hideEl(document.getElementById('shapeContextToolbar'));
+    hideEl(document.getElementById('equationEditor'));
+    hideEl(document.getElementById('submenu'));
+
+    /* 7. إزالة transform مؤقتاً */
     const prevTransform = contentEl.style.transform;
     const prevTransition = contentEl.style.transition;
     contentEl.style.transform = 'none';
     contentEl.style.transition = 'none';
 
-    /* انتظر إطارين لضمان الرسم */
+    /* انتظر إطارين + خطوط */
     await new Promise(r => requestAnimationFrame(r));
     await new Promise(r => requestAnimationFrame(r));
     await new Promise(r => setTimeout(r, 80));
 
-    /* انتظر الخطوط (KaTeX) */
     if (document.fonts && document.fonts.ready) {
       try { await document.fonts.ready; } catch (_) {}
     }
@@ -430,26 +458,37 @@ export async function captureStageThumbnail(pageNum) {
         height: state.cssH,
         windowWidth: state.cssW,
         windowHeight: state.cssH,
-        ignoreElements: (el) => {
-          const tag = el.tagName;
-          if (tag === 'VIDEO') return true;
-          if (tag === 'IFRAME') return true;
-          if (el.id === 'transientCanvas') return true;
-          if (el.id === 'laserCanvas') return true;
-          if (el.classList && el.classList.contains('selection-overlay')) return true;
-          if (el.classList && el.classList.contains('handle')) return true;
-          if (el.classList && el.classList.contains('media-play-btn')) return true;
-          if (el.classList && el.classList.contains('media-resize')) return true;
-          return false;
+        onclone: (clonedDoc) => {
+          /* في النسخة المستنسخة، احذف كل عناصر التحكم */
+          clonedDoc.querySelectorAll(
+            '.selection-overlay, .handle, .selection-outline, ' +
+            '.element-delete-btn, .media-play-btn, .media-resize, ' +
+            '.embed-resize, .pdf-interactive-btn-resize, .pdf-text-resize, ' +
+            '#transientCanvas, #laserCanvas, #submenu, ' +
+            '#slideContextMenu, #textContextToolbar, #shapeContextToolbar, #equationEditor'
+          ).forEach(el => el.remove());
+          clonedDoc.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
         }
       });
     } finally {
-      /* استعد كل شيء */
+      /* ═══ استعادة كل شيء ═══ */
       contentEl.style.transform = prevTransform;
       contentEl.style.transition = prevTransition;
-      if (transient) transient.style.display = prevTransientDisplay;
-      if (laser) laser.style.display = prevLaserDisplay;
-      prevDisplays.forEach(item => { item.el.style.display = item.display; });
+
+      hidden.forEach(item => {
+        if (item.hadSelected) {
+          item.el.classList.add('selected');
+        } else if (item.el) {
+          if (item.visibility !== undefined && item.visibility !== '') {
+            item.el.style.visibility = item.visibility;
+          }
+          if (item.display !== undefined && item.display !== '') {
+            item.el.style.display = item.display;
+          } else {
+            item.el.style.display = '';
+          }
+        }
+      });
     }
 
     /* ضبط الحجم النهائي */
@@ -460,7 +499,6 @@ export async function captureStageThumbnail(pageNum) {
       resized.height = TH;
       const rctx = resized.getContext('2d');
 
-      /* خلفية الشريحة */
       let bgColor = '#ffffff';
       const slide = state.slides[pageNum - 1];
       if (slide && slide.bg && slide.bg.type === 'blank' && slide.bg.color) {
