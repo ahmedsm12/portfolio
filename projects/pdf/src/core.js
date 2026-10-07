@@ -18,6 +18,7 @@ export const textLayer        = $('textLayer');
 export const interactiveLayer = $('interactiveLayer');
 export const transientCanvas  = $('transientCanvas');
 export const laserCanvas      = $('laserCanvas');
+laserCanvas.style.zIndex = '9999'; // Ensure laser is above all elements
 export const emptyState       = $('emptyState');
 export const loadingEl        = $('loading');
 export const loadingText      = $('loadingText');

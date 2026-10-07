@@ -69,23 +69,21 @@ export function computeStageSize(naturalW, naturalH) {
     canvasH = Math.floor(canvasH * f);
   }
 
-  // Allow manual resizing when no element is selected
-  if (!state.selected) {
-    const resizeHandle = document.getElementById('resizeHandle');
-    if (resizeHandle) {
-      resizeHandle.style.display = 'block';
-      resizeHandle.style.width = '20px';
-      resizeHandle.style.height = '20px';
-      resizeHandle.style.position = 'absolute';
-      resizeHandle.style.right = '0';
-      resizeHandle.style.bottom = '0';
-      resizeHandle.style.cursor = 'se-resize';
-      resizeHandle.style.backgroundColor = '#4a7eff';
-      resizeHandle.style.borderRadius = '4px';
-      resizeHandle.style.border = '2px solid #fff';
-      resizeHandle.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-      resizeHandle.addEventListener('pointerdown', onResizeStart);
-    }
+  // Add resize handle
+  const resizeHandle = document.getElementById('resizeHandle');
+  if (resizeHandle) {
+    resizeHandle.style.display = 'block';
+    resizeHandle.style.width = '20px';
+    resizeHandle.style.height = '20px';
+    resizeHandle.style.position = 'absolute';
+    resizeHandle.style.right = '0';
+    resizeHandle.style.bottom = '0';
+    resizeHandle.style.cursor = 'se-resize';
+    resizeHandle.style.backgroundColor = '#4a7eff';
+    resizeHandle.style.borderRadius = '4px';
+    resizeHandle.style.border = '2px solid #fff';
+    resizeHandle.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+    resizeHandle.addEventListener('pointerdown', onResizeStart);
   }
 
   return { cssW: cW, cssH: cH, canvasW, canvasH, dpr };
@@ -393,7 +391,7 @@ export async function captureStageThumbnail(pageNum) {
 
   try {
     const TW = 320;
-    const aspect = state.cssW / state.cssH;
+    const aspect = state.pdfW / state.pdfH;
     const TH = Math.round(TW / aspect);
 
     const html2canvas = await ensureHtml2Canvas();
@@ -928,6 +926,8 @@ export async function cutSlide(idx) {
   if (state.totalPages === 0) {
     pdfCanvas.getContext('2d').clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
     emptyState.style.display = 'flex';
+    emptyState.style.backgroundColor = 'transparent';
+    emptyState.style.backgroundImage = 'none';
   } else {
     const nc = Math.min(idx, state.totalPages) || 1;
     state.currentPage = nc;

@@ -47,7 +47,13 @@ export function setTool(tool) {
   closeSubmenu();
   closeEquationEditor();
 
-  if (tool !== 'select' && tool !== 'text' && tool !== 'equation') deselect();
+  if (tool !== 'select') deselect();
+  if (tool !== 'select') {
+    hideFloatingToolbars();
+    transientCanvas.style.display = 'none';
+  } else {
+    transientCanvas.style.display = 'block';
+  }
   if ((tool === 'text' || tool === 'equation') && state.selected && state.selected.kind === 'text') {
     /* keep selection */
   } else if (tool !== 'select') {
