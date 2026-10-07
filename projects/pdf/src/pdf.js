@@ -68,6 +68,26 @@ export function computeStageSize(naturalW, naturalH) {
     canvasW = Math.floor(canvasW * f);
     canvasH = Math.floor(canvasH * f);
   }
+
+  // Allow manual resizing when no element is selected
+  if (!state.selected) {
+    const resizeHandle = document.getElementById('resizeHandle');
+    if (resizeHandle) {
+      resizeHandle.style.display = 'block';
+      resizeHandle.style.width = '20px';
+      resizeHandle.style.height = '20px';
+      resizeHandle.style.position = 'absolute';
+      resizeHandle.style.right = '0';
+      resizeHandle.style.bottom = '0';
+      resizeHandle.style.cursor = 'se-resize';
+      resizeHandle.style.backgroundColor = '#4a7eff';
+      resizeHandle.style.borderRadius = '4px';
+      resizeHandle.style.border = '2px solid #fff';
+      resizeHandle.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+      resizeHandle.addEventListener('pointerdown', onResizeStart);
+    }
+  }
+
   return { cssW: cW, cssH: cH, canvasW, canvasH, dpr };
 }
 
@@ -264,6 +284,8 @@ export async function renderPage(pageNum) {
     updatePageIndicator();
     updateUndoButtonsSafe();
     emptyState.style.display = 'none';
+    emptyState.style.backgroundColor = 'transparent';
+    emptyState.style.backgroundImage = 'none';
 
     setTimeout(() => { captureStageThumbnail(pageNum).catch(() => {}); }, 50);
   } catch (err) {
@@ -749,10 +771,26 @@ export function renderThumbnails() {
     const spinner = document.createElement('div');
     spinner.className = 'thumb-spinner';
 
+    const imgContainer = document.createElement('div');
+    imgContainer.className = 'thumb-img-container';
+    imgContainer.style.position = 'relative';
+    imgContainer.style.width = '100%';
+    imgContainer.style.height = '100%';
+    imgContainer.style.display = 'flex';
+    imgContainer.style.alignItems = 'center';
+    imgContainer.style.justifyContent = 'center';
+    imgContainer.style.overflow = 'hidden';
+
     const img = document.createElement('img');
     img.dataset.page = i;
     img.alt = 'صفحة ' + i;
     img.draggable = false;
+    img.style.maxWidth = '100%';
+    img.style.maxHeight = '100%';
+    img.style.width = 'auto';
+    img.style.height = 'auto';
+    img.style.objectFit = 'cover';
+    img.style.objectPosition = 'center';
 
     const cached = state.thumbCache.get(i) || state.pageCache.get(i);
     if (cached) {
@@ -765,8 +803,9 @@ export function renderThumbnails() {
     num.className = 'thumb-num';
     num.textContent = i;
 
+    imgContainer.appendChild(img);
     item.appendChild(spinner);
-    item.appendChild(img);
+    item.appendChild(imgContainer);
     item.appendChild(num);
 
     item.addEventListener('click', () => {

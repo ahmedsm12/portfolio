@@ -97,6 +97,10 @@ export async function saveProjectAsFile() {
     const JSZip = await ensureJSZip();
     savePageNow();
 
+    // Generate new version name
+    const now = new Date();
+    const version = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}`;
+
     const zip = new JSZip();
     const projectData = {
       version: 1,
@@ -104,7 +108,7 @@ export async function saveProjectAsFile() {
       pages: state.pages,
       currentPage: state.currentPage,
       totalPages: state.totalPages,
-      pdfName: state.pdfName,
+      pdfName: `${state.pdfName}_v${version}`,
       pdfIsImage: state.pdfIsImage,
       savedAt: Date.now(),
     };
