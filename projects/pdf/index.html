@@ -5,13 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
 <title>لوحة الشرائح التفاعلية</title>
+<meta name="description" content="لوحة تفاعلية متقدمة لتصميم وتعديل وعرض الشرائح التفاعلية وملفات PDF مع أدوات الرسم وإعادة الترتيب بالسحب والإفلات." />
+<meta property="og:title" content="لوحة الشرائح التفاعلية" />
+<meta property="og:description" content="لوحة تفاعلية متقدمة لتصميم وتعديل وعرض الشرائح التفاعلية وملفات PDF مع أدوات الرسم وإعادة الترتيب بالسحب والإفلات." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
 
-<link rel="stylesheet" href="src/style.css">
-<link rel="stylesheet" href="src/shell.css">
+<link rel="stylesheet" href="/src/style.css">
+<link rel="stylesheet" href="/src/shell.css">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
 </head>
-<body>
+<body class="no-project">
 
 <!-- ═══════════════════ TOPBAR ═══════════════════ -->
 <div id="topbar">
@@ -33,7 +38,7 @@
   <button class="tb-btn accent" id="btnNew" title="مشروع جديد (Ctrl+N)">
     <span class="ico">✨</span><span class="lbl">جديد</span>
   </button>
-  <button class="tb-btn" id="btnOpen" title="فتح ملف PDF أو مشروع .actpdf">
+  <button class="tb-btn" id="btnOpen" title="فتح ملف PDF أو صورة أو مشروع .actpdf">
     <span class="ico">📂</span><span class="lbl">فتح</span>
   </button>
   <button class="tb-btn" id="btnSave" title="حفظ المشروع (Ctrl+S)">
@@ -113,10 +118,13 @@
 
 <!-- ═══════════════════ STAGE ═══════════════════ -->
 <div id="stageWrapper">
-  <div id="stage" data-tool="select">
+  <div id="stage" data-tool="select" class="empty">
     <div id="stageContent">
       <canvas id="pdfCanvas"></canvas>
-      <svg id="svgLayer" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- ★ SVG منفصل للـ defs (markers والأسهم) -->
+      <svg id="svgDefs" xmlns="http://www.w3.org/2000/svg"
+           style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;z-index:0;">
         <defs>
           <marker id="arrow-end-normal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M 0 0 L 10 5 L 0 10 Z" fill="context-stroke"/></marker>
           <marker id="arrow-end-hollow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#fff" stroke="context-stroke" stroke-width="1"/></marker>
@@ -126,19 +134,29 @@
           <marker id="square-end" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto" markerUnits="strokeWidth"><rect x="1" y="1" width="8" height="8" fill="context-stroke"/></marker>
         </defs>
       </svg>
+
+      <!-- ★ حاوية الرسومات SVG (div مع wrappers) -->
+      <div id="svgLayer"></div>
+
       <div id="embedLayer"></div>
       <div id="videoLayer"></div>
       <div id="textLayer"></div>
       <div id="interactiveLayer"></div>
+
       <canvas id="transientCanvas"></canvas>
       <canvas id="laserCanvas"></canvas>
+
+      <!-- ★ SVG خاص بمربع التحديد — دائماً في الأعلى -->
+      <svg id="selectionSvg"
+           xmlns="http://www.w3.org/2000/svg"
+           style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:8000;"></svg>
     </div>
   </div>
 
   <div id="emptyState">
     <div class="icon">🎨</div>
     <div class="empty-title">ابدأ مشروعاً جديداً</div>
-    <div class="empty-desc">صمّم شرائح تفاعلية من الصفر أو افتح ملف PDF موجود</div>
+    <div class="empty-desc">صمّم شرائح تفاعلية من الصفر أو افتح ملف PDF أو صورة</div>
     <div class="empty-actions">
       <button id="btnNewEmpty" class="primary-btn">✨ مشروع جديد</button>
       <button id="btnOpenEmpty">📂 فتح ملف</button>
@@ -167,7 +185,7 @@
       </div>
     </div>
     <div class="props-panel" data-ppanel="anim" style="display:none">
-      <div class="props-hint">الحركات ستكون متاحة عند ربط محرّك GSAP</div>
+      <div class="props-hint">الحركات ستكون متاحة عند ربط محرّك الحركة</div>
     </div>
     <div class="props-panel" data-ppanel="effects" style="display:none">
       <div class="props-hint">التأثيرات القابلة للتحريك ستظهر هنا</div>
@@ -208,6 +226,7 @@
 <div id="shapeContextToolbar"></div>
 <div id="submenu"></div>
 
+<div id="equationBackdrop"></div>
 <div id="equationEditor">
   <div class="eq-title">
     <span>✏️ محرر المعادلات</span>
@@ -269,6 +288,6 @@
 
 <input type="file" id="fileInput" accept="application/pdf,image/*,.actpdf" style="display:none">
 
-<script type="module" src="src/main.js"></script>
+<script type="module" src="/src/main.js"></script>
 </body>
 </html>

@@ -2,6 +2,7 @@
  * elements.js — مصانع العناصر (embed / media / button)
  * ============================================================
  *  ★ media: بلا إطار، بلا شريط عنوان — كالأشكال تماماً
+ *  ★ دعم z-index لكل عنصر
  * ============================================================ */
 
 import {
@@ -17,9 +18,24 @@ import {
 } from './core.js';
 
 /* ============================================================
+   §0. Z-INDEX HELPER
+   ============================================================ */
+let _elemZCounter = 100;
+
+function getNextElemZ() {
+  let maxZ = 100;
+  document.querySelectorAll('#stageContent [style*="z-index"]').forEach(el => {
+    const z = parseInt(el.style.zIndex || '0', 10);
+    if (!isNaN(z) && z > maxZ) maxZ = z;
+  });
+  _elemZCounter = maxZ + 5;
+  return _elemZCounter;
+}
+
+/* ============================================================
    §1. EMBED (iframe)
    ============================================================ */
-export function addEmbedElement(url, x, y, w, h, save) {
+export function addEmbedElement(url, x, y, w, h, save, z) {
   const el = document.createElement('div');
   el.className = 'embed';
   el.dataset.url = url;
@@ -27,6 +43,7 @@ export function addEmbedElement(url, x, y, w, h, save) {
   el.style.top = y || '25%';
   el.style.width = w || '40%';
   el.style.height = h || '40%';
+  el.style.zIndex = String(z != null ? z : getNextElemZ());
 
   const header = document.createElement('div');
   header.className = 'embed-header';
@@ -68,7 +85,7 @@ export function addEmbedElement(url, x, y, w, h, save) {
   el.appendChild(header);
   el.appendChild(iframe);
   el.appendChild(resize);
-  embedLayer.appendChild(el);
+  if (embedLayer) embedLayer.appendChild(el);
 
   header.addEventListener('pointerdown', e => {
     if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
@@ -91,13 +108,8 @@ export function addEmbedElement(url, x, y, w, h, save) {
 
 /* ============================================================
    §2. MEDIA — بلا إطار، بلا شريط — كالأشكال
-   ============================================================
-   - لا header
-   - لا close button مضمّن (الحذف عبر Delete أو الزر العائم الأحمر)
-   - لا border
-   - outline عند hover/select فقط
    ============================================================ */
-export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save) {
+export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save, z) {
   const el = document.createElement('div');
   el.className = 'media-obj';
   el.dataset.mediaId = mediaId;
@@ -107,8 +119,8 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
   el.style.top = y || '20%';
   el.style.width = w || '50%';
   el.style.height = h || '40%';
+  el.style.zIndex = String(z != null ? z : getNextElemZ());
 
-  /* Blob URL من الـ registry إن وُجد */
   let actualUrl = url;
   const storedBlob = mediaBlobs.get(mediaId);
   if (storedBlob) {
@@ -119,7 +131,6 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
   }
   el.dataset.url = actualUrl;
 
-  /* ─── المحتوى ─── */
   const content = document.createElement('div');
   content.className = 'media-content';
 
@@ -133,7 +144,6 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     video.addEventListener('error', () => el.classList.add('media-error'));
     content.appendChild(video);
 
-    /* زر تشغيل مركزي */
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
     playBtn.className = 'media-play-btn';
@@ -151,7 +161,6 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     video.addEventListener('ended', () => playBtn.classList.remove('hidden'));
     el.appendChild(playBtn);
   } else {
-    /* صورة أو GIF */
     const img = document.createElement('img');
     img.src = actualUrl;
     img.alt = title || '';
@@ -160,19 +169,13 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     content.appendChild(img);
   }
 
-  /* ─── مقبض التحجيم ─── */
   const resize = document.createElement('div');
   resize.className = 'media-resize';
 
   el.appendChild(content);
   el.appendChild(resize);
-  videoLayer.appendChild(el);
+  if (videoLayer) videoLayer.appendChild(el);
 
-  /* ═══════════════════════════════════════════════════════
-     التفاعل: نفس أسلوب SVG shapes
-     ═══════════════════════════════════════════════════════ */
-
-  /* سحب من أي مكان على العنصر (وضع التحديد) */
   el.addEventListener('pointerdown', e => {
     if (state.tool !== 'select') return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -186,7 +189,6 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     if (typeof el.__startMediaDrag === 'function') el.__startMediaDrag(el, e, 'move');
   });
 
-  /* في وضع hand: pointerdown على الفيديو → play/pause */
   if (mediaType === 'video') {
     const video = el.querySelector('video');
     if (video) {
@@ -203,7 +205,6 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     }
   }
 
-  /* تحجيم */
   resize.addEventListener('pointerdown', e => {
     if (state.tool !== 'select') return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -245,12 +246,13 @@ export function applyButtonStyles(el) {
   else el.style.direction = '';
 }
 
-export function addButtonElement(spec, save) {
+export function addButtonElement(spec, save, z) {
   const s = Object.assign({}, BUTTON_DEFAULTS, spec || {});
   const el = document.createElement('div');
   el.className = 'pdf-interactive-btn';
   el.setAttribute('role', 'button');
   el.setAttribute('tabindex', '0');
+  el.style.zIndex = String(z != null ? z : (spec && spec.z ? parseInt(spec.z, 10) : getNextElemZ()));
 
   el.dataset.btnId = s.btnId || uid();
   el.dataset.text = s.text || '';
@@ -311,7 +313,7 @@ export function addButtonElement(spec, save) {
     openButtonDialog(serializeButton(el), el);
   });
 
-  interactiveLayer.appendChild(el);
+  if (interactiveLayer) interactiveLayer.appendChild(el);
   if (save !== false) savePageNow();
   return el;
 }
@@ -470,7 +472,7 @@ export function openButtonDialog(existingSpec, existingEl) {
       const pre = snapshot();
       addButtonElement(spec, false);
       commitChange(pre);
-      import('./toolbar.js').then(m => m.setTool && m.setTool('select')).catch(() => {});
+      import('./main.js').then(m => m.setTool && m.setTool('select')).catch(() => {});
     }
     close();
   }
@@ -539,7 +541,7 @@ export function openMediaPicker() {
       if (placed > 0) {
         commitChange(pre);
         toast(`تمت إضافة ${placed} عنصر ✅`, 'ok');
-        import('./toolbar.js').then(m => m.setTool && m.setTool('select')).catch(() => {});
+        import('./main.js').then(m => m.setTool && m.setTool('select')).catch(() => {});
       } else {
         toast('لم يتم اختيار أي ملف صالح', 'warn');
       }
@@ -580,7 +582,7 @@ export function openEmbedDialog() {
     addEmbedElement(url);
     commitChange(pre);
     close();
-    import('./toolbar.js').then(m => m.setTool && m.setTool('select')).catch(() => {});
+    import('./main.js').then(m => m.setTool && m.setTool('select')).catch(() => {});
   }
 
   b.querySelector('[data-action="cancel"]').addEventListener('click', close);

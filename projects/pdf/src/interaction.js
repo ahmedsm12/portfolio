@@ -1,26 +1,24 @@
 /* ============================================================
  * interaction.js — الأحداث والرسم والتحديد والأدوات العائمة
+ * ============================================================
+ *  ★ نظام z-index موحّد لكل العناصر
+ *  ★ SVG annotations ملفوفة في wrappers لدعم z-index
+ *  ★ selection overlay في SVG منفصل
+ *  ★ حركة حرة للعناصر (بلا قيود)
+ *  ★ الرسم يعمل فوق الصور والفيديو والـ embed
  * ============================================================ */
 
 import {
-  // ... (كل ما هو موجود حالياً)
-} from './core.js';
-
-/* ★ جديد: مرجع لخلفية محرر المعادلات */
-const equationBackdropEl = () => document.getElementById('equationBackdrop');
-
-
-import {
-  $, SVG_NS, EQUATION_TEMPLATES, LASER_FADE_MS, KATEX_CSS, KATEX_JS,
-  stage, stageContent, svgLayer, embedLayer, videoLayer, textLayer,
-  interactiveLayer, transientCanvas, laserCanvas, transCtx, laserCtx,
+  $, SVG_NS, EQUATION_TEMPLATES, LASER_FADE_MS,
+  stage, stageContent, svgLayer, selectionSvg, embedLayer, videoLayer,
+  textLayer, interactiveLayer, transientCanvas, laserCanvas, transCtx, laserCtx,
   textContextToolbar, shapeContextToolbar, equationEditor,
   state, mediaBlobs, clipboard,
   uid, toast, hexToRgba, escapeXml, renderTextWithMath,
-  commitChange, snapshot, savePageNow, applySnapshot as coreApplySnapshot,
+  commitChange, snapshot, savePageNow,
   serializeSvgElement, deserializeSvgElement, serializeText,
   serializeButton, serializeMedia, serializeEmbed,
-  distToSegment, distToEllipse, getTranslate, loadStyle, loadScript,
+  distToSegment, distToEllipse, getTranslate,
 } from './core.js';
 
 import {
@@ -29,7 +27,7 @@ import {
 } from './elements.js';
 
 /* ============================================================
-   §1. UI HOOKS (تُعيَّن من main.js)
+   §1. UI HOOKS
    ============================================================ */
 export const uiHooks = {
   setTool: () => {},
@@ -53,6 +51,72 @@ let laserLastActivity = 0;
 
 let _floatingDeleteBtn = null;
 let _eqCurrentTarget = null;
+
+const equationBackdropEl = () => document.getElementById('equationBackdrop');
+
+/* ============================================================
+   §2b. Z-INDEX MANAGEMENT
+   ============================================================ */
+let _zCounter = 100;
+
+export function getNextZIndex() {
+  _zCounter += 5;
+  return _zCounter;
+}
+
+export function getAllZElements() {
+  const items = [];
+  if (svgLayer) {
+    svgLayer.querySelectorAll(':scope > .annot-wrapper').forEach(el => {
+      items.push({ el, kind: 'svg' });
+    });
+  }
+  if (videoLayer) {
+    videoLayer.querySelectorAll('.media-obj').forEach(el => {
+      items.push({ el, kind: 'media' });
+    });
+  }
+  if (textLayer) {
+    textLayer.querySelectorAll('.pdf-text-box').forEach(el => {
+      items.push({ el, kind: 'text' });
+    });
+  }
+  if (interactiveLayer) {
+    interactiveLayer.querySelectorAll('.pdf-interactive-btn').forEach(el => {
+      items.push({ el, kind: 'button' });
+    });
+  }
+  if (embedLayer) {
+    embedLayer.querySelectorAll('.embed').forEach(el => {
+      items.push({ el, kind: 'embed' });
+    });
+  }
+  items.sort((a, b) => {
+    const za = parseInt(a.el.style.zIndex || '0', 10);
+    const zb = parseInt(b.el.style.zIndex || '0', 10);
+    return za - zb;
+  });
+  return items;
+}
+
+export function assignZIndexesInOrder(orderedItems) {
+  let z = 100;
+  orderedItems.forEach(item => {
+    item.el.style.zIndex = String(z);
+    z += 5;
+  });
+  _zCounter = z + 100;
+}
+
+export function moveLayerToPosition(el, targetIdx) {
+  const all = getAllZElements();
+  const currentIdx = all.findIndex(x => x.el === el);
+  if (currentIdx < 0) return;
+  const [item] = all.splice(currentIdx, 1);
+  const idx = Math.max(0, Math.min(all.length, targetIdx));
+  all.splice(idx, 0, item);
+  assignZIndexesInOrder(all);
+}
 
 /* ============================================================
    §3. SVG GEOMETRY
@@ -142,7 +206,7 @@ export function isPointNearShape(p, el, tol) {
       } else pts.push({ x: parseFloat(m[2]), y: parseFloat(m[3]) });
     }
     for (let i = 1; i < pts.length; i++) {
-      if (distToSegment(lx, ly, pts[i-1].x, pts[i-1].y, pts[i].x, pts[i].y) <= tol) return true;
+      if (distToSegment(lx, ly, pts[i-1].x, pts[i-1].y, pts[i-1].x, pts[i].y) <= tol) return true;
     }
     return false;
   }
@@ -172,13 +236,29 @@ function getSmoothedPoints(points, level) {
 }
 
 /* ============================================================
-   §5. ANNOTATION CREATION
+   §5. ANNOTATION CREATION (with wrappers)
    ============================================================ */
+function createAnnotWrapper(innerEl) {
+  const wrap = document.createElementNS(SVG_NS, 'svg');
+  wrap.setAttribute('xmlns', SVG_NS);
+  wrap.setAttribute('viewBox', `0 0 ${state.pdfW || 2000} ${state.pdfH || 2828}`);
+  wrap.setAttribute('preserveAspectRatio', 'none');
+  wrap.classList.add('annot-wrapper');
+  wrap.dataset.annotId = innerEl.dataset.id || uid();
+  wrap.style.cssText =
+    'position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;';
+  wrap.style.zIndex = String(getNextZIndex());
+  wrap.appendChild(innerEl);
+  return wrap;
+}
+
 export function addAnnotation(el) {
   el.dataset.annot = '1';
   if (!el.dataset.id) el.dataset.id = uid();
   el.classList.add('annot');
-  svgLayer.appendChild(el);
+  const wrap = createAnnotWrapper(el);
+  if (svgLayer) svgLayer.appendChild(wrap);
+  return wrap;
 }
 
 function buildPathFromPoints(points, kind) {
@@ -247,14 +327,14 @@ export function createShapeElement(kind) {
 }
 
 /* ============================================================
-   §6. STROKE DRAWING (pen/highlighter/eraser)
+   §6. STROKE DRAWING
    ============================================================ */
 function startStroke(kind, p) {
   const rect = stage.getBoundingClientRect();
   const inter = { type: 'stroke', kind, points: [p], rect, pre: snapshot() };
   clearTransient();
-  if (kind === 'highlighter') transientCanvas.style.opacity = '0.4';
-  else transientCanvas.style.opacity = '1';
+  if (kind === 'highlighter' && transientCanvas) transientCanvas.style.opacity = '0.4';
+  else if (transientCanvas) transientCanvas.style.opacity = '1';
   interaction = inter;
   scheduleStrokeRedraw();
 }
@@ -264,7 +344,7 @@ function scheduleStrokeRedraw() {
 }
 function redrawStroke() {
   const inter = interaction;
-  if (!inter || inter.type !== 'stroke') return;
+  if (!inter || inter.type !== 'stroke' || !transientCanvas || !transCtx) return;
   const k = state.canvasScale, dpr = state.dpr;
   transCtx.setTransform(1, 0, 0, 1, 0, 0);
   transCtx.clearRect(0, 0, transientCanvas.width, transientCanvas.height);
@@ -379,17 +459,21 @@ function eraserEraseAlongPath() {
 
 function eraseAtPdf(p, tol) {
   const toRemove = [];
-  svgLayer.querySelectorAll('[data-annot]').forEach(el => {
+  if (!svgLayer) return 0;
+  svgLayer.querySelectorAll('.annot-wrapper').forEach(wrap => {
+    const el = wrap.querySelector('[data-annot]');
+    if (!el) return;
     if (el.tagName.toLowerCase() === 'g') return;
     if (!state.eraserErasesShapes) {
       const tag = el.tagName;
       if (tag === 'rect' || tag === 'ellipse') return;
     }
-    if (isPointNearShape(p, el, tol)) toRemove.push(el);
+    if (isPointNearShape(p, el, tol)) toRemove.push(wrap);
   });
-  toRemove.forEach(el => {
-    if (state.selected && state.selected.el === el) state.selected = null;
-    el.remove();
+  toRemove.forEach(wrap => {
+    const inner = wrap.querySelector('[data-annot]');
+    if (state.selected && state.selected.el === inner) state.selected = null;
+    wrap.remove();
   });
   return toRemove.length;
 }
@@ -408,7 +492,7 @@ function endStroke() {
     }
   } else if (inter.kind === 'eraser') {
     if (inter.pre) {
-      const before = inter.pre.annotations.map(a => a.dataId).sort().join(',');
+      const before = (inter.pre.annotations || []).map(a => a.dataId).sort().join(',');
       const after = snapshot().annotations.map(a => a.dataId).sort().join(',');
       if (before !== after) commitChange(inter.pre);
     }
@@ -416,8 +500,10 @@ function endStroke() {
 }
 
 function clearTransient() {
-  transCtx.clearRect(0, 0, transientCanvas.width, transientCanvas.height);
-  transientCanvas.style.opacity = '1';
+  if (transCtx && transientCanvas) {
+    transCtx.clearRect(0, 0, transientCanvas.width, transientCanvas.height);
+    transientCanvas.style.opacity = '1';
+  }
 }
 
 /* ============================================================
@@ -427,12 +513,14 @@ export function clearLaser() {
   laserStrokes.length = 0;
   currentLaserStroke = null;
   laserLastActivity = 0;
-  laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height);
+  if (laserCtx && laserCanvas) {
+    laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height);
+  }
 }
 function startLaserRAF() { if (laserRAF) return; laserRAF = requestAnimationFrame(laserTick); }
 function laserTick() {
   const now = performance.now();
-  if (laserStrokes.length === 0) { laserRAF = null; return; }
+  if (laserStrokes.length === 0 || !laserCtx || !laserCanvas) { laserRAF = null; return; }
   const age = now - laserLastActivity;
   let alpha = 1;
   if (age > state.laserLifeMs) alpha = Math.max(0, 1 - (age - state.laserLifeMs) / LASER_FADE_MS);
@@ -528,7 +616,10 @@ function laserEnd() { currentLaserStroke = null; laserLastActivity = performance
 export function deselect() {
   if (state.selected) {
     const sel = state.selected;
-    if (sel.kind === 'svg') sel.el.classList.remove('selected');
+    if (sel.kind === 'svg') {
+      const inner = sel.el.querySelector('[data-annot]') || sel.el;
+      inner.classList.remove('selected');
+    }
     if (sel.kind === 'embed') sel.el.classList.remove('selected');
     if (sel.kind === 'media') sel.el.classList.remove('selected');
     if (sel.kind === 'text') {
@@ -538,11 +629,13 @@ export function deselect() {
     if (sel.kind === 'button') sel.el.classList.remove('selected');
   }
   state.selected = null;
-  svgLayer.querySelectorAll('.selection-overlay').forEach(n => n.remove());
-  embedLayer.querySelectorAll('.embed').forEach(e => e.classList.remove('selected'));
-  videoLayer.querySelectorAll('.media-obj').forEach(e => e.classList.remove('selected'));
-  textLayer.querySelectorAll('.pdf-text-box').forEach(e => e.classList.remove('selected'));
-  interactiveLayer.querySelectorAll('.pdf-interactive-btn').forEach(e => e.classList.remove('selected'));
+
+  if (selectionSvg) selectionSvg.innerHTML = '';
+
+  if (embedLayer) embedLayer.querySelectorAll('.embed').forEach(e => e.classList.remove('selected'));
+  if (videoLayer) videoLayer.querySelectorAll('.media-obj').forEach(e => e.classList.remove('selected'));
+  if (textLayer) textLayer.querySelectorAll('.pdf-text-box').forEach(e => e.classList.remove('selected'));
+  if (interactiveLayer) interactiveLayer.querySelectorAll('.pdf-interactive-btn').forEach(e => e.classList.remove('selected'));
   hideFloatingToolbars();
 }
 
@@ -594,7 +687,8 @@ function getShapeBBox(el) {
 }
 
 function drawSelectionOverlay(el) {
-  svgLayer.querySelectorAll('.selection-overlay').forEach(n => n.remove());
+  if (!selectionSvg) return;
+  selectionSvg.innerHTML = '';
   const g = document.createElementNS(SVG_NS, 'g');
   g.setAttribute('class', 'selection-overlay');
   const hs = Math.max(6, state.pdfW / 140);
@@ -615,7 +709,7 @@ function drawSelectionOverlay(el) {
       c.dataset.handle = name;
       g.appendChild(c);
     });
-    svgLayer.appendChild(g);
+    selectionSvg.appendChild(g);
     return;
   }
 
@@ -641,7 +735,7 @@ function drawSelectionOverlay(el) {
     c.dataset.handle = k;
     g.appendChild(c);
   });
-  svgLayer.appendChild(g);
+  selectionSvg.appendChild(g);
 }
 
 /* ============================================================
@@ -657,7 +751,7 @@ export function applyTextStyles(el) {
   el.style.direction = el.dataset.dir || 'rtl';
 }
 
-export function addTextBox(spec, save) {
+export function addTextBox(spec, save, z) {
   const s = Object.assign({
     textId: uid(), text: '', x: '30%', y: '35%', w: '200px', h: 'auto',
     fontSize: 20, fontFamily: 'system-ui', fontWeight: 'normal', fontStyle: 'normal',
@@ -672,6 +766,9 @@ export function addTextBox(spec, save) {
   el.style.top = s.y;
   el.style.width = s.w;
   el.style.height = (s.h && s.h !== 'auto') ? s.h : 'auto';
+  el.style.zIndex = String(
+    z != null ? z : (s.z ? parseInt(s.z, 10) : getNextZIndex())
+  );
   el.dataset.fontSize = String(s.fontSize);
   el.dataset.fontFamily = s.fontFamily;
   el.dataset.fontWeight = s.fontWeight;
@@ -723,7 +820,7 @@ export function addTextBox(spec, save) {
     startTextDrag(el, e, 'resize');
   });
 
-  textLayer.appendChild(el);
+  if (textLayer) textLayer.appendChild(el);
   if (save !== false) savePageNow();
   return el;
 }
@@ -733,18 +830,18 @@ export function startTextDrag(el, e, mode) {
   const er = el.getBoundingClientRect();
   const sX = e.clientX, sY = e.clientY;
   const sL = er.left - sr.left, sT = er.top - sr.top;
-  const sW = er.width, sH = er.height;
+  const sW = er.width;
   const pre = snapshot();
 
   function onMove(ev) {
     const dx = ev.clientX - sX, dy = ev.clientY - sY;
     if (mode === 'move') {
-      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx));
-      const nt = Math.max(0, Math.min(sr.height - sH, sT + dy));
+      const nl = sL + dx;
+      const nt = sT + dy;
       el.style.left = (nl / sr.width * 100) + '%';
       el.style.top = (nt / sr.height * 100) + '%';
     } else {
-      const nw = Math.max(60, Math.min(sr.width - sL, sW + dx));
+      const nw = Math.max(60, sW + dx);
       el.style.width = nw + 'px';
     }
     updateFloatingToolbarPosition();
@@ -802,7 +899,7 @@ function finishEdit(el) {
 /* ============================================================
    §10. EQUATION EDITOR
    ============================================================ */
-function buildEquationPaletteInto(host) {
+export function buildEquationPaletteInto(host) {
   host.innerHTML = '';
   EQUATION_TEMPLATES.forEach(cat => {
     const lbl = document.createElement('div');
@@ -842,18 +939,11 @@ function buildEquationPaletteInto(host) {
   });
 }
 
-function positionEquationEditor() {
-  const tbRect = $('toolbar').getBoundingClientRect();
-  let top = tbRect.top;
-  const h = equationEditor.offsetHeight;
-  if (top + h > window.innerHeight - 8) top = window.innerHeight - h - 8;
-  if (top < 8) top = 8;
-  equationEditor.style.top = top + 'px';
-}
-
 function updateEqPreview() {
-  const raw = $('eqTextarea').value.trim();
+  const eqTa = $('eqTextarea');
   const host = $('eqPreview');
+  if (!eqTa || !host) return;
+  const raw = eqTa.value.trim();
   host.innerHTML = '';
   if (!raw) return;
   if (typeof window.katex === 'undefined') { host.textContent = raw; return; }
@@ -865,57 +955,67 @@ export function openEquationEditor(el) {
   _eqCurrentTarget = el || null;
   const raw = el ? (el.dataset.text || '').replace(/^\$|\$$/g, '') : '';
   const textarea = $('eqTextarea');
-  textarea.value = raw;
-  updateEqPreview();
-  buildEquationPaletteInto($('eqPaletteHost'));
-  /* ★ نفتح الخلفية (الـ dialog) بدل المحرر */
+  if (textarea) {
+    textarea.value = raw;
+    updateEqPreview();
+  }
+  const palHost = $('eqPaletteHost');
+  if (palHost) buildEquationPaletteInto(palHost);
   const backdrop = equationBackdropEl();
   if (backdrop) backdrop.classList.add('show');
-  setTimeout(() => { textarea.focus(); textarea.select(); }, 50);
+  const ed = $('equationEditor');
+  if (ed) ed.classList.add('show');
+  if (textarea) setTimeout(() => { textarea.focus(); textarea.select(); }, 50);
 }
 
 export function closeEquationEditor() {
-  /* ★ نغلق الخلفية (الـ dialog) */
   const backdrop = equationBackdropEl();
   if (backdrop) backdrop.classList.remove('show');
+  const ed = $('equationEditor');
+  if (ed) ed.classList.remove('show');
   _eqCurrentTarget = null;
 }
 
 export function bindEquationEditor() {
-  $('eqTextarea').addEventListener('input', updateEqPreview);
-  $('eqCloseBtn').addEventListener('click', () => { closeEquationEditor(); uiHooks.setTool('select'); });
-  $('eqCancelBtn').addEventListener('click', () => { closeEquationEditor(); uiHooks.setTool('select'); });
-  $('eqInsertBtn').addEventListener('click', () => {
-    const raw = $('eqTextarea').value.trim();
-    if (!raw) { toast('المعادلة فارغة', 'warn'); return; }
-    const wrapped = '$' + raw + '$';
+  const ta = $('eqTextarea');
+  if (ta) ta.addEventListener('input', updateEqPreview);
+  const closeBtn = $('eqCloseBtn');
+  if (closeBtn) closeBtn.addEventListener('click', () => { closeEquationEditor(); uiHooks.setTool('select'); });
+  const cancelBtn = $('eqCancelBtn');
+  if (cancelBtn) cancelBtn.addEventListener('click', () => { closeEquationEditor(); uiHooks.setTool('select'); });
+  const insBtn = $('eqInsertBtn');
+  if (insBtn) {
+    insBtn.addEventListener('click', () => {
+      const raw = $('eqTextarea').value.trim();
+      if (!raw) { toast('المعادلة فارغة', 'warn'); return; }
+      const wrapped = '$' + raw + '$';
 
-    if (_eqCurrentTarget) {
-      const pre = snapshot();
-      _eqCurrentTarget.dataset.text = wrapped;
-      _eqCurrentTarget.classList.remove('placeholder-empty');
-      const body = _eqCurrentTarget.querySelector('.pdf-text-body');
-      renderTextWithMath(body, wrapped);
-      commitChange(pre);
-      closeEquationEditor();
-      toast('تم تحديث المعادلة', 'ok');
-    } else {
-      const pre = snapshot();
-      const el = addTextBox({
-        x: '30%', y: '35%', w: '240px', h: 'auto',
-        fontSize: state.equationSize,
-        fontFamily: 'KaTeX_Main, Cambria Math, serif',
-        fontWeight: 'normal', fontStyle: 'normal',
-        color: state.equationColor, align: 'left', dir: 'ltr',
-        isEquation: true, text: wrapped,
-      }, false);
-      commitChange(pre);
-      closeEquationEditor();
-      uiHooks.setTool('select');
-      selectTextBox(el);
-    }
-  });
-    /* ★ إغلاق عند النقر خارج الـ dialog */
+      if (_eqCurrentTarget) {
+        const pre = snapshot();
+        _eqCurrentTarget.dataset.text = wrapped;
+        _eqCurrentTarget.classList.remove('placeholder-empty');
+        const body = _eqCurrentTarget.querySelector('.pdf-text-body');
+        renderTextWithMath(body, wrapped);
+        commitChange(pre);
+        closeEquationEditor();
+        toast('تم تحديث المعادلة', 'ok');
+      } else {
+        const pre = snapshot();
+        const el = addTextBox({
+          x: '30%', y: '35%', w: '240px', h: 'auto',
+          fontSize: state.equationSize,
+          fontFamily: 'KaTeX_Main, Cambria Math, serif',
+          fontWeight: 'normal', fontStyle: 'normal',
+          color: state.equationColor, align: 'left', dir: 'ltr',
+          isEquation: true, text: wrapped,
+        }, false);
+        commitChange(pre);
+        closeEquationEditor();
+        uiHooks.setTool('select');
+        selectTextBox(el);
+      }
+    });
+  }
   const backdrop = equationBackdropEl();
   if (backdrop) {
     backdrop.addEventListener('click', (e) => {
@@ -968,12 +1068,16 @@ function showDeleteBtnFor(el) {
 function hideDeleteBtn() { if (_floatingDeleteBtn) _floatingDeleteBtn.style.display = 'none'; }
 
 export function hideTextContextToolbar() {
-  textContextToolbar.classList.remove('show');
-  textContextToolbar.innerHTML = '';
+  if (textContextToolbar) {
+    textContextToolbar.classList.remove('show');
+    textContextToolbar.innerHTML = '';
+  }
 }
 export function hideShapeContextToolbar() {
-  shapeContextToolbar.classList.remove('show');
-  shapeContextToolbar.innerHTML = '';
+  if (shapeContextToolbar) {
+    shapeContextToolbar.classList.remove('show');
+    shapeContextToolbar.innerHTML = '';
+  }
 }
 export function hideFloatingToolbars() {
   hideTextContextToolbar();
@@ -981,21 +1085,22 @@ export function hideFloatingToolbars() {
   hideDeleteBtn();
 }
 
-function positionToolbar(toolbar, el) {
+function positionToolbar(toolbarEl, el) {
+  if (!toolbarEl) return;
   const r = el.getBoundingClientRect();
-  toolbar.style.visibility = 'hidden';
-  toolbar.style.left = '0';
-  toolbar.style.top = '0';
-  void toolbar.offsetWidth;
-  const tw = toolbar.offsetWidth, th = toolbar.offsetHeight;
+  toolbarEl.style.visibility = 'hidden';
+  toolbarEl.style.left = '0';
+  toolbarEl.style.top = '0';
+  void toolbarEl.offsetWidth;
+  const tw = toolbarEl.offsetWidth, th = toolbarEl.offsetHeight;
   let top = r.top - th - 8;
   if (top < 8) top = r.bottom + 8;
   let left = r.left + r.width/2 - tw/2;
   if (left < 8) left = 8;
   if (left + tw > window.innerWidth - 8) left = window.innerWidth - tw - 8;
-  toolbar.style.left = left + 'px';
-  toolbar.style.top = top + 'px';
-  toolbar.style.visibility = 'visible';
+  toolbarEl.style.left = left + 'px';
+  toolbarEl.style.top = top + 'px';
+  toolbarEl.style.visibility = 'visible';
 }
 
 export function updateFloatingToolbarPosition() {
@@ -1003,10 +1108,10 @@ export function updateFloatingToolbarPosition() {
   const el = state.selected.el;
   if (!el || !el.parentNode) { hideFloatingToolbars(); return; }
 
-  if (state.selected.kind === 'text' && textContextToolbar.classList.contains('show')) {
+  if (state.selected.kind === 'text' && textContextToolbar && textContextToolbar.classList.contains('show')) {
     positionToolbar(textContextToolbar, el);
     showDeleteBtnFor(el);
-  } else if (state.selected.kind === 'svg' && shapeContextToolbar.classList.contains('show')) {
+  } else if (state.selected.kind === 'svg' && shapeContextToolbar && shapeContextToolbar.classList.contains('show')) {
     positionToolbar(shapeContextToolbar, el);
     showDeleteBtnFor(el);
   } else {
@@ -1027,6 +1132,7 @@ export function showFloatingToolbarForSelection() {
    §12. TEXT CONTEXT TOOLBAR
    ============================================================ */
 function showTextContextToolbar(el) {
+  if (!textContextToolbar) return;
   const isEq = el.dataset.isEquation === 'true';
   const align = el.dataset.align || 'right';
   const dir = el.dataset.dir || 'rtl';
@@ -1089,7 +1195,7 @@ function showTextContextToolbar(el) {
 }
 
 function updateTextContextToolbarState(el) {
-  if (!el || !el.parentNode) return;
+  if (!el || !el.parentNode || !textContextToolbar) return;
   const align = el.dataset.align || 'right';
   const dir = el.dataset.dir || 'rtl';
   const isBold = el.dataset.fontWeight === 'bold';
@@ -1118,6 +1224,7 @@ function applyTextChange(el, key, value) {
 }
 
 function bindTextContextToolbarEvents(el) {
+  if (!textContextToolbar) return;
   textContextToolbar.querySelectorAll('[data-act]').forEach(ctrl => {
     const act = ctrl.dataset.act;
 
@@ -1202,6 +1309,7 @@ function getDefaultFonts() {
    §13. SHAPE CONTEXT TOOLBAR
    ============================================================ */
 function showShapeContextToolbar(el) {
+  if (!shapeContextToolbar) return;
   const tag = el.tagName;
   const stroke = el.getAttribute('stroke') || '#000';
   const fill = el.getAttribute('fill') || 'none';
@@ -1308,6 +1416,7 @@ function applyShapeChange(el, key, val) {
 }
 
 function bindShapeContextToolbarEvents(el) {
+  if (!shapeContextToolbar) return;
   shapeContextToolbar.querySelectorAll('[data-act]').forEach(ctrl => {
     const act = ctrl.dataset.act;
     if (act === 'customStroke') {
@@ -1335,7 +1444,8 @@ function bindShapeContextToolbarEvents(el) {
     ctrl.addEventListener('click', () => {
       if (act === 'delete') {
         const pre = snapshot();
-        el.remove();
+        const wrap = el.closest('.annot-wrapper');
+        (wrap || el).remove();
         state.selected = null;
         hideFloatingToolbars();
         commitChange(pre);
@@ -1369,13 +1479,13 @@ export function startEmbedDrag(el, e, mode) {
   function onMove(ev) {
     const dx = ev.clientX - sX, dy = ev.clientY - sY;
     if (mode === 'move') {
-      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx));
-      const nt = Math.max(0, Math.min(sr.height - sH, sT + dy));
+      const nl = sL + dx;
+      const nt = sT + dy;
       el.style.left = (nl / sr.width * 100) + '%';
       el.style.top = (nt / sr.height * 100) + '%';
     } else {
-      const nw = Math.max(80, Math.min(sr.width - sL, sW + dx));
-      const nh = Math.max(60, Math.min(sr.height - sT, sH + dy));
+      const nw = Math.max(80, sW + dx);
+      const nh = Math.max(60, sH + dy);
       el.style.width = (nw / sr.width * 100) + '%';
       el.style.height = (nh / sr.height * 100) + '%';
     }
@@ -1403,13 +1513,13 @@ export function startMediaDrag(el, e, mode) {
   function onMove(ev) {
     const dx = ev.clientX - sX, dy = ev.clientY - sY;
     if (mode === 'move') {
-      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx));
-      const nt = Math.max(0, Math.min(sr.height - sH, sT + dy));
+      const nl = sL + dx;
+      const nt = sT + dy;
       el.style.left = (nl / sr.width * 100) + '%';
       el.style.top = (nt / sr.height * 100) + '%';
     } else {
-      const nw = Math.max(80, Math.min(sr.width - sL, sW + dx));
-      const nh = Math.max(60, Math.min(sr.height - sT, sH + dy));
+      const nw = Math.max(80, sW + dx);
+      const nh = Math.max(60, sH + dy);
       el.style.width = (nw / sr.width * 100) + '%';
       el.style.height = (nh / sr.height * 100) + '%';
     }
@@ -1439,13 +1549,13 @@ export function startButtonDrag(el, e, mode) {
     const dx = ev.clientX - sX, dy = ev.clientY - sY;
     if (!moved && Math.hypot(dx, dy) > 3) moved = true;
     if (mode === 'move') {
-      const nl = Math.max(0, Math.min(sr.width - sW, sL + dx));
-      const nt = Math.max(0, Math.min(sr.height - sH, sT + dy));
+      const nl = sL + dx;
+      const nt = sT + dy;
       el.style.left = (nl / sr.width * 100) + '%';
       el.style.top = (nt / sr.height * 100) + '%';
     } else {
-      const nw = Math.max(40, Math.min(sr.width - sL, sW + dx));
-      const nh = Math.max(24, Math.min(sr.height - sT, sH + dy));
+      const nw = Math.max(40, sW + dx);
+      const nh = Math.max(24, sH + dy);
       el.style.width = nw + 'px';
       el.style.height = nh + 'px';
     }
@@ -1464,7 +1574,6 @@ export function startButtonDrag(el, e, mode) {
 }
 
 export function installElementHooks() {
-  /* الحاقنات على prototype لكل عنصر DOM */
   const proto = Element.prototype;
   proto.__selectEmbed = selectEmbed;
   proto.__startEmbedDrag = startEmbedDrag;
@@ -1477,34 +1586,74 @@ export function installElementHooks() {
 /* ============================================================
    §15. SNAPSHOT APPLICATION
    ============================================================ */
+function applyZOrder(order) {
+  const all = getAllZElements();
+  const byId = new Map();
+  all.forEach(it => {
+    const id = it.el.dataset.annotId
+      || it.el.dataset.id
+      || it.el.dataset.textId
+      || it.el.dataset.btnId
+      || it.el.dataset.mediaId;
+    if (id) byId.set(id, it);
+  });
+
+  const ordered = [];
+  order.forEach(id => {
+    const it = byId.get(id);
+    if (it) {
+      ordered.push(it);
+      byId.delete(id);
+    }
+  });
+  byId.forEach(it => ordered.push(it));
+
+  assignZIndexesInOrder(ordered);
+}
+
 export function applySnapshotImpl(s) {
   deselect();
-  while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
+  if (svgLayer) {
+    while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
+  }
 
-  /* إعادة defs */
-  const defs = document.createElementNS(SVG_NS, 'defs');
-  defs.innerHTML = `
-    <marker id="arrow-end-normal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M 0 0 L 10 5 L 0 10 Z" fill="context-stroke"/></marker>
-    <marker id="arrow-end-hollow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#fff" stroke="context-stroke" stroke-width="1"/></marker>
-    <marker id="arrow-start-normal" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto" markerUnits="strokeWidth"><path d="M 10 0 L 0 5 L 10 10 Z" fill="context-stroke"/></marker>
-    <marker id="arrow-start-hollow" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto" markerUnits="strokeWidth"><path d="M 10 0 L 0 5 L 10 10 Z" fill="#fff" stroke="context-stroke" stroke-width="1"/></marker>
-    <marker id="circle-end" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto" markerUnits="strokeWidth"><circle cx="5" cy="5" r="4" fill="context-stroke"/></marker>
-    <marker id="square-end" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto" markerUnits="strokeWidth"><rect x="1" y="1" width="8" height="8" fill="context-stroke"/></marker>`;
-  svgLayer.appendChild(defs);
-
-  embedLayer.innerHTML = '';
-  videoLayer.innerHTML = '';
-  textLayer.innerHTML = '';
-  interactiveLayer.innerHTML = '';
+  if (embedLayer) embedLayer.innerHTML = '';
+  if (videoLayer) videoLayer.innerHTML = '';
+  if (textLayer) textLayer.innerHTML = '';
+  if (interactiveLayer) interactiveLayer.innerHTML = '';
 
   (s.annotations || []).forEach(spec => {
-    try { svgLayer.appendChild(deserializeSvgElement(spec)); } catch (e) {}
+    try {
+      const el = deserializeSvgElement(spec);
+      const wrap = createAnnotWrapper(el);
+      if (svgLayer) svgLayer.appendChild(wrap);
+    } catch (e) {}
   });
-  (s.embeds || []).forEach(spec => addEmbedElement(spec.url, spec.x, spec.y, spec.w, spec.h, false));
+
+  (s.embeds || []).forEach(spec =>
+    addEmbedElement(spec.url, spec.x, spec.y, spec.w, spec.h, false,
+      spec.z ? parseInt(spec.z, 10) : undefined));
+
   const mediaList = s.media || s.videos || [];
-  mediaList.forEach(spec => addMediaElement(spec.mediaId, spec.url, spec.title, spec.mediaType || 'video', spec.x, spec.y, spec.w, spec.h, false));
+  mediaList.forEach(spec =>
+    addMediaElement(
+      spec.mediaId, spec.url, spec.title, spec.mediaType || 'video',
+      spec.x, spec.y, spec.w, spec.h, false,
+      spec.z ? parseInt(spec.z, 10) : undefined
+    ));
+
   (s.texts || []).forEach(spec => addTextBox(spec, false));
-  (s.buttons || []).forEach(spec => addButtonElement(spec, false));
+
+  (s.buttons || []).forEach(spec =>
+    addButtonElement(spec, false,
+      spec.z ? parseInt(spec.z, 10) : undefined));
+
+  if (s.zOrder && Array.isArray(s.zOrder) && s.zOrder.length) {
+    applyZOrder(s.zOrder);
+  } else {
+    const all = getAllZElements();
+    assignZIndexesInOrder(all);
+  }
 }
 
 /* ============================================================
@@ -1514,11 +1663,13 @@ export function loadPageState(pageNum) {
   deselect();
   clearLaser();
   clearTransient();
-  while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
-  embedLayer.innerHTML = '';
-  videoLayer.innerHTML = '';
-  textLayer.innerHTML = '';
-  interactiveLayer.innerHTML = '';
+  if (svgLayer) {
+    while (svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
+  }
+  if (embedLayer) embedLayer.innerHTML = '';
+  if (videoLayer) videoLayer.innerHTML = '';
+  if (textLayer) textLayer.innerHTML = '';
+  if (interactiveLayer) interactiveLayer.innerHTML = '';
   const s = state.pages[pageNum];
   if (s) applySnapshotImpl(s);
 }
@@ -1561,26 +1712,28 @@ export function pasteElement() {
   let newEl = null;
 
   if (data.kind === 'text') {
-    newEl = addTextBox({ ...data, textId: uid(), x: offsetPct(data.x, 3), y: offsetPct(data.y, 3) }, false);
+    newEl = addTextBox({ ...data, textId: uid(), x: offsetPct(data.x, 3), y: offsetPct(data.y, 3), z: undefined }, false);
   } else if (data.kind === 'svg') {
-    newEl = deserializeSvgElement({ ...data, dataId: uid() });
+    const inner = deserializeSvgElement({ ...data, dataId: uid() });
     if (data.tag === 'line') {
-      newEl.setAttribute('x1', +newEl.getAttribute('x1') + 30);
-      newEl.setAttribute('y1', +newEl.getAttribute('y1') + 30);
-      newEl.setAttribute('x2', +newEl.getAttribute('x2') + 30);
-      newEl.setAttribute('y2', +newEl.getAttribute('y2') + 30);
+      inner.setAttribute('x1', +inner.getAttribute('x1') + 30);
+      inner.setAttribute('y1', +inner.getAttribute('y1') + 30);
+      inner.setAttribute('x2', +inner.getAttribute('x2') + 30);
+      inner.setAttribute('y2', +inner.getAttribute('y2') + 30);
     } else if (data.tag === 'rect') {
-      newEl.setAttribute('x', +newEl.getAttribute('x') + 30);
-      newEl.setAttribute('y', +newEl.getAttribute('y') + 30);
+      inner.setAttribute('x', +inner.getAttribute('x') + 30);
+      inner.setAttribute('y', +inner.getAttribute('y') + 30);
     } else if (data.tag === 'ellipse') {
-      newEl.setAttribute('cx', +newEl.getAttribute('cx') + 30);
-      newEl.setAttribute('cy', +newEl.getAttribute('cy') + 30);
+      inner.setAttribute('cx', +inner.getAttribute('cx') + 30);
+      inner.setAttribute('cy', +inner.getAttribute('cy') + 30);
     } else if (data.tag === 'path') {
-      newEl.setAttribute('transform', 'translate(30, 30)');
+      inner.setAttribute('transform', 'translate(30, 30)');
     }
-    svgLayer.appendChild(newEl);
+    const wrap = createAnnotWrapper(inner);
+    if (svgLayer) svgLayer.appendChild(wrap);
+    newEl = inner;
   } else if (data.kind === 'button') {
-    newEl = addButtonElement({ ...data, btnId: uid(), x: offsetPct(data.x, 3), y: offsetPct(data.y, 3) }, false);
+    newEl = addButtonElement({ ...data, btnId: uid(), x: offsetPct(data.x, 3), y: offsetPct(data.y, 3), z: undefined }, false);
   } else if (data.kind === 'media') {
     newEl = addMediaElement(uid(), data.url, data.title, data.mediaType, offsetPct(data.x, 3), offsetPct(data.y, 3), data.w, data.h, false);
   } else if (data.kind === 'embed') {
@@ -1654,19 +1807,33 @@ function cancelInteraction() {
     } else interaction = null;
   }
   handDrag = null;
-  stage.classList.remove('dragging');
+  if (stage) stage.classList.remove('dragging');
 }
 
 export function initPointerEvents() {
+  if (!stage) return;
   stage.addEventListener('pointerdown', e => {
     if (!state.pdfW) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    if (e.target.closest && (
-      e.target.closest('.embed') ||
-      e.target.closest('.media-obj') ||
-      e.target.closest('.pdf-interactive-btn') ||
-      e.target.closest('.pdf-text-box')
-    )) return;
+
+    const isDrawingTool = (
+      state.tool === 'pen' ||
+      state.tool === 'highlighter' ||
+      state.tool === 'eraser' ||
+      state.tool === 'laser' ||
+      state.tool === 'shape'
+    );
+
+    if (!isDrawingTool && e.target.closest) {
+      if (
+        e.target.closest('.embed') ||
+        e.target.closest('.media-obj') ||
+        e.target.closest('.pdf-interactive-btn') ||
+        e.target.closest('.pdf-text-box')
+      ) {
+        return;
+      }
+    }
 
     stagePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -1699,7 +1866,7 @@ export function initPointerEvents() {
     }
 
     if (tool === 'select') {
-      const handle = e.target.closest && e.target.closest('.handle');
+      const handle = e.target.closest && e.target.closest('#selectionSvg .handle');
       if (handle && state.selected && state.selected.kind === 'svg') {
         interaction = {
           type: 'resizeSvg', el: state.selected.el,
@@ -1710,7 +1877,7 @@ export function initPointerEvents() {
         e.preventDefault();
         return;
       }
-      const annot = e.target.closest && e.target.closest('[data-annot]');
+      const annot = e.target.closest && e.target.closest('#svgLayer [data-annot]');
       if (annot && annot.tagName.toLowerCase() !== 'g' && !annot.classList.contains('handle')) {
         selectAnnotation(annot);
         interaction = {
@@ -1768,8 +1935,9 @@ export function initPointerEvents() {
         el.setAttribute('x1', p.x); el.setAttribute('y1', p.y);
         el.setAttribute('x2', p.x); el.setAttribute('y2', p.y);
       }
-      svgLayer.appendChild(el);
-      interaction = { type: 'shapeDraw', kind: state.shapeKind, start: p, el, pre };
+      const wrap = createAnnotWrapper(el);
+      if (svgLayer) svgLayer.appendChild(wrap);
+      interaction = { type: 'shapeDraw', kind: state.shapeKind, start: p, el, wrap, pre };
       e.preventDefault();
       return;
     }
@@ -1789,7 +1957,7 @@ export function initPointerEvents() {
       import('./pdf.js').then(m => m.applyView());
       return;
     }
-    if (interaction.type === 'hand' && handDrag) {
+    if (interaction.type === 'hand' && handDrag && stageContent) {
       handDrag.dx = e.clientX - handDrag.startX;
       stageContent.style.transition = 'none';
       stageContent.style.transform = `translateX(${handDrag.dx}px)`;
@@ -1851,12 +2019,12 @@ export function initPointerEvents() {
       if (dx < -thr && state.currentPage < state.totalPages) tp = state.currentPage + 1;
       else if (dx > thr && state.currentPage > 1) tp = state.currentPage - 1;
 
-      if (tp !== null) {
+      if (tp !== null && stageContent) {
         stageContent.style.transition = 'none';
         stageContent.style.transform = '';
         void stageContent.offsetWidth;
         import('./pdf.js').then(m => m.goToPage(tp));
-      } else {
+      } else if (stageContent) {
         stageContent.style.transition = 'transform .2s ease-out';
         stageContent.style.transform = 'translateX(0)';
         setTimeout(() => { stageContent.style.transition = ''; stageContent.style.transform = ''; }, 220);
@@ -1875,11 +2043,15 @@ export function initPointerEvents() {
         if (Math.hypot(+el.getAttribute('x2') - +el.getAttribute('x1'),
                        +el.getAttribute('y2') - +el.getAttribute('y1')) < 20) tooSmall = true;
       }
-      if (tooSmall) el.remove();
-      else {
+      if (tooSmall) {
+        (inter.wrap || el).remove();
+      } else {
         el.dataset.annot = '1';
         el.dataset.id = uid();
         el.dataset.type = kind;
+        if (inter.wrap) {
+          inter.wrap.dataset.annotId = el.dataset.id;
+        }
         commitChange(inter.pre);
       }
       return;
@@ -1897,9 +2069,8 @@ export function initPointerEvents() {
     }
   });
 
-  /* Prevent toolbar clicks from propagating into stage */
   [textContextToolbar, shapeContextToolbar].forEach(tb => {
-    tb.addEventListener('pointerdown', e => e.stopPropagation());
+    if (tb) tb.addEventListener('pointerdown', e => e.stopPropagation());
   });
 }
 
@@ -1907,14 +2078,11 @@ export function initPointerEvents() {
    §19. REGISTER SETUP
    ============================================================ */
 export function registerApplySnapshot() {
-  const wrapper = function(s) { return applySnapshotImpl(s); };
-  wrapper._impl = applySnapshotImpl;
-  /* Override core's dispatcher to call our impl directly */
   import('./core.js').then(m => m.setApplySnapshot(applySnapshotImpl));
 }
 
 /* ============================================================
-   §20. KEYBOARD (undo/redo helpers, exported for main.js)
+   §20. KEYBOARD
    ============================================================ */
 export async function undoAction() {
   const core = await import('./core.js');

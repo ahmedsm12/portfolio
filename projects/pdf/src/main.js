@@ -1,11 +1,17 @@
 /* ============================================================
  * main.js — الشريط + القوائم الفرعية + التهيئة
+ * ============================================================
+ *  ★ إصلاح: transientCanvas يبقى ظاهراً دائماً
+ *  ★ إصلاح: إلغاء captureStageThumbnail عند بدء أي تفاعل
+ *  ★ منع zoom المتصفح
+ *  ★ إخفاء الشريطين الجانبيين عند عدم وجود مشروع نشط
  * ============================================================ */
 
 import {
   $, PDFJS_BASE, KATEX_CSS,
   UNDO_LIMIT, TOOLS_WITH_SUBMENU,
   stage, submenu, toolbar, fileInput,
+  transientCanvas,
   state,
   uid, toast, showSaveStatus, adjustToolbarSize, updateCursorForTool,
   commitChange, snapshot, savePageNow, undo, redo, updateUndoButtons,
@@ -35,32 +41,29 @@ import {
   openEquationEditor, copyElement, pasteElement, updatePasteBtnState,
   uiHooks, undoAction, redoAction,
 } from './interaction.js';
-import { initUIShell } from './ui-shell.js';
 
+import { initUIShell } from './ui-shell.js';
 import { initNewProject } from './new-project.js';
 
 /* ============================================================
    §1. SET TOOL
    ============================================================ */
 export function setTool(tool) {
-  /* إغلاق القائمة الفرعية */
   closeSubmenu();
   closeEquationEditor();
 
   if (tool !== 'select') deselect();
-  if (tool !== 'select') {
-    hideFloatingToolbars();
-    transientCanvas.style.display = 'none';
-  } else {
-    transientCanvas.style.display = 'block';
-  }
+  if (tool !== 'select') hideFloatingToolbars();
+
+  if (transientCanvas) transientCanvas.style.display = 'block';
+
   if ((tool === 'text' || tool === 'equation') && state.selected && state.selected.kind === 'text') {
-    /* keep selection */
+    // keep selection
   } else if (tool !== 'select') {
     if (!(state.selected && state.selected.kind === 'text')) deselect();
   }
   state.tool = tool;
-  stage.dataset.tool = tool;
+  if (stage) stage.dataset.tool = tool;
   document.querySelectorAll('#toolbar button[data-tool]').forEach(b => {
     b.classList.toggle('active', b.dataset.tool === tool);
   });
@@ -74,13 +77,14 @@ export function setTool(tool) {
 let submenuOwner = null;
 
 function closeSubmenu() {
+  if (!submenu) return;
   submenu.classList.remove('show');
   submenu.innerHTML = '';
   submenuOwner = null;
 }
 
 function repositionSubmenu() {
-  if (!submenuOwner || !submenu.classList.contains('show')) return;
+  if (!submenuOwner || !submenu || !submenu.classList.contains('show')) return;
   const r = submenuOwner.getBoundingClientRect();
   let top = r.top;
   const h = submenu.offsetHeight;
@@ -90,10 +94,12 @@ function repositionSubmenu() {
 }
 
 function openSubmenu(ownerBtn, kind) {
+  if (!submenu) return;
   submenuOwner = ownerBtn;
   const t = {
     pen: 'قلم', highlighter: 'قلم تحديد', eraser: 'ممحاة',
     laser: 'ليزر', shape: 'أشكال', text: 'نص',
+    equation: 'معادلة',
   }[kind] || '';
   submenu.innerHTML =
     `<div class="submenu-head"><span class="sub-title">${t}</span><button type="button" class="sub-close">×</button></div>` +
@@ -112,6 +118,7 @@ function renderSubmenuHTML(kind) {
   if (kind === 'laser') return renderLaserSubmenu();
   if (kind === 'shape') return renderShapeSubmenu();
   if (kind === 'text') return renderTextSubmenu();
+  if (kind === 'equation') return '';
   return '';
 }
 
@@ -246,6 +253,7 @@ function getDefaultFonts() {
 }
 
 function bindSubmenuHandlers() {
+  if (!submenu) return;
   submenu.querySelectorAll('.color-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const kind = btn.dataset.kind, color = btn.dataset.color;
@@ -336,22 +344,25 @@ function bindSubmenuHandlers() {
   });
 }
 
-submenu.addEventListener('input', e => {
-  if (e.target.id === 'subShapeStroke') state.shapeStroke = e.target.value;
-  if (e.target.id === 'subShapeFill') state.shapeFill = e.target.value;
-  if (e.target.id === 'subNoFill') {
-    state.shapeFillNone = e.target.checked;
-    const fi = submenu.querySelector('#subShapeFill');
-    if (fi) fi.disabled = state.shapeFillNone;
-  }
-  if (e.target.id === 'subEraseShapes') state.eraserErasesShapes = e.target.checked;
-  if (e.target.id === 'subTextFont') state.textFamily = e.target.value;
-});
+if (submenu) {
+  submenu.addEventListener('input', e => {
+    if (e.target.id === 'subShapeStroke') state.shapeStroke = e.target.value;
+    if (e.target.id === 'subShapeFill') state.shapeFill = e.target.value;
+    if (e.target.id === 'subNoFill') {
+      state.shapeFillNone = e.target.checked;
+      const fi = submenu.querySelector('#subShapeFill');
+      if (fi) fi.disabled = state.shapeFillNone;
+    }
+    if (e.target.id === 'subEraseShapes') state.eraserErasesShapes = e.target.checked;
+    if (e.target.id === 'subTextFont') state.textFamily = e.target.value;
+  });
+}
 
 /* ============================================================
    §3. TOOLBAR
    ============================================================ */
 function updateToolbarIndicators() {
+  if (!toolbar) return;
   const p = toolbar.querySelector('button[data-tool="pen"]');
   const hh = toolbar.querySelector('button[data-tool="highlighter"]');
   const l = toolbar.querySelector('button[data-tool="laser"]');
@@ -365,6 +376,7 @@ function updateToolbarIndicators() {
 }
 
 function bindToolbar() {
+  if (!toolbar) return;
   toolbar.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', async () => {
       if (btn.id === 'btnUndo') { await undoAction(); return; }
@@ -438,7 +450,8 @@ function bindKeyboard() {
             if (v) { v.pause(); v.src = ''; }
           } catch (_) {}
         }
-        sel.el.remove();
+        const wrap = sel.el.closest && sel.el.closest('.annot-wrapper');
+        (wrap || sel.el).remove();
         state.selected = null;
         hideFloatingToolbars();
         commitChange(pre);
@@ -456,7 +469,7 @@ function bindKeyboard() {
     const map = { h:'hand', v:'select', p:'pen', m:'highlighter',
                   e:'eraser', a:'laser', s:'shape', t:'text' };
     const t = map[e.key.toLowerCase()];
-    if (t) {
+    if (t && toolbar) {
       const btn = toolbar.querySelector(`button[data-tool="${t}"]`);
       if (btn && btn.dataset.submenu) {
         setTool(t);
@@ -472,6 +485,7 @@ function bindKeyboard() {
    §5. FILE INPUT + DRAG/DROP + CONTEXTMENU
    ============================================================ */
 function bindFileInput() {
+  if (!fileInput) return;
   fileInput.addEventListener('change', async e => {
     const f = e.target.files[0];
     if (!f) return;
@@ -488,12 +502,11 @@ function bindFileInput() {
     fileInput.value = '';
   });
 
-	  /* زر فتح ملف في شاشة البداية */
-	  const btnOpenEmpty = document.getElementById('btnOpenEmpty');
-	  if (btnOpenEmpty) {
-		btnOpenEmpty.addEventListener('click', () => fileInput.click());
-	  }
+  const btnOpenEmpty = document.getElementById('btnOpenEmpty');
+  if (btnOpenEmpty) {
+    btnOpenEmpty.addEventListener('click', () => fileInput.click());
   }
+}
 
 function bindGlobalListeners() {
   document.addEventListener('dragover', e => e.preventDefault());
@@ -516,13 +529,14 @@ function bindGlobalListeners() {
     setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
   });
 
-  /* page nav buttons */
-  $('btnPrev').addEventListener('click', () => goToPage(state.currentPage - 1));
-  $('btnNext').addEventListener('click', () => goToPage(state.currentPage + 1));
+  const pBtn = $('btnPrev');
+  if (pBtn) pBtn.addEventListener('click', () => goToPage(state.currentPage - 1));
+  const nBtn = $('btnNext');
+  if (nBtn) nBtn.addEventListener('click', () => goToPage(state.currentPage + 1));
 }
 
 /* ============================================================
-   §6. INIT
+   §6. LOCAL FONTS
    ============================================================ */
 async function loadLocalFonts() {
   if (!('queryLocalFonts' in window)) return [];
@@ -532,18 +546,10 @@ async function loadLocalFonts() {
   } catch (e) { return []; }
 }
 
-
 /* ============================================================
- * ★ تعطيل التكبير/التصغير في المتصفح
- * ============================================================
- *  1. Ctrl/Cmd + Wheel (بما فيها trackpad pinch)
- *  2. Ctrl/Cmd + Plus/Minus/0 (لوحة المفاتيح)
- *  3. Safari gesture events (iOS/macOS pinch)
- *
- *  ملاحظة: أداة hand لا تتأثر — تستخدم pointer events على stage.
- * ============================================================ */
+   §7. DISABLE BROWSER ZOOM
+   ============================================================ */
 function disableBrowserZoom() {
-  /* 1. Ctrl/Cmd + Wheel */
   window.addEventListener('wheel', (e) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
@@ -551,7 +557,6 @@ function disableBrowserZoom() {
     }
   }, { passive: false, capture: true });
 
-  /* 2. Ctrl/Cmd + Plus/Minus/0 */
   window.addEventListener('keydown', (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
     const k = e.key;
@@ -565,7 +570,6 @@ function disableBrowserZoom() {
     }
   }, { capture: true });
 
-  /* 3. Safari gesture events */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(evt => {
     document.addEventListener(evt, (e) => {
       e.preventDefault();
@@ -573,59 +577,44 @@ function disableBrowserZoom() {
   });
 }
 
-
+/* ============================================================
+   §8. INIT
+   ============================================================ */
 async function init() {
-  /* 1) تحميل KaTeX */
   await loadKatex();
-  await import('./core.js').then(m => m.loadKatex ? null : null);
-
-  /* 2) تحميل pdf.js */
   await initPdfJs();
 
-  /* 3) ربط الـ UI hooks */
   uiHooks.setTool = setTool;
   uiHooks.closeSubmenu = closeSubmenu;
 
-  /* 4) تسجيل applySnapshot */
   setApplySnapshot(applySnapshotImpl);
-
-  /* 5) تثبيت hooks العناصر */
   installElementHooks();
-
-  /* 6) ربط أحداث الـ pointer */
   initPointerEvents();
-
-  /* 7) ضبط حجم الشريط */
   adjustToolbarSize();
 
-  /* 8) الشريط + المفاتيح + الملفات */
   bindToolbar();
   bindKeyboard();
   bindFileInput();
   bindGlobalListeners();
   bindSlideContextMenu();
   bindEquationEditor();
+  disableBrowserZoom();
 
-  /* 9) الشريط الجانبي */
   initSidebar();
 
-  /* 10) تحميل الخطوط المحلية (إن كانت مدعومة) */
   try {
     const fonts = await loadLocalFonts();
     window.__localFonts = fonts;
   } catch (_) { window.__localFonts = []; }
 
-  /* 11) الوضع الابتدائي */
   setTool('select');
   updateToolbarIndicators();
   updateUndoButtons();
   updatePasteBtnState();
   updatePageIndicator();
 
-  /* 12) مراقبة clipboard لتحديث زر اللصق */
-  const origCopy = copyElement;
   setInterval(updatePasteBtnState, 1500);
-    /* ====== تصحيح فقط: عرض المتغيرات على window ====== */
+
   if (typeof window !== 'undefined') {
     window.__APP__ = {
       state,
@@ -635,36 +624,39 @@ async function init() {
       reload: () => location.reload(),
     };
   }
-  /* ====== مراقبة التعديلات لالتقاط thumbnail تلقائياً ====== */
+
   import('./pdf.js').then(pdf => {
     let thumbTimer = null;
+
     const scheduleCapture = () => {
       clearTimeout(thumbTimer);
       thumbTimer = setTimeout(() => {
         pdf.captureStageThumbnail(state.currentPage).catch(() => {});
-      }, 900);
+      }, 1200);
     };
+    const cancelCapture = () => clearTimeout(thumbTimer);
 
     const stageEl = document.getElementById('stage');
     if (stageEl) {
       stageEl.addEventListener('pointerup', scheduleCapture);
       stageEl.addEventListener('pointercancel', scheduleCapture);
+      stageEl.addEventListener('pointerdown', cancelCapture);
+      stageEl.addEventListener('pointermove', cancelCapture);
     }
     document.addEventListener('keyup', (e) => {
       if (e.key === 'Delete' || e.key === 'Backspace') scheduleCapture();
     });
   });
-    /* عرض الوحدة مباشرة للتصحيح */
+
   import('./pdf.js').then(mod => { window.__PDF__ = mod; });
   import('./interaction.js').then(mod => { window.__INTERACTION__ = mod; });
-    /* ★ تهيئة الواجهة الجديدة */
+
   initUIShell();
-    /* ★ تهيئة زر "مشروع جديد" */
   initNewProject();
 }
 
 /* ============================================================
-   §7. BOOT
+   §9. BOOT
    ============================================================ */
 init().catch(err => {
   console.error(err);

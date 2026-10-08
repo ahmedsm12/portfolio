@@ -1,10 +1,11 @@
 /* ============================================================
- * pdf.js — النسخة النهائية المُصلَحة
+ * pdf.js — معالجة PDF والشرائح والمصغرات وإعادة الترتيب
  * ============================================================
- *  ★ الحل: disableFontFace: true
- *    - pdf.js يرسم كل glyph مباشرة من مصفوفة transform
- *    - لا يعتمد على canvas font metrics
- *    - letter spacing دقيق من الرسم الأول
+ *  ★ disableFontFace: true → رسم دقيق للحروف
+ *  ★ thumbnail: يلتقط من نسخة clone خارج الشاشة
+ *  ★ fit-contain للصور المصغرة
+ *  ★ أيقونة + تحت آخر thumbnail لإضافة شريحة جديدة
+ *  ★ سحب وإفلات (Drag & Drop) لإعادة ترتيب الشرائح بلحظية وسلاسة
  * ============================================================ */
 
 import {
@@ -16,7 +17,6 @@ import {
   thumbnailSidebar, thumbsList, slideContextMenu,
   state, slideClipboard,
   uid, setLoading, toast,
-  hexToRgba, roundRect, stripMathToPlain,
 } from './core.js';
 
 import {
@@ -49,11 +49,12 @@ export async function initPdfJs() {
    §2. STAGE SIZING
    ============================================================ */
 export function getSidebarWidth() {
-  return thumbnailSidebar.classList.contains('collapsed') ? 0 : (thumbnailSidebar.offsetWidth || 0);
+  if (!thumbnailSidebar || thumbnailSidebar.classList.contains('collapsed')) return 0;
+  return thumbnailSidebar.offsetWidth || 0;
 }
 
 export function computeStageSize(naturalW, naturalH) {
-  const wrap = stageWrapper.getBoundingClientRect();
+  const wrap = stageWrapper ? stageWrapper.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight };
   const sW = getSidebarWidth();
   const availW = Math.max(80, wrap.width - sW - 12 - 66);
   const availH = Math.max(80, wrap.height - 30 - 80);
@@ -61,35 +62,19 @@ export function computeStageSize(naturalW, naturalH) {
   let cW = availW, cH = cW / aspect;
   if (cH > availH) { cH = availH; cW = cH * aspect; }
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
-  let canvasW = Math.ceil(cW * dpr), canvasH = Math.ceil(cH * dpr);
+  let canvasW = Math.ceil(cW * dpr);
+  let canvasH = Math.ceil(cH * dpr);
   const maxPx = 16 * 1024 * 1024;
   if (canvasW * canvasH > maxPx) {
     const f = Math.sqrt(maxPx / (canvasW * canvasH));
     canvasW = Math.floor(canvasW * f);
     canvasH = Math.floor(canvasH * f);
   }
-
-  // Add resize handle
-  const resizeHandle = document.getElementById('resizeHandle');
-  if (resizeHandle) {
-    resizeHandle.style.display = 'block';
-    resizeHandle.style.width = '20px';
-    resizeHandle.style.height = '20px';
-    resizeHandle.style.position = 'absolute';
-    resizeHandle.style.right = '0';
-    resizeHandle.style.bottom = '0';
-    resizeHandle.style.cursor = 'se-resize';
-    resizeHandle.style.backgroundColor = '#4a7eff';
-    resizeHandle.style.borderRadius = '4px';
-    resizeHandle.style.border = '2px solid #fff';
-    resizeHandle.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-    resizeHandle.addEventListener('pointerdown', onResizeStart);
-  }
-
   return { cssW: cW, cssH: cH, canvasW, canvasH, dpr };
 }
 
 export function updateStageRect0() {
+  if (!stageWrapper) return;
   const wrap = stageWrapper.getBoundingClientRect();
   const sW = getSidebarWidth();
   const cW = state.cssW, cH = state.cssH;
@@ -100,16 +85,14 @@ export function updateStageRect0() {
 }
 
 export function applyView() {
+  if (!stage) return;
   const { scale, tx, ty } = state.view;
   if (scale === 1 && tx === 0 && ty === 0) stage.style.transform = '';
   else stage.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
 }
 
 /* ============================================================
-   §3. renderPageWithFonts — نسخة مبسّطة
-   ============================================================
-   مع disableFontFace: true، pdf.js يرسم كل glyph مباشرة
-   من مصفوفة transform الخاصة به. لا يعتمد على canvas font.
+   §3. renderPageWithFonts
    ============================================================ */
 async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
   const vp1 = page.getViewport({ scale: 1 });
@@ -138,7 +121,7 @@ async function renderPageWithFonts(page, pdfPageNum, canvas, cssW, cssH, dpr) {
 }
 
 /* ============================================================
-   §4. renderPageToOffscreen (للـ cache والـ thumbnails)
+   §4. renderPageToOffscreen
    ============================================================ */
 async function renderPageToOffscreen(page, pdfPageNum, cssW, dpr, format = 'jpeg', quality = 0.92) {
   const vp1 = page.getViewport({ scale: 1 });
@@ -153,7 +136,7 @@ async function renderPageToOffscreen(page, pdfPageNum, cssW, dpr, format = 'jpeg
 }
 
 /* ============================================================
-   §5. RENDER PAGE (الرئيسية)
+   §5. RENDER PAGE
    ============================================================ */
 export async function renderPage(pageNum) {
   const slide = state.slides[pageNum - 1];
@@ -168,23 +151,29 @@ export async function renderPage(pageNum) {
     if (bg.type === 'pdf' && state.pdfDoc) {
       const page = await state.pdfDoc.getPage(bg.page);
       const vp1 = page.getViewport({ scale: 1 });
-      vp1W = vp1.width; vp1H = vp1.height; aspect = vp1.height / vp1.width;
+      vp1W = vp1.width;
+      vp1H = vp1.height;
+      aspect = vp1.height / vp1.width;
     } else if (bg.type === 'blank') {
       if (state.pdfDoc) {
-        /* مشروع PDF موجود → استخدم أبعاد أول صفحة كمرجع للشرائح الفارغة */
         const page = await state.pdfDoc.getPage(1);
         const vp1 = page.getViewport({ scale: 1 });
-        vp1W = vp1.width; vp1H = vp1.height; aspect = vp1.height / vp1.width;
+        vp1W = vp1.width;
+        vp1H = vp1.height;
+        aspect = vp1.height / vp1.width;
       } else if (state.projectDims && state.projectDims.width && state.projectDims.height) {
-        /* ★ مشروع جديد بدون PDF → استخدم أبعاد المشروع المخصصة */
         vp1W = state.projectDims.width;
         vp1H = state.projectDims.height;
         aspect = vp1H / vp1W;
       } else {
-        vp1W = .707; vp1H = 1; aspect = 1 / .707;
+        vp1W = .707;
+        vp1H = 1;
+        aspect = 1 / .707;
       }
     } else {
-      vp1W = 1; vp1H = (state.pdfH / state.pdfW) || 1.414; aspect = vp1H / vp1W;
+      vp1W = 1;
+      vp1H = (state.pdfH / state.pdfW) || 1.414;
+      aspect = vp1H / vp1W;
     }
 
     state.pdfW = COORD_WIDTH;
@@ -193,87 +182,117 @@ export async function renderPage(pageNum) {
 
     const { cssW, cssH, canvasW, canvasH, dpr } = computeStageSize(vp1W, vp1H);
     state.canvasScale = canvasW / state.pdfW;
-    state.cssW = cssW; state.cssH = cssH;
+    state.cssW = cssW;
+    state.cssH = cssH;
     state.dpr = dpr;
 
-    stage.style.width = cssW + 'px';
-    stage.style.height = cssH + 'px';
+    if (stage) {
+      stage.style.width = cssW + 'px';
+      stage.style.height = cssH + 'px';
+    }
 
     [pdfCanvas, transientCanvas, laserCanvas].forEach(c => {
-      c.width = canvasW;
-      c.height = canvasH;
-      c.style.width = cssW + 'px';
-      c.style.height = cssH + 'px';
+      if (c) {
+        c.width = canvasW;
+        c.height = canvasH;
+        c.style.width = cssW + 'px';
+        c.style.height = cssH + 'px';
+      }
     });
-    svgLayer.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
 
-    /* ★ لون خلفية الشريحة */
+    const svgDefs = document.getElementById('svgDefs');
+    if (svgDefs) {
+      svgDefs.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
+    }
+
+    const selectionSvg = document.getElementById('selectionSvg');
+    if (selectionSvg) {
+      selectionSvg.setAttribute('viewBox', `0 0 ${state.pdfW} ${state.pdfH}`);
+      selectionSvg.setAttribute('preserveAspectRatio', 'none');
+    }
+
     let fillColor = '#ffffff';
     if (bg.type === 'blank') {
       if (bg.color) fillColor = bg.color;
       else if (state.projectDims && state.projectDims.bg) fillColor = state.projectDims.bg;
     }
 
-    const ctx = pdfCanvas.getContext('2d', { alpha: false });
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = fillColor;
-    ctx.fillRect(0, 0, canvasW, canvasH);
+    if (pdfCanvas) {
+      const ctx = pdfCanvas.getContext('2d', { alpha: false });
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(0, 0, canvasW, canvasH);
 
-    const cached = state.pageCache.get(pageNum);
+      const cached = state.pageCache.get(pageNum);
 
-    if (cached) {
-      const img = new Image();
-      await new Promise(res => { img.onload = res; img.onerror = res; img.src = cached.dataUrl; });
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, canvasW, canvasH);
-    } else if (bg.type === 'pdf' && state.pdfDoc) {
-      const page = await state.pdfDoc.getPage(bg.page);
-      await renderPageWithFonts(page, bg.page, pdfCanvas, cssW, cssH, dpr);
-
-      try {
-        const result = await renderPageToOffscreen(
-          page, bg.page, Math.min(cssW * 1.5, CACHE_WIDTH), Math.min(dpr, 2), 'jpeg', 0.95
-        );
-        state.pageCache.set(pageNum, { dataUrl: result.dataUrl });
-      } catch (_) {
-        try {
-          const cc = document.createElement('canvas');
-          const cw = Math.min(canvasW, CACHE_WIDTH);
-          const ch = Math.round(cw * canvasH / canvasW);
-          cc.width = cw; cc.height = ch;
-          const cctx = cc.getContext('2d', { alpha: false });
-          cctx.imageSmoothingEnabled = true;
-          cctx.imageSmoothingQuality = 'high';
-          cctx.drawImage(pdfCanvas, 0, 0, cw, ch);
-          state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.95) });
-        } catch (__) {}
-      }
-    } else if (bg.type === 'blank') {
-      /* شريحة فارغة — الخلفية مرسومة أعلاه، لا شيء إضافي */
-      try {
-        const cc = document.createElement('canvas');
-        const cw = Math.min(canvasW, CACHE_WIDTH);
-        const ch = Math.round(cw * canvasH / canvasW);
-        cc.width = cw; cc.height = ch;
-        const cctx = cc.getContext('2d', { alpha: false });
-        cctx.fillStyle = fillColor;
-        cctx.fillRect(0, 0, cw, ch);
-        state.pageCache.set(pageNum, { dataUrl: cc.toDataURL('image/jpeg', 0.95) });
-      } catch (_) {}
-    } else if (state.pdfBlob) {
-      const url = URL.createObjectURL(state.pdfBlob);
-      try {
-        const img = await new Promise((res, rej) => {
-          const i = new Image();
-          i.onload = () => res(i);
-          i.onerror = () => rej(new Error('image'));
-          i.src = url;
+      if (cached) {
+        const img = new Image();
+        await new Promise(res => {
+          img.onload = res;
+          img.onerror = res;
+          img.src = cached.dataUrl;
         });
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, canvasW, canvasH);
-      } finally { URL.revokeObjectURL(url); }
+      } else if (bg.type === 'pdf' && state.pdfDoc) {
+        const page = await state.pdfDoc.getPage(bg.page);
+        await renderPageWithFonts(page, bg.page, pdfCanvas, cssW, cssH, dpr);
+
+        try {
+          const result = await renderPageToOffscreen(
+            page, bg.page,
+            Math.min(cssW * 1.5, CACHE_WIDTH),
+            Math.min(dpr, 2),
+            'jpeg', 0.95
+          );
+          state.pageCache.set(pageNum, { dataUrl: result.dataUrl });
+        } catch (_) {
+          try {
+            const cc = document.createElement('canvas');
+            const cw = Math.min(canvasW, CACHE_WIDTH);
+            const ch = Math.round(cw * canvasH / canvasW);
+            cc.width = cw;
+            cc.height = ch;
+            const cctx = cc.getContext('2d', { alpha: false });
+            cctx.imageSmoothingEnabled = true;
+            cctx.imageSmoothingQuality = 'high';
+            cctx.drawImage(pdfCanvas, 0, 0, cw, ch);
+            state.pageCache.set(pageNum, {
+              dataUrl: cc.toDataURL('image/jpeg', 0.95),
+            });
+          } catch (__) {}
+        }
+      } else if (bg.type === 'blank') {
+        try {
+          const cc = document.createElement('canvas');
+          const cw = Math.min(canvasW, CACHE_WIDTH);
+          const ch = Math.round(cw * canvasH / canvasW);
+          cc.width = cw;
+          cc.height = ch;
+          const cctx = cc.getContext('2d', { alpha: false });
+          cctx.fillStyle = fillColor;
+          cctx.fillRect(0, 0, cw, ch);
+          state.pageCache.set(pageNum, {
+            dataUrl: cc.toDataURL('image/jpeg', 0.95),
+          });
+        } catch (_) {}
+      } else if (state.pdfBlob) {
+        const url = URL.createObjectURL(state.pdfBlob);
+        try {
+          const img = await new Promise((res, rej) => {
+            const i = new Image();
+            i.onload = () => res(i);
+            i.onerror = () => rej(new Error('image'));
+            i.src = url;
+          });
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, canvasW, canvasH);
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      }
     }
 
     updateStageRect0();
@@ -281,9 +300,16 @@ export async function renderPage(pageNum) {
     loadPageState(pageNum);
     updatePageIndicator();
     updateUndoButtonsSafe();
-    emptyState.style.display = 'none';
-    emptyState.style.backgroundColor = 'transparent';
-    emptyState.style.backgroundImage = 'none';
+    
+    if (emptyState) {
+      emptyState.style.display = 'none';
+      emptyState.style.backgroundColor = 'transparent';
+      emptyState.style.backgroundImage = 'none';
+    }
+
+    if (stage) stage.classList.remove('empty');
+    document.body.classList.add('has-project');
+    document.body.classList.remove('no-project');
 
     setTimeout(() => { captureStageThumbnail(pageNum).catch(() => {}); }, 50);
   } catch (err) {
@@ -293,6 +319,7 @@ export async function renderPage(pageNum) {
     if (!hasCache) setLoading(false);
   }
 }
+
 /* ============================================================
    §6. PRELOAD
    ============================================================ */
@@ -319,22 +346,30 @@ export async function preloadAllPages(token) {
         const cssViewport = page.getViewport({ scale: cssW / vp1.width });
         await page.render({ canvasContext: c, viewport: cssViewport }).promise;
         if (state.preloadToken !== token) return;
-        state.thumbCache.set(i, { dataUrl: cvs.toDataURL('image/jpeg', 0.82) });
+        state.thumbCache.set(i, {
+          dataUrl: cvs.toDataURL('image/jpeg', 0.82),
+        });
         updateThumbnailImg(i);
         page.cleanup();
         await new Promise(r => setTimeout(r, 0));
       } else if (bg.type === 'blank') {
         const cvs = document.createElement('canvas');
         cvs.width = THUMB_WIDTH;
-        cvs.height = Math.round(THUMB_WIDTH * (state.pdfH / state.pdfW || 1.414));
+        cvs.height = Math.round(
+          THUMB_WIDTH * (state.pdfH / state.pdfW || 1.414)
+        );
         const c = cvs.getContext('2d');
-        c.fillStyle = '#fff';
+        c.fillStyle = (bg.color || (state.projectDims && state.projectDims.bg) || '#fff');
         c.fillRect(0, 0, cvs.width, cvs.height);
-        state.thumbCache.set(i, { dataUrl: cvs.toDataURL('image/jpeg', 0.82) });
+        state.thumbCache.set(i, {
+          dataUrl: cvs.toDataURL('image/jpeg', 0.82),
+        });
         updateThumbnailImg(i);
         await new Promise(r => setTimeout(r, 0));
       }
-    } catch (e) { console.warn('thumb preload', i, e); }
+    } catch (e) {
+      console.warn('thumb preload', i, e);
+    }
   }
 
   for (let i = 1; i <= state.totalPages; i++) {
@@ -347,9 +382,14 @@ export async function preloadAllPages(token) {
       if (bg.type === 'pdf' && state.pdfDoc) {
         const page = await state.pdfDoc.getPage(bg.page);
         const vp1 = page.getViewport({ scale: 1 });
-        const cacheCSS = Math.min(CACHE_WIDTH, Math.max(1200, Math.round(vp1.width * 1.6)));
+        const cacheCSS = Math.min(
+          CACHE_WIDTH,
+          Math.max(1200, Math.round(vp1.width * 1.6))
+        );
         const cacheDpr = Math.min(window.devicePixelRatio || 1, 2);
-        const result = await renderPageToOffscreen(page, bg.page, cacheCSS, cacheDpr, 'jpeg', 0.95);
+        const result = await renderPageToOffscreen(
+          page, bg.page, cacheCSS, cacheDpr, 'jpeg', 0.95
+        );
         if (state.preloadToken !== token) return;
         state.pageCache.set(i, { dataUrl: result.dataUrl });
         page.cleanup();
@@ -357,17 +397,14 @@ export async function preloadAllPages(token) {
       } else if (bg.type === 'blank') {
         await new Promise(r => setTimeout(r, 0));
       }
-    } catch (e) { console.warn('page preload', i, e); }
+    } catch (e) {
+      console.warn('page preload', i, e);
+    }
   }
 }
 
 /* ============================================================
-   §7. THUMBNAIL CAPTURE — نسخة نهائية
-   ============================================================
-   - تُخفي كل مربعات التحديد والـ handles مؤقتاً قبل التصوير
-   - تُخفي أزرار التحكم العائمة (delete btn, play btn)
-   - تُخفي transient/laser canvases
-   - تستخدم html2canvas لالتقاط الصور والمعادلات والنصوص فعلياً
+   §7. THUMBNAIL CAPTURE
    ============================================================ */
 let _html2canvasPromise = null;
 
@@ -378,7 +415,10 @@ function ensureHtml2Canvas() {
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
     s.onload = () => resolve(window.html2canvas);
-    s.onerror = () => { console.warn('html2canvas load failed'); resolve(null); };
+    s.onerror = () => {
+      console.warn('html2canvas load failed');
+      resolve(null);
+    };
     document.head.appendChild(s);
   });
   return _html2canvasPromise;
@@ -391,154 +431,113 @@ export async function captureStageThumbnail(pageNum) {
 
   try {
     const TW = 320;
-    const aspect = state.pdfW / state.pdfH;
-    const TH = Math.round(TW / aspect);
+    const aspect = (state.pdfW && state.pdfH)
+      ? (state.pdfW / state.pdfH)
+      : (16 / 9);
+    const TH = Math.max(1, Math.round(TW / aspect));
 
     const html2canvas = await ensureHtml2Canvas();
     if (!html2canvas) return;
 
     const stageEl = document.getElementById('stage');
-    const contentEl = document.getElementById('stageContent');
-    if (!stageEl || !contentEl) return;
+    if (!stageEl) return;
 
-    /* ═══ إخفاء مؤقت لكل ما يجب ألا يظهر في الـ thumbnail ═══ */
-    const hidden = [];
+    const cssW = Math.max(1, Math.round(state.cssW));
+    const cssH = Math.max(1, Math.round(state.cssH));
 
-    function hideEl(el) {
-      if (!el) return;
-      hidden.push({ el: el, display: el.style.display, visibility: el.style.visibility });
-      el.style.display = 'none';
-    }
+    const cloneHost = document.createElement('div');
+    cloneHost.style.cssText =
+      'position:fixed;left:-99999px;top:0;' +
+      `width:${cssW}px;height:${cssH}px;overflow:hidden;` +
+      'pointer-events:none;z-index:-1;opacity:0;';
 
-    function hideClass(selector) {
-      document.querySelectorAll(selector).forEach(el => {
-        hidden.push({ el: el, display: el.style.display, visibility: el.style.visibility });
-        el.style.visibility = 'hidden';
-      });
-    }
+    const clonedStage = stageEl.cloneNode(true);
+    clonedStage.style.cssText =
+      'position:absolute;left:0;top:0;' +
+      `width:${cssW}px;height:${cssH}px;` +
+      'transform:none;box-shadow:none;margin:0;border-radius:0;' +
+      'background:#ffffff;opacity:1;';
 
-    /* 1. الـ canvases العابرة */
-    hideEl(document.getElementById('transientCanvas'));
-    hideEl(document.getElementById('laserCanvas'));
+    clonedStage.querySelectorAll(
+      '.selection-overlay, .handle, .selection-outline, ' +
+      '.element-delete-btn, .media-play-btn, .media-resize, ' +
+      '.embed-resize, .pdf-interactive-btn-resize, .pdf-text-resize, ' +
+      '#transientCanvas, #laserCanvas, #submenu, ' +
+      '#slideContextMenu, #textContextToolbar, ' +
+      '#shapeContextToolbar, #equationEditor, #selectionSvg'
+    ).forEach(el => el.remove());
 
-    /* 2. كل مربعات التحديد والـ handles */
-    hideClass('.selection-overlay');
-    hideClass('.handle');
-    hideClass('.selection-outline');
+    clonedStage.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
 
-    /* 3. أزرار الحذف العائمة */
-    hideClass('.element-delete-btn');
+    cloneHost.appendChild(clonedStage);
+    document.body.appendChild(cloneHost);
 
-    /* 4. أزرار الفيديو ومقابض التحجيم */
-    hideClass('.media-play-btn');
-    hideClass('.media-resize');
-    hideClass('.embed-resize');
-    hideClass('.pdf-interactive-btn-resize');
-    hideClass('.pdf-text-resize');
-
-    /* 5. إزالة class "selected" من كل العناصر */
-    const selectedEls = document.querySelectorAll('.selected');
-    selectedEls.forEach(el => {
-      el.classList.remove('selected');
-      hidden.push({ el: el, hadSelected: true, display: el.style.display });
-    });
-
-    /* 6. أزرار وقوائم عائمة */
-    hideEl(document.getElementById('slideContextMenu'));
-    hideEl(document.getElementById('textContextToolbar'));
-    hideEl(document.getElementById('shapeContextToolbar'));
-    hideEl(document.getElementById('equationEditor'));
-    hideEl(document.getElementById('submenu'));
-
-    /* 7. إزالة transform مؤقتاً */
-    const prevTransform = contentEl.style.transform;
-    const prevTransition = contentEl.style.transition;
-    contentEl.style.transform = 'none';
-    contentEl.style.transition = 'none';
-
-    /* انتظر إطارين + خطوط */
     await new Promise(r => requestAnimationFrame(r));
     await new Promise(r => requestAnimationFrame(r));
-    await new Promise(r => setTimeout(r, 80));
-
     if (document.fonts && document.fonts.ready) {
       try { await document.fonts.ready; } catch (_) {}
     }
 
-    /* التقاط */
-    let canvas;
+    let canvas = null;
     try {
-      canvas = await html2canvas(stageEl, {
-        backgroundColor: null,
+      canvas = await html2canvas(clonedStage, {
+        backgroundColor: '#ffffff',
         scale: 1,
         logging: false,
         useCORS: true,
         allowTaint: false,
-        width: state.cssW,
-        height: state.cssH,
-        windowWidth: state.cssW,
-        windowHeight: state.cssH,
-        onclone: (clonedDoc) => {
-          /* في النسخة المستنسخة، احذف كل عناصر التحكم */
-          clonedDoc.querySelectorAll(
-            '.selection-overlay, .handle, .selection-outline, ' +
-            '.element-delete-btn, .media-play-btn, .media-resize, ' +
-            '.embed-resize, .pdf-interactive-btn-resize, .pdf-text-resize, ' +
-            '#transientCanvas, #laserCanvas, #submenu, ' +
-            '#slideContextMenu, #textContextToolbar, #shapeContextToolbar, #equationEditor'
-          ).forEach(el => el.remove());
-          clonedDoc.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
-        }
+        width: cssW,
+        height: cssH,
+        windowWidth: cssW,
+        windowHeight: cssH,
       });
     } finally {
-      /* ═══ استعادة كل شيء ═══ */
-      contentEl.style.transform = prevTransform;
-      contentEl.style.transition = prevTransition;
-
-      hidden.forEach(item => {
-        if (item.hadSelected) {
-          item.el.classList.add('selected');
-        } else if (item.el) {
-          if (item.visibility !== undefined && item.visibility !== '') {
-            item.el.style.visibility = item.visibility;
-          }
-          if (item.display !== undefined && item.display !== '') {
-            item.el.style.display = item.display;
-          } else {
-            item.el.style.display = '';
-          }
-        }
-      });
+      cloneHost.remove();
     }
 
-    /* ضبط الحجم النهائي */
-    let finalCanvas = canvas;
-    if (canvas.width !== TW || canvas.height !== TH) {
-      const resized = document.createElement('canvas');
-      resized.width = TW;
-      resized.height = TH;
-      const rctx = resized.getContext('2d');
+    if (!canvas) return;
 
-      let bgColor = '#ffffff';
-      const slide = state.slides[pageNum - 1];
-      if (slide && slide.bg && slide.bg.type === 'blank' && slide.bg.color) {
-        bgColor = slide.bg.color;
-      } else if (state.projectDims && state.projectDims.bg) {
-        bgColor = state.projectDims.bg;
-      }
-      rctx.fillStyle = bgColor;
-      rctx.fillRect(0, 0, TW, TH);
-      rctx.drawImage(canvas, 0, 0, TW, TH);
-      finalCanvas = resized;
+    const resized = document.createElement('canvas');
+    resized.width = TW;
+    resized.height = TH;
+    const rctx = resized.getContext('2d');
+
+    let bgColor = '#ffffff';
+    const slide = state.slides[pageNum - 1];
+    if (slide && slide.bg && slide.bg.type === 'blank' && slide.bg.color) {
+      bgColor = slide.bg.color;
+    } else if (state.projectDims && state.projectDims.bg) {
+      bgColor = state.projectDims.bg;
     }
+    rctx.fillStyle = bgColor;
+    rctx.fillRect(0, 0, TW, TH);
+    rctx.imageSmoothingEnabled = true;
+    rctx.imageSmoothingQuality = 'high';
 
-    const dataUrl = finalCanvas.toDataURL('image/jpeg', 0.85);
+    const srcAspect = canvas.width / canvas.height;
+    const dstAspect = TW / TH;
+    let dw, dh, dx, dy;
+    if (srcAspect > dstAspect) {
+      dw = TW;
+      dh = TW / srcAspect;
+      dx = 0;
+      dy = (TH - dh) / 2;
+    } else {
+      dh = TH;
+      dw = TH * srcAspect;
+      dx = (TW - dw) / 2;
+      dy = 0;
+    }
+    rctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, dx, dy, dw, dh);
+
+    const dataUrl = resized.toDataURL('image/jpeg', 0.85);
     state.thumbCache.set(pageNum, { dataUrl, userEdited: true });
     updateThumbnailImg(pageNum);
   } catch (e) {
     console.warn('captureStageThumbnail failed:', e);
   }
 }
+
 /* ============================================================
    §8. CACHE SHIFTING
    ============================================================ */
@@ -549,6 +548,7 @@ function _shiftCachesAfterInsert(atIdx, count) {
     else newThumbs.set(k + count, v);
   });
   state.thumbCache = newThumbs;
+
   const newPages = new Map();
   state.pageCache.forEach((v, k) => {
     if (k <= atIdx) newPages.set(k, v);
@@ -564,6 +564,7 @@ function _shiftCachesAfterDelete(atIdx) {
     else if (k > atIdx) newThumbs.set(k - 1, v);
   });
   state.thumbCache = newThumbs;
+
   const newPages = new Map();
   state.pageCache.forEach((v, k) => {
     if (k < atIdx) newPages.set(k, v);
@@ -594,7 +595,7 @@ export async function loadPdfFile(file, opts = {}) {
       standardFontDataUrl: `${PDFJS_BASE}/standard_fonts/`,
       wasmUrl: `${PDFJS_BASE}/wasm/`,
       useSystemFonts: false,
-      disableFontFace: true,        /* ★ التعديل الجوهري */
+      disableFontFace: true,
       fontExtraProperties: true,
       isEvalSupported: true,
       useWorkerFetch: true,
@@ -624,6 +625,9 @@ export async function loadPdfFile(file, opts = {}) {
       else initSlidesFromPdf(doc.numPages);
       state.totalPages = state.slides.length;
     }
+
+    document.body.classList.add('has-project');
+    document.body.classList.remove('no-project');
 
     renderThumbnails();
     if (!opts.skipRender) {
@@ -658,6 +662,10 @@ export async function loadImageFile(file, opts = {}) {
       state.slides = [{ id: uid(), bg: { type: 'blank' } }];
       state.totalPages = 1;
     }
+
+    document.body.classList.add('has-project');
+    document.body.classList.remove('no-project');
+
     renderThumbnails();
     if (!opts.skipRender) await renderPage(1);
   } catch (err) {
@@ -673,11 +681,14 @@ export async function loadImageFile(file, opts = {}) {
    §10. PAGE INDICATOR
    ============================================================ */
 export function updatePageIndicator() {
-  if (!state.totalPages) { pageIndicator.textContent = ''; return; }
-  pageIndicator.textContent = state.currentPage + ' / ' + state.totalPages;
+  if (!state.totalPages) {
+    if (pageIndicator) pageIndicator.textContent = '';
+    return;
+  }
+  if (pageIndicator) pageIndicator.textContent = state.currentPage + ' / ' + state.totalPages;
   const btnPrev = $('btnPrev'), btnNext = $('btnNext');
-  btnPrev.disabled = state.currentPage <= 1;
-  btnNext.disabled = state.currentPage >= state.totalPages;
+  if (btnPrev) btnPrev.disabled = state.currentPage <= 1;
+  if (btnNext) btnNext.disabled = state.currentPage >= state.totalPages;
   updateThumbnailActive(state.currentPage);
 }
 
@@ -687,16 +698,25 @@ export function updatePageIndicator() {
 export function updateSidebarPadding() {
   const w = getSidebarWidth();
   document.documentElement.style.setProperty('--sidebar-effective-w', w + 'px');
-  $('btnShowSidebar').classList.toggle('show', thumbnailSidebar.classList.contains('collapsed'));
+  const sbs = $('btnShowSidebar');
+  if (sbs && thumbnailSidebar) {
+    sbs.classList.toggle('show', thumbnailSidebar.classList.contains('collapsed'));
+  }
 }
 
 export function updateThumbAspect() {
-  const aspect = (state.pdfW && state.pdfH) ? (state.pdfW / state.pdfH) : 0.75;
+  const aspect = (state.pdfW && state.pdfH)
+    ? (state.pdfW / state.pdfH)
+    : 0.75;
   document.documentElement.style.setProperty('--thumb-aspect', String(aspect));
 }
 
 export function initSidebar() {
-  let savedW = parseInt(localStorage.getItem(SIDEBAR_W_KEY) || String(SIDEBAR_DEFAULT_W), 10);
+  if (!thumbnailSidebar) return;
+  let savedW = parseInt(
+    localStorage.getItem(SIDEBAR_W_KEY) || String(SIDEBAR_DEFAULT_W),
+    10
+  );
   if (isNaN(savedW)) savedW = SIDEBAR_DEFAULT_W;
   savedW = Math.max(SIDEBAR_MIN_W, Math.min(SIDEBAR_MAX_W, savedW));
   thumbnailSidebar.style.width = savedW + 'px';
@@ -707,88 +727,96 @@ export function initSidebar() {
   updateSidebarPadding();
   renderThumbnails();
 
-  $('btnToggleSidebar').addEventListener('click', () => {
-    thumbnailSidebar.classList.add('collapsed');
-    localStorage.setItem(SIDEBAR_V_KEY, 'false');
-    updateSidebarPadding();
-    setTimeout(() => window.dispatchEvent(new Event('resize')), 230);
-  });
-  $('btnShowSidebar').addEventListener('click', () => {
-    thumbnailSidebar.classList.remove('collapsed');
-    localStorage.setItem(SIDEBAR_V_KEY, 'true');
-    updateSidebarPadding();
-    setTimeout(() => window.dispatchEvent(new Event('resize')), 230);
-  });
+  const btnToggle = $('btnToggleSidebar');
+  if (btnToggle) {
+    btnToggle.addEventListener('click', () => {
+      thumbnailSidebar.classList.add('collapsed');
+      localStorage.setItem(SIDEBAR_V_KEY, 'false');
+      updateSidebarPadding();
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 230);
+    });
+  }
+
+  const btnShow = $('btnShowSidebar');
+  if (btnShow) {
+    btnShow.addEventListener('click', () => {
+      thumbnailSidebar.classList.remove('collapsed');
+      localStorage.setItem(SIDEBAR_V_KEY, 'true');
+      updateSidebarPadding();
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 230);
+    });
+  }
 
   const handle = $('sidebarResize');
-  handle.addEventListener('pointerdown', e => {
-    e.preventDefault(); e.stopPropagation();
-    handle.classList.add('dragging');
-    thumbnailSidebar.style.transition = 'none';
-    stageWrapper.classList.add('no-transition');
-    const sx = e.clientX, sw0 = thumbnailSidebar.offsetWidth;
-    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
-    function onMove(ev) {
-      let nw = sw0 + (ev.clientX - sx);
-      nw = Math.max(SIDEBAR_MIN_W, Math.min(SIDEBAR_MAX_W, nw));
-      thumbnailSidebar.style.width = nw + 'px';
-      document.documentElement.style.setProperty('--sidebar-effective-w', nw + 'px');
-    }
-    function onUp() {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-      document.removeEventListener('pointercancel', onUp);
-      handle.classList.remove('dragging');
-      thumbnailSidebar.style.transition = '';
-      stageWrapper.classList.remove('no-transition');
-      localStorage.setItem(SIDEBAR_W_KEY, String(thumbnailSidebar.offsetWidth));
-      updateSidebarPadding();
-      window.dispatchEvent(new Event('resize'));
-    }
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
-    document.addEventListener('pointercancel', onUp);
-  });
+  if (handle) {
+    handle.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      handle.classList.add('dragging');
+      thumbnailSidebar.style.transition = 'none';
+      if (stageWrapper) stageWrapper.classList.add('no-transition');
+      const sx = e.clientX;
+      const sw0 = thumbnailSidebar.offsetWidth;
+      try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+      function onMove(ev) {
+        let nw = sw0 + (ev.clientX - sx);
+        nw = Math.max(SIDEBAR_MIN_W, Math.min(SIDEBAR_MAX_W, nw));
+        thumbnailSidebar.style.width = nw + 'px';
+        document.documentElement.style.setProperty('--sidebar-effective-w', nw + 'px');
+      }
+      function onUp() {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+        handle.classList.remove('dragging');
+        thumbnailSidebar.style.transition = '';
+        if (stageWrapper) stageWrapper.classList.remove('no-transition');
+        localStorage.setItem(SIDEBAR_W_KEY, String(thumbnailSidebar.offsetWidth));
+        updateSidebarPadding();
+        window.dispatchEvent(new Event('resize'));
+      }
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
+    });
+  }
 }
 
 /* ============================================================
-   §12. THUMBNAILS UI
+   §12. THUMBNAILS UI + DRAG & DROP REORDER + ADD SLIDE BUTTON
    ============================================================ */
+let draggedThumbPage = null;
+
 export function renderThumbnails() {
   if (!thumbsList) return;
   thumbsList.innerHTML = '';
-  if (!state.totalPages) {
-    thumbsList.innerHTML = '<div class="thumbs-empty">لا توجد صفحات<br>افتح ملفاً للبدء</div>';
+
+  if (!state.totalPages || state.totalPages === 0) {
+    thumbsList.innerHTML =
+      '<div class="thumbs-empty">لا توجد صفحات<br>افتح ملفاً للبدء</div>';
     return;
   }
+
+  /* ═══ 1) بناء عناصر الشرائح ═══ */
   for (let i = 1; i <= state.totalPages; i++) {
     const item = document.createElement('div');
     item.className = 'thumb-item loading';
-    item.dataset.page = i;
+    item.dataset.page = String(i);
+    item.draggable = true;
+    item.setAttribute('tabindex', '0');
+    item.setAttribute('role', 'button');
+    item.setAttribute('aria-label', `الشريحة ${i}`);
 
     const spinner = document.createElement('div');
     spinner.className = 'thumb-spinner';
 
     const imgContainer = document.createElement('div');
     imgContainer.className = 'thumb-img-container';
-    imgContainer.style.position = 'relative';
-    imgContainer.style.width = '100%';
-    imgContainer.style.height = '100%';
-    imgContainer.style.display = 'flex';
-    imgContainer.style.alignItems = 'center';
-    imgContainer.style.justifyContent = 'center';
-    imgContainer.style.overflow = 'hidden';
 
     const img = document.createElement('img');
-    img.dataset.page = i;
+    img.dataset.page = String(i);
     img.alt = 'صفحة ' + i;
     img.draggable = false;
-    img.style.maxWidth = '100%';
-    img.style.maxHeight = '100%';
-    img.style.width = 'auto';
-    img.style.height = 'auto';
-    img.style.objectFit = 'cover';
-    img.style.objectPosition = 'center';
 
     const cached = state.thumbCache.get(i) || state.pageCache.get(i);
     if (cached) {
@@ -799,24 +827,218 @@ export function renderThumbnails() {
 
     const num = document.createElement('span');
     num.className = 'thumb-num';
-    num.textContent = i;
+    num.textContent = String(i);
+
+    /* مقبض سحب اختياري */
+    const dragGrip = document.createElement('div');
+    dragGrip.className = 'thumb-drag-grip';
+    dragGrip.title = 'اسحب لإعادة الترتيب';
+    dragGrip.innerHTML = '⋮⋮';
 
     imgContainer.appendChild(img);
     item.appendChild(spinner);
     item.appendChild(imgContainer);
     item.appendChild(num);
+    item.appendChild(dragGrip);
 
-    item.addEventListener('click', () => {
+    /* ─── Navigation onClick ─── */
+    item.addEventListener('click', (e) => {
+      if (item.classList.contains('was-dragged')) {
+        item.classList.remove('was-dragged');
+        return;
+      }
       if (state.currentPage !== i) goToPage(i);
     });
+
     item.addEventListener('contextmenu', e => {
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault();
+      e.stopPropagation();
       showSlideContextMenu(e, i);
+    });
+
+    /* ══════════════════════════════════════════════════════
+       ★★★ خاصية السحب والإفلات لإعادة ترتيب الشرائح
+       ══════════════════════════════════════════════════════ */
+    item.addEventListener('dragstart', (e) => {
+      draggedThumbPage = i;
+      e.dataTransfer.setData('text/plain', String(i));
+      e.dataTransfer.effectAllowed = 'move';
+      item.classList.add('dragging');
+      thumbsList.classList.add('drag-in-progress');
+
+      try {
+        const previewEl = item.cloneNode(true);
+        previewEl.style.width = '120px';
+        previewEl.style.height = '80px';
+        previewEl.style.opacity = '0.9';
+        previewEl.style.position = 'absolute';
+        previewEl.style.top = '-9999px';
+        document.body.appendChild(previewEl);
+        e.dataTransfer.setDragImage(previewEl, 60, 40);
+        setTimeout(() => previewEl.remove(), 0);
+      } catch (_) {}
+    });
+
+    item.addEventListener('dragend', () => {
+      draggedThumbPage = null;
+      item.classList.remove('dragging');
+      thumbsList.classList.remove('drag-in-progress');
+      thumbsList.querySelectorAll('.thumb-item').forEach(el => {
+        el.classList.remove('drop-target-before', 'drop-target-after');
+      });
+      setTimeout(() => item.classList.remove('was-dragged'), 50);
+    });
+
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (draggedThumbPage === i) return;
+
+      const rect = item.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      const isAfter = e.clientY >= mid;
+
+      thumbsList.querySelectorAll('.thumb-item').forEach(el => {
+        if (el !== item) el.classList.remove('drop-target-before', 'drop-target-after');
+      });
+
+      if (isAfter) {
+        item.classList.remove('drop-target-before');
+        item.classList.add('drop-target-after');
+      } else {
+        item.classList.remove('drop-target-after');
+        item.classList.add('drop-target-before');
+      }
+    });
+
+    item.addEventListener('dragleave', (e) => {
+      if (!item.contains(e.relatedTarget)) {
+        item.classList.remove('drop-target-before', 'drop-target-after');
+      }
+    });
+
+    item.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      item.classList.add('was-dragged');
+
+      const isAfter = item.classList.contains('drop-target-after');
+      item.classList.remove('drop-target-before', 'drop-target-after');
+
+      const fromPage = parseInt(e.dataTransfer.getData('text/plain') || String(draggedThumbPage), 10);
+      if (isNaN(fromPage) || fromPage === i) return;
+
+      let targetPage = isAfter ? i + 1 : i;
+      if (fromPage < targetPage) targetPage--;
+
+      if (fromPage === targetPage) return;
+
+      await reorderSlide(fromPage, targetPage);
     });
 
     thumbsList.appendChild(item);
     if (i === state.currentPage) item.classList.add('active');
   }
+
+  /* ═══ 2) زر إشارة زائد تحت آخر thumbnail لإضافة شريحة جديدة ═══ */
+  const addSlideBtn = document.createElement('button');
+  addSlideBtn.type = 'button';
+  addSlideBtn.className = 'thumb-add-btn';
+  addSlideBtn.id = 'btnAddSlideUnderThumbs';
+  addSlideBtn.title = 'إضافة شريحة جديدة';
+  addSlideBtn.innerHTML = `
+    <div class="thumb-add-icon-wrap">
+      <span class="thumb-add-plus">＋</span>
+    </div>
+    <span class="thumb-add-label">شريحة جديدة</span>
+  `;
+  addSlideBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    await newBlankSlide(state.totalPages);
+  });
+  thumbsList.appendChild(addSlideBtn);
+}
+
+/* ============================================================
+   §12b. REORDER SLIDE — تحديث لحظي وسلس لترتيب الشرائح
+   ============================================================ */
+export async function reorderSlide(fromPage, toPage) {
+  if (fromPage < 1 || fromPage > state.totalPages || toPage < 1 || toPage > state.totalPages || fromPage === toPage) {
+    return;
+  }
+
+  const { savePageNow } = await import('./core.js');
+  savePageNow();
+
+  const total = state.totalPages;
+  const order = Array.from({ length: total }, (_, idx) => idx + 1);
+
+  // تحديث مصفوفة الترتيب
+  const [movedOldIndex] = order.splice(fromPage - 1, 1);
+  order.splice(toPage - 1, 0, movedOldIndex);
+
+  // تحديث slides
+  const [movedSlide] = state.slides.splice(fromPage - 1, 1);
+  state.slides.splice(toPage - 1, 0, movedSlide);
+
+  // تحديث pages
+  const newPages = {};
+  for (let newPos = 1; newPos <= total; newPos++) {
+    const origPageNum = order[newPos - 1];
+    newPages[newPos] = state.pages[origPageNum] || {
+      annotations: [], embeds: [], media: [], buttons: [], texts: [], zOrder: [],
+    };
+  }
+  state.pages = newPages;
+
+  // تحديث history
+  const newHistory = {};
+  for (let newPos = 1; newPos <= total; newPos++) {
+    const origPageNum = order[newPos - 1];
+    if (state.history[origPageNum]) {
+      newHistory[newPos] = state.history[origPageNum];
+    }
+  }
+  state.history = newHistory;
+
+  // تحديث pageCache
+  const newPageCache = new Map();
+  for (let newPos = 1; newPos <= total; newPos++) {
+    const origPageNum = order[newPos - 1];
+    if (state.pageCache.has(origPageNum)) {
+      newPageCache.set(newPos, state.pageCache.get(origPageNum));
+    }
+  }
+  state.pageCache = newPageCache;
+
+  // تحديث thumbCache
+  const newThumbCache = new Map();
+  for (let newPos = 1; newPos <= total; newPos++) {
+    const origPageNum = order[newPos - 1];
+    if (state.thumbCache.has(origPageNum)) {
+      newThumbCache.set(newPos, state.thumbCache.get(origPageNum));
+    }
+  }
+  state.thumbCache = newThumbCache;
+
+  // تحديث الصفحة الحالية
+  const oldCurrentPage = state.currentPage;
+  const newCurrentPos = order.indexOf(oldCurrentPage) + 1;
+  state.currentPage = newCurrentPos > 0 ? newCurrentPos : toPage;
+
+  // تحديث الواجهة فوراً
+  renderThumbnails();
+  updatePageIndicator();
+  updateUndoButtonsSafe();
+
+  await renderPage(state.currentPage);
+
+  document.dispatchEvent(new CustomEvent('ipb:pageChanged', {
+    detail: { page: state.currentPage },
+  }));
+
+  toast(`تم نقل الشريحة إلى الموضع ${toPage} ✨`, 'ok');
 }
 
 export function updateThumbnailImg(p) {
@@ -864,9 +1086,11 @@ export async function goToPage(p) {
   const { savePageNow } = await import('./core.js');
   savePageNow();
   await captureStageThumbnail(state.currentPage).catch(() => {});
-  stageContent.style.transition = 'none';
-  stageContent.style.transform = '';
-  void stageContent.offsetWidth;
+  if (stageContent) {
+    stageContent.style.transition = 'none';
+    stageContent.style.transform = '';
+    void stageContent.offsetWidth;
+  }
   state.currentPage = p;
   await renderPage(p);
   sliding = false;
@@ -878,9 +1102,10 @@ export async function goToPage(p) {
 let currentCtxSlideIdx = null;
 
 export function showSlideContextMenu(e, slideIdx) {
+  if (!slideContextMenu) return;
   currentCtxSlideIdx = slideIdx;
   const pasteBtn = slideContextMenu.querySelector('[data-action="paste"]');
-  pasteBtn.disabled = !slideClipboard.slides || !slideClipboard.slides.length;
+  if (pasteBtn) pasteBtn.disabled = !slideClipboard.slides || !slideClipboard.slides.length;
   slideContextMenu.classList.add('show');
 
   const menuW = slideContextMenu.offsetWidth;
@@ -895,7 +1120,7 @@ export function showSlideContextMenu(e, slideIdx) {
 }
 
 export function hideSlideContextMenu() {
-  slideContextMenu.classList.remove('show');
+  if (slideContextMenu) slideContextMenu.classList.remove('show');
   currentCtxSlideIdx = null;
 }
 
@@ -907,7 +1132,9 @@ export async function cutSlide(idx) {
   savePageNow();
   const slide = state.slides[idx - 1];
   if (!slide) return;
-  const pagesData = state.pages[idx] || { annotations: [], embeds: [], media: [], buttons: [], texts: [] };
+  const pagesData = state.pages[idx] || {
+    annotations: [], embeds: [], media: [], buttons: [], texts: [], zOrder: [],
+  };
   slideClipboard.slides = [{ ...slide, id: uid() }];
   slideClipboard.pagesData = { 1: JSON.parse(JSON.stringify(pagesData)) };
 
@@ -924,10 +1151,14 @@ export async function cutSlide(idx) {
   renderThumbnails();
 
   if (state.totalPages === 0) {
-    pdfCanvas.getContext('2d').clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
-    emptyState.style.display = 'flex';
-    emptyState.style.backgroundColor = 'transparent';
-    emptyState.style.backgroundImage = 'none';
+    if (pdfCanvas) pdfCanvas.getContext('2d').clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
+    if (emptyState) {
+      emptyState.style.display = 'flex';
+      emptyState.style.backgroundColor = 'transparent';
+      emptyState.style.backgroundImage = 'none';
+    }
+    document.body.classList.remove('has-project');
+    document.body.classList.add('no-project');
   } else {
     const nc = Math.min(idx, state.totalPages) || 1;
     state.currentPage = nc;
@@ -983,17 +1214,25 @@ export async function newBlankSlide(idx) {
 
   const newPages = {};
   for (let i = 1; i <= idx; i++) newPages[i] = state.pages[i];
-  newPages[idx + 1] = { annotations: [], embeds: [], media: [], buttons: [], texts: [] };
-  for (let i = idx + 1; i <= state.totalPages; i++) newPages[i + 1] = state.pages[i];
+  newPages[idx + 1] = {
+    annotations: [], embeds: [], media: [], buttons: [], texts: [], zOrder: [],
+  };
+  for (let i = idx + 1; i <= state.totalPages; i++) {
+    newPages[i + 1] = state.pages[i];
+  }
 
   state.pages = newPages;
   state.history = {};
   state.totalPages = state.slides.length;
+
+  document.body.classList.add('has-project');
+  document.body.classList.remove('no-project');
+
   renderThumbnails();
   state.currentPage = idx + 1;
   await renderPage(state.currentPage);
   updatePageIndicator();
-  toast('تمت إضافة شريحة جديدة', 'ok');
+  toast('تمت إضافة شريحة جديدة ✨', 'ok');
 }
 
 export async function duplicateSlide(idx) {
@@ -1001,7 +1240,9 @@ export async function duplicateSlide(idx) {
   savePageNow();
   const slide = state.slides[idx - 1];
   if (!slide) return;
-  const data = state.pages[idx] || { annotations: [], embeds: [], media: [], buttons: [], texts: [] };
+  const data = state.pages[idx] || {
+    annotations: [], embeds: [], media: [], buttons: [], texts: [], zOrder: [],
+  };
   const clone = JSON.parse(JSON.stringify(data));
   const insertAt = idx;
   _shiftCachesAfterInsert(idx, 1);
@@ -1010,7 +1251,9 @@ export async function duplicateSlide(idx) {
   const newPages = {};
   for (let i = 1; i <= idx; i++) newPages[i] = state.pages[i];
   newPages[idx + 1] = clone;
-  for (let i = idx + 1; i <= state.totalPages; i++) newPages[i + 1] = state.pages[i];
+  for (let i = idx + 1; i <= state.totalPages; i++) {
+    newPages[i + 1] = state.pages[i];
+  }
 
   state.pages = newPages;
   state.history = {};
@@ -1053,9 +1296,11 @@ export async function deleteSlide(idx) {
    §16. BINDING
    ============================================================ */
 export function bindSlideContextMenu() {
+  if (!slideContextMenu) return;
   slideContextMenu.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', async e => {
-      e.stopPropagation(); e.preventDefault();
+      e.stopPropagation();
+      e.preventDefault();
       const action = btn.dataset.action;
       const idx = currentCtxSlideIdx;
       hideSlideContextMenu();
@@ -1068,7 +1313,10 @@ export function bindSlideContextMenu() {
     });
   });
   document.addEventListener('pointerdown', e => {
-    if (slideContextMenu.classList.contains('show') && !slideContextMenu.contains(e.target)) {
+    if (
+      slideContextMenu.classList.contains('show') &&
+      !slideContextMenu.contains(e.target)
+    ) {
       hideSlideContextMenu();
     }
   }, true);

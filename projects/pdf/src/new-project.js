@@ -1,5 +1,10 @@
 /* ============================================================
  * new-project.js — إنشاء مشروع جديد بأبعاد مخصصة
+ * ============================================================
+ *  ★ يدعم الوحدات: px, pt, mm, cm, in
+ *  ★ يحجّم الإحداثيات تلقائياً
+ *  ★ يضبط لون خلفية الشريحة الأولى
+ *  ★ يُظهر الشريطين الجانبيين عند إنشاء المشروع
  * ============================================================ */
 
 /* ─── وحدات القياس ─── */
@@ -185,6 +190,7 @@ function buildDialogHTML() {
    §3. PRESETS RENDER
    ============================================================ */
 function renderPresets(container) {
+  if (!container) return;
   container.innerHTML = '';
   PRESETS.forEach(preset => {
     const btn = document.createElement('button');
@@ -316,10 +322,8 @@ function buildDialog() {
   npState.backdrop = backdrop;
   npState.dialog = backdrop.querySelector('.np-dialog');
 
-  /* عرض الأحجام الجاهزة */
   renderPresets(backdrop.querySelector('#npPresets'));
 
-  /* ملء القيم الحالية */
   const wInp = backdrop.querySelector('#npW');
   const hInp = backdrop.querySelector('#npH');
   const uSel = backdrop.querySelector('#npUnit');
@@ -330,7 +334,6 @@ function buildDialog() {
   uSel.value = npState.unit;
   bgInp.value = npState.bg;
 
-  /* ربط الأحداث */
   wInp.addEventListener('input', () => {
     npState.width = parseFloat(wInp.value) || 0;
     npState.selectedPreset = null;
@@ -350,7 +353,6 @@ function buildDialog() {
     updatePreview();
   });
 
-  /* خلفية */
   backdrop.querySelectorAll('.np-bg-swatch').forEach(sw => {
     sw.addEventListener('click', () => {
       npState.bg = sw.dataset.bg;
@@ -367,7 +369,6 @@ function buildDialog() {
     updatePreview();
   });
 
-  /* اتجاه */
   backdrop.querySelectorAll('.np-orient-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const desired = btn.dataset.orient;
@@ -376,7 +377,6 @@ function buildDialog() {
     });
   });
 
-  /* الإجراءات */
   backdrop.querySelectorAll('[data-action="cancel"]').forEach(el => {
     el.addEventListener('click', closeDialog);
   });
@@ -387,12 +387,10 @@ function buildDialog() {
     });
   });
 
-  /* الإغلاق بالنقر على الخلفية */
   backdrop.addEventListener('pointerdown', (e) => {
     if (e.target === backdrop) closeDialog();
   });
 
-  /* Escape */
   backdrop.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.stopPropagation();
@@ -403,7 +401,6 @@ function buildDialog() {
     }
   });
 
-  /* السحب من الرأس */
   makeDialogDraggable(backdrop.querySelector('.np-header'), npState.dialog);
 
   return backdrop;
@@ -459,7 +456,6 @@ function makeDialogDraggable(handle, dialog) {
 export function openNewProjectDialog() {
   const backdrop = buildDialog();
 
-  /* إعادة ملء القيم */
   const wInp = backdrop.querySelector('#npW');
   const hInp = backdrop.querySelector('#npH');
   const uSel = backdrop.querySelector('#npUnit');
@@ -467,7 +463,6 @@ export function openNewProjectDialog() {
   if (hInp) hInp.value = npState.height;
   if (uSel) uSel.value = npState.unit;
 
-  /* إعادة تعيين الموضع */
   if (npState.dialog) {
     npState.dialog.style.left = '';
     npState.dialog.style.top = '';
@@ -477,7 +472,6 @@ export function openNewProjectDialog() {
   backdrop.classList.add('show');
   requestAnimationFrame(updatePreview);
 
-  /* تركيز أول حقل */
   setTimeout(() => { try { wInp.focus(); wInp.select(); } catch (_) {} }, 100);
 }
 
@@ -514,7 +508,6 @@ async function createProjectFromDialog() {
     const core = await import('./core.js');
     const pdf = await import('./pdf.js');
 
-    /* إعادة تهيئة الحالة */
     core.state.pdfDoc = null;
     core.state.pdfBlob = null;
     core.state.pdfName = 'مشروع جديد';
@@ -534,25 +527,35 @@ async function createProjectFromDialog() {
     core.state.currentPage = 1;
     core.state.selected = null;
     core.state.pages = {
-      1: { annotations: [], embeds: [], media: [], videos: [], texts: [], buttons: [] },
+      1: {
+        annotations: [],
+        embeds: [],
+        media: [],
+        videos: [],
+        texts: [],
+        buttons: [],
+        zOrder: [],
+      },
     };
     core.state.history = {};
     core.state.pageCache.clear();
     core.state.thumbCache.clear();
 
-    /* إخفاء شاشة البداية */
+    const stageEl = document.getElementById('stage');
+    if (stageEl) stageEl.classList.remove('empty');
+
     const emptyState = document.getElementById('emptyState');
     if (emptyState) emptyState.style.display = 'none';
 
-    /* عرض */
+    document.body.classList.add('has-project');
+    document.body.classList.remove('no-project');
+
     pdf.renderThumbnails();
     await pdf.renderPage(1);
     pdf.updatePageIndicator();
 
-    /* تحديث الأزرار */
     if (core.updateUndoButtons) core.updateUndoButtons();
 
-    /* إشعار الواجهة الجديدة */
     document.dispatchEvent(new CustomEvent('ipb:pageChanged', {
       detail: { page: 1 },
     }));
@@ -562,7 +565,6 @@ async function createProjectFromDialog() {
 
     closeDialog();
 
-    /* toast */
     try {
       const utils = await import('./core.js');
       if (utils.toast) {
@@ -577,22 +579,19 @@ async function createProjectFromDialog() {
 }
 
 /* ============================================================
-   §9. INIT — ربط زر "جديد" + زر "مشروع جديد" في شاشة البداية
+   §9. INIT
    ============================================================ */
 export function initNewProject() {
-  /* زر TopBar */
   const btnNew = document.getElementById('btnNew');
   if (btnNew) {
     btnNew.addEventListener('click', openNewProjectDialog);
   }
 
-  /* زر شاشة البداية */
   const btnNewEmpty = document.getElementById('btnNewEmpty');
   if (btnNewEmpty) {
     btnNewEmpty.addEventListener('click', openNewProjectDialog);
   }
 
-  /* اختصار لوحة المفاتيح Ctrl+N */
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
       e.preventDefault();
@@ -601,7 +600,6 @@ export function initNewProject() {
   });
 }
 
-/* Expose for debugging */
 if (typeof window !== 'undefined') {
   window.__NEW_PROJECT__ = {
     open: openNewProjectDialog,

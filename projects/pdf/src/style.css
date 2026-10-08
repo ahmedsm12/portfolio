@@ -1,5 +1,13 @@
 /* ============================================================
  * style.css — كل أنماط لوحة PDF التفاعلية
+ * ============================================================
+ *  ★ إصلاح ترتيب الطبقات (لا stacking contexts)
+ *  ★ SVG annotations داخل wrappers
+ *  ★ selectionSvg منفصل
+ *  ★ الصور كالأشكال (بلا إطار)
+ *  ★ الليزر فوق كل شيء
+ *  ★ مربع التحديد فقط مع أداة select
+ *  ★ أنماط Drag & Drop للشرائح والزر الإضافي
  * ============================================================ */
 
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
@@ -10,9 +18,7 @@ html,body{
   background:#0f1115;color:#eee;
   user-select:none;-webkit-user-select:none;
   overscroll-behavior:none;
-  /* ★ منع pinch-zoom + double-tap zoom على مستوى الصفحة
-     مع السماح بـ scroll عادي للعناصر القابلة للتمرير */
-  touch-action: pan-x pan-y;
+  touch-action:pan-x pan-y;
 }
 
 :root{
@@ -49,20 +55,24 @@ html,body{
 .sidebar-thumbs{
   flex:1;overflow-y:auto;overflow-x:hidden;padding:10px;
   scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent;
+  display:flex;flex-direction:column;gap:8px;
 }
 .sidebar-thumbs::-webkit-scrollbar{width:5px}
 .sidebar-thumbs::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
 
 .thumbs-empty{text-align:center;color:#6b7280;font-size:12px;padding:30px 10px}
 
+/* ===================== THUMBNAIL ITEM ===================== */
 .thumb-item{
-  position:relative;margin-bottom:10px;
-  border:2px solid transparent;border-radius:6px;overflow:hidden;cursor:pointer;
+  position:relative;margin-bottom:0;
+  border:2px solid transparent;border-radius:8px;overflow:hidden;cursor:grab;
   background:linear-gradient(135deg,#1f2937 0%,#111827 100%);
-  transition:border-color .15s,transform .1s,box-shadow .15s;
+  transition:border-color .15s,transform .15s,box-shadow .15s,opacity .15s;
   aspect-ratio:var(--thumb-aspect,0.75);
   display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;user-select:none;
 }
+.thumb-item:active{cursor:grabbing}
 .thumb-item::before{
   content:'';position:absolute;inset:0;
   background:linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.06) 50%,rgba(255,255,255,0) 100%);
@@ -72,14 +82,72 @@ html,body{
 .thumb-item.loading::before{opacity:1}
 @keyframes thumbShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .thumb-item.loaded::before{opacity:0;animation:none}
-.thumb-item:hover{border-color:rgba(74,126,255,.5);transform:scale(1.02)}
-.thumb-item:active{transform:scale(.99)}
+.thumb-item:hover{border-color:rgba(74,126,255,.5);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.3)}
 .thumb-item.active{border-color:#4a7eff;box-shadow:0 0 0 2px rgba(74,126,255,.35),0 4px 12px rgba(74,126,255,.25)}
-.thumb-item img{
-  width:100%;height:100%;display:block;background:#fff;
-  object-fit:contain;opacity:0;transition:opacity .2s ease;
+
+/* Drag & Drop Visuals */
+.thumb-item.dragging{
+  opacity:0.35;
+  transform:scale(0.95);
+  border-style:dashed;
+  border-color:#4a7eff;
 }
-.thumb-item.loaded img{opacity:1}
+.thumb-item.drop-target-before{
+  border-top-color:#4a7eff !important;
+  box-shadow:0 -4px 12px rgba(74,126,255,.5) !important;
+}
+.thumb-item.drop-target-before::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:4px;
+  background:#4a7eff;border-radius:2px;z-index:10;box-shadow:0 0 8px #4a7eff;
+}
+.thumb-item.drop-target-after{
+  border-bottom-color:#4a7eff !important;
+  box-shadow:0 4px 12px rgba(74,126,255,.5) !important;
+}
+.thumb-item.drop-target-after::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:4px;
+  background:#4a7eff;border-radius:2px;z-index:10;box-shadow:0 0 8px #4a7eff;
+}
+
+.thumb-drag-grip{
+  position:absolute;top:5px;left:5px;
+  width:20px;height:20px;border-radius:4px;
+  background:rgba(0,0,0,.6);color:#8a94a6;
+  font-size:11px;display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .15s,color .15s;z-index:5;pointer-events:none;
+}
+.thumb-item:hover .thumb-drag-grip{opacity:1}
+
+/* حاوية الصورة */
+.thumb-img-container{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  padding:0;
+  margin:0;
+}
+.thumb-img-container img{
+  position:absolute;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  object-position:center center;
+  display:block;
+  margin:0;
+  padding:0;
+  background:#fff;
+  opacity:0;
+  transition:opacity .2s ease;
+}
+.thumb-item.loaded .thumb-img-container img{opacity:1}
+
 .thumb-num{
   position:absolute;bottom:4px;right:4px;
   background:rgba(0,0,0,.75);color:#fff;font-size:10px;
@@ -92,6 +160,64 @@ html,body{
   animation:spin .8s linear infinite;z-index:1;
 }
 .thumb-item.loaded .thumb-spinner{display:none}
+
+/* ===================== ADD SLIDE BUTTON UNDER THUMBS ===================== */
+.thumb-add-btn{
+  position:relative;
+  width:100%;
+  min-height:56px;
+  border-radius:8px;
+  border:2px dashed rgba(255,255,255,.16);
+  background:rgba(255,255,255,.02);
+  color:#a0aec0;
+  cursor:pointer;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  padding:10px 8px;
+  font-family:inherit;
+  transition:all .18s ease;
+  flex-shrink:0;
+  margin-top:2px;
+  outline:none;
+}
+.thumb-add-btn:hover{
+  border-color:var(--sh-accent,#4a7eff);
+  background:rgba(74,126,255,.08);
+  color:#fff;
+  transform:translateY(-1px);
+  box-shadow:0 4px 14px rgba(74,126,255,.18);
+}
+.thumb-add-btn:active{
+  transform:translateY(0) scale(0.98);
+}
+.thumb-add-icon-wrap{
+  width:26px;
+  height:26px;
+  border-radius:50%;
+  background:rgba(255,255,255,.06);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all .18s ease;
+}
+.thumb-add-btn:hover .thumb-add-icon-wrap{
+  background:var(--sh-accent,#4a7eff);
+  color:#fff;
+  box-shadow:0 0 10px rgba(74,126,255,.5);
+}
+.thumb-add-plus{
+  font-size:16px;
+  font-weight:700;
+  line-height:1;
+}
+.thumb-add-label{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.3px;
+}
 
 #bottomBar{
   display:flex;align-items:center;justify-content:center;gap:4px;padding:8px;
@@ -139,7 +265,7 @@ html,body{
 /* ===================== STAGE ===================== */
 #stageWrapper{
   position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-  overflow:hidden;background:#0f1115;
+  overflow:visible;background:#0f1115;
   padding-left:var(--sidebar-effective-w,0px);
   transition:padding-left .22s ease;
 }
@@ -147,28 +273,163 @@ html,body{
 
 #stage{
   position:relative;background:#fff;
-  box-shadow:0 20px 60px rgba(0,0,0,.7);overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,.7);overflow:visible;
   touch-action:none;border-radius:4px;transform-origin:0 0;
 }
+
+#stage.empty{
+  background:transparent !important;
+  box-shadow:none !important;
+  border-radius:0 !important;
+  width:0 !important;
+  height:0 !important;
+}
+
 #stageContent{position:absolute;inset:0}
-#stageContent > *{position:absolute;top:0;left:0;width:100%;height:100%}
 
-#pdfCanvas{z-index:1;pointer-events:none}
-#svgLayer{z-index:2;pointer-events:none}
-#embedLayer{z-index:3;pointer-events:none}
-#videoLayer{z-index:4;pointer-events:none}
-#textLayer{z-index:5;pointer-events:none}
-#interactiveLayer{z-index:6;pointer-events:none}
-#transientCanvas{z-index:7;pointer-events:none}
-#laserCanvas{z-index:8;pointer-events:none}
+#stageContent > *{
+  position:absolute;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+}
 
+#pdfCanvas{
+  z-index:1;
+  pointer-events:none;
+}
+
+#svgDefs{
+  position:absolute;
+  width:0;
+  height:0;
+  overflow:hidden;
+  pointer-events:none;
+  z-index:0;
+}
+
+#svgLayer{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  overflow:visible;
+  z-index:auto;
+}
+
+#svgLayer > .annot-wrapper{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  overflow:visible;
+  pointer-events:none;
+}
+#svgLayer > .annot-wrapper > svg{
+  width:100%;
+  height:100%;
+  display:block;
+}
+#svgLayer > .annot-wrapper [data-annot]{
+  pointer-events:none;
+}
+
+#stage[data-tool="select"] #svgLayer > .annot-wrapper [data-annot]{
+  pointer-events:auto;
+  cursor:move;
+}
+
+#embedLayer,
+#videoLayer,
+#textLayer,
+#interactiveLayer{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:auto;
+}
+
+#transientCanvas{
+  z-index:7000;
+  pointer-events:none;
+}
+
+#laserCanvas{
+  z-index:99999 !important;
+  pointer-events:none;
+}
+
+#selectionSvg{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  overflow:visible;
+  pointer-events:none;
+  z-index:8000;
+}
+#selectionSvg .handle{
+  pointer-events:auto;
+}
+
+#videoLayer .media-obj,
+#embedLayer .embed,
+#interactiveLayer .pdf-interactive-btn{
+  pointer-events:none !important;
+}
+
+#stage[data-tool="select"] #videoLayer .media-obj,
+#stage[data-tool="select"] #embedLayer .embed,
+#stage[data-tool="select"] #interactiveLayer .pdf-interactive-btn,
+#stage[data-tool="select"] .pdf-text-box{
+  pointer-events:auto !important;
+}
+
+#stage[data-tool="hand"] #videoLayer .media-obj,
+#stage[data-tool="hand"] #embedLayer .embed,
+#stage[data-tool="hand"] #interactiveLayer .pdf-interactive-btn,
+#stage[data-tool="hand"] .pdf-text-box{
+  pointer-events:auto !important;
+}
+
+#stage[data-tool="text"] .pdf-text-box,
+#stage[data-tool="equation"] .pdf-text-box{
+  pointer-events:auto !important;
+}
+
+/* ===================== CURSORS ===================== */
 #stage[data-tool="hand"]{cursor:grab}
 #stage[data-tool="hand"].dragging{cursor:grabbing}
 #stage[data-tool="rect"],#stage[data-tool="circle"],#stage[data-tool="line"]{cursor:crosshair}
 #stage[data-tool="text"],#stage[data-tool="equation"]{cursor:text}
 
-#svgLayer [data-annot]{pointer-events:none}
-#stage[data-tool="select"] #svgLayer [data-annot]{pointer-events:auto;cursor:move}
+/* ===================== SELECTION VISUALS ===================== */
+#stage:not([data-tool="select"]) .selection-overlay,
+#stage:not([data-tool="select"]) .selection-outline,
+#stage:not([data-tool="select"]) .handle{
+  display:none !important;
+}
+
+#stage:not([data-tool="select"]) .media-resize,
+#stage:not([data-tool="select"]) .embed-resize,
+#stage:not([data-tool="select"]) .pdf-interactive-btn-resize,
+#stage:not([data-tool="select"]) .pdf-text-resize{
+  display:none !important;
+}
+
+#stage:not([data-tool="select"]) #videoLayer .media-obj.selected,
+#stage:not([data-tool="select"]) #embedLayer .embed.selected,
+#stage:not([data-tool="select"]) #interactiveLayer .pdf-interactive-btn.selected,
+#stage:not([data-tool="select"]) .pdf-text-box.selected{
+  box-shadow:none !important;
+  outline:none !important;
+}
+
+#stage:not([data-tool="select"]) #videoLayer .media-obj:hover,
+#stage:not([data-tool="select"]) #embedLayer .embed:hover{
+  outline:none !important;
+}
+
 .annot{vector-effect:non-scaling-stroke}
 
 .selection-outline{
@@ -258,11 +519,6 @@ html,body{
   border-radius:4px;padding:4px 6px;
   transition:border-color .15s,background .15s;box-sizing:border-box;
 }
-#stage[data-tool="select"] .pdf-text-box{pointer-events:auto;cursor:move}
-#stage[data-tool="hand"] .pdf-text-box{pointer-events:auto;cursor:pointer}
-#stage[data-tool="text"] .pdf-text-box,
-#stage[data-tool="equation"] .pdf-text-box{pointer-events:auto;cursor:text}
-
 .pdf-text-box.selected{border-color:#4a7eff;background:rgba(74,126,255,.05)}
 .pdf-text-box.editing{border-color:#4a7eff;background:rgba(74,126,255,.08)}
 .pdf-text-box .pdf-text-body{
@@ -285,7 +541,6 @@ html,body{
   content:'انقر للكتابة…';color:#999;font-style:italic;
 }
 
-/* Equation box: always LTR */
 .pdf-text-box.equation{direction:ltr;text-align:left}
 .pdf-text-box.equation .pdf-text-body{
   direction:ltr;text-align:left;
@@ -375,65 +630,78 @@ html,body{
 
 /* ===================== MEDIA ===================== */
 #videoLayer .media-obj{
-  position:absolute;pointer-events:auto;display:flex;flex-direction:column;
-  background:#000;border:1px solid #4a7eff;border-radius:6px;overflow:hidden;
-  box-shadow:0 4px 16px rgba(0,0,0,.35);
+  position:absolute;pointer-events:auto;display:block;
+  background:transparent !important;
+  border:none !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  padding:0 !important;
+  overflow:visible !important;
+  outline:none;
+  transition:outline-color .12s;
 }
-#videoLayer .media-obj.selected{box-shadow:0 0 0 3px rgba(74,126,255,.4),0 6px 20px rgba(0,0,0,.4)}
-.media-obj .media-header{
-  height:24px;background:linear-gradient(180deg,#4a7eff,#3b6ee0);color:#fff;
-  padding:0 6px;font-size:11px;display:flex;justify-content:space-between;
-  align-items:center;gap:6px;cursor:move;user-select:none;
-  flex-shrink:0;opacity:0;transition:opacity .15s;
+
+#stage[data-tool="select"] #videoLayer .media-obj:hover{
+  outline:1.5px solid rgba(74,126,255,.55);
+  outline-offset:0;
 }
-#stage[data-tool="select"] .media-obj:hover .media-header,
-#stage[data-tool="select"] .media-obj.selected .media-header{opacity:1}
-#stage:not([data-tool="select"]) .media-header{pointer-events:none}
-.media-obj .media-title{
-  flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  direction:ltr;text-align:left;font-weight:500;
+
+#videoLayer .media-obj.selected{
+  outline:2px solid var(--sh-accent,#4a7eff) !important;
+  outline-offset:0;
+  box-shadow:0 0 0 5px rgba(74,126,255,.18) !important;
 }
-.media-obj .media-close{
-  background:rgba(0,0,0,.25);border:none;color:#fff;
-  width:18px;height:18px;border-radius:3px;cursor:pointer;
-  font-size:13px;line-height:1;padding:0;
+
+#videoLayer .media-obj .media-content{
+  width:100%;height:100%;
   display:flex;align-items:center;justify-content:center;
+  background:transparent !important;overflow:hidden;
 }
-.media-obj .media-content{
-  flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
-  background:#000;overflow:hidden;
-}
-.media-obj .media-content video,
-.media-obj .media-content img{
-  max-width:100%;max-height:100%;width:100%;height:100%;
+#videoLayer .media-obj .media-content img,
+#videoLayer .media-obj .media-content video{
+  width:100%;height:100%;
+  max-width:100%;max-height:100%;
   object-fit:contain;display:block;
+  background:transparent;border:none;border-radius:0;
 }
-.media-obj .media-content img{background:#fff}
-#stage:not([data-tool="select"]) .media-obj .media-content video,
-#stage:not([data-tool="select"]) .media-obj .media-content img{pointer-events:none}
-.media-obj .media-play-btn{
+
+#videoLayer .media-obj .media-header{
+  display:none !important;
+}
+
+#videoLayer .media-obj .media-resize{
+  position:absolute;bottom:-7px;right:-7px;width:14px;height:14px;
+  background:var(--sh-accent,#4a7eff);border:2px solid #fff;border-radius:50%;
+  cursor:nwse-resize;z-index:12;display:none;
+  box-shadow:0 1px 4px rgba(0,0,0,.35);
+}
+#stage[data-tool="select"] #videoLayer .media-obj.selected .media-resize{display:block}
+
+#videoLayer .media-obj .media-play-btn{
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:68px;height:68px;border-radius:50%;
-  background:rgba(0,0,0,.55);border:2.5px solid rgba(255,255,255,.9);
-  color:#fff;font-size:26px;cursor:pointer;
+  width:64px;height:64px;border-radius:50%;
+  background:rgba(0,0,0,.55);border:2px solid rgba(255,255,255,.9);
+  color:#fff;font-size:24px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  padding:0 0 0 5px;z-index:5;
+  padding:0 0 0 4px;z-index:8;
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
   box-shadow:0 6px 22px rgba(0,0,0,.4);line-height:1;
+  transition:opacity .2s,transform .15s;
 }
-.media-obj .media-play-btn.hidden{opacity:0;pointer-events:none}
-.media-obj .media-resize{
-  position:absolute;width:14px;height:14px;background:#4a7eff;
-  border:2px solid #fff;border-radius:50%;
-  bottom:-7px;right:-7px;cursor:nwse-resize;
-  z-index:10;display:none;box-shadow:0 1px 4px rgba(0,0,0,.3);
+#videoLayer .media-obj .media-play-btn:hover{
+  background:rgba(0,0,0,.75);
+  transform:translate(-50%,-50%) scale(1.06);
 }
-#stage[data-tool="select"] .media-obj.selected .media-resize{display:block}
-.media-obj.media-error::after{
-  content:'⚠ تعذّر تحميل الملف';position:absolute;inset:0;
+#videoLayer .media-obj .media-play-btn.hidden{
+  opacity:0;pointer-events:none;
+}
+
+#videoLayer .media-obj.media-error::after{
+  content:'⚠ تعذّر تحميل الملف';
+  position:absolute;inset:0;
   display:flex;align-items:center;justify-content:center;
-  color:#fff;background:rgba(0,0,0,.85);font-size:12px;
-  padding:20px;text-align:center;
+  color:#fff;background:rgba(0,0,0,.85);font-size:12px;padding:12px;
+  text-align:center;border-radius:6px;
 }
 
 /* ===================== TOOLBAR ===================== */
@@ -804,11 +1072,25 @@ html,body{
   gap:16px;color:#666;pointer-events:none;z-index:20;font-size:14px;
 }
 #emptyState .icon{font-size:72px;opacity:.4}
-#emptyState button{
-  pointer-events:auto;padding:13px 26px;background:#4a7eff;color:#fff;
-  border:none;border-radius:10px;cursor:pointer;font-size:15px;
-  font-family:inherit;font-weight:600;touch-action:manipulation;
+#emptyState .empty-title{font-size:22px;font-weight:700;color:#e9eef7;margin-bottom:6px}
+#emptyState .empty-desc{font-size:13px;color:#8a94a6;margin-bottom:8px}
+#emptyState .empty-actions{display:flex;gap:10px;margin-top:8px}
+#emptyState .empty-actions button{
+  pointer-events:auto;padding:12px 24px;border-radius:10px;
+  font-size:14px;font-family:inherit;font-weight:600;cursor:pointer;
+  border:1px solid transparent;touch-action:manipulation;
+  transition:all .14s;
 }
+#emptyState .empty-actions .primary-btn{
+  background:linear-gradient(135deg,#4a7eff,#7c5cff);color:#fff;
+  box-shadow:0 8px 24px rgba(74,126,255,.3);
+}
+#emptyState .empty-actions .primary-btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
+#emptyState .empty-actions button:not(.primary-btn){
+  background:rgba(255,255,255,.06);color:#e9eef7;
+  border-color:rgba(255,255,255,.12);
+}
+#emptyState .empty-actions button:not(.primary-btn):hover{background:rgba(255,255,255,.12)}
 
 #loading{
   position:absolute;inset:0;display:none;
@@ -852,581 +1134,4 @@ html,body{
   #toolbar{right:6px;padding:4px 3px;gap:2px}
   #submenu{right:50px;min-width:82px}
   #textContextToolbar,#shapeContextToolbar{font-size:11px}
-}
-/* ═══════════════════════════════════════════════════════════
-   14) FIX: EQUATION GRIDS ALWAYS VISIBLE
-   ═══════════════════════════════════════════════════════════ */
-#equationEditor #eqPaletteHost .eq-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)) !important;
-  gap: 6px !important;
-  padding: 4px !important;
-}
-#equationEditor #eqPaletteHost .eq-grid:not(.active) {
-  display: none !important;
-}
-/* ضمان أن أول grid يظهر حتى لو فشل JS */
-#equationEditor.show #eqPaletteHost .eq-grid:first-of-type {
-  display: grid !important;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   15) FIX: IMAGES WITHOUT FRAME
-   ═══════════════════════════════════════════════════════════ */
-#videoLayer .media-obj[data-media-type="image"] {
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-#videoLayer .media-obj[data-media-type="image"] .media-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 5;
-  background: linear-gradient(180deg, rgba(74,126,255,.85), rgba(74,126,255,.1));
-  border-radius: 6px 6px 0 0;
-}
-#videoLayer .media-obj[data-media-type="image"] .media-content {
-  background: transparent !important;
-}
-#videoLayer .media-obj[data-media-type="image"] .media-content img {
-  background: transparent !important;
-  object-fit: contain;
-  box-shadow: none;
-}
-#videoLayer .media-obj[data-media-type="image"].selected {
-  box-shadow: 0 0 0 2px var(--sh-accent), 0 0 0 6px rgba(74,126,255,.25) !important;
-}
-#videoLayer .media-obj[data-media-type="image"]:hover {
-  box-shadow: 0 0 0 1.5px rgba(74,126,255,.5) !important;
-}
-#videoLayer .media-obj[data-media-type="image"] .media-resize {
-  bottom: -6px;
-  right: -6px;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   16) PROPS PANEL TOGGLE
-   ═══════════════════════════════════════════════════════════ */
-#propsRight {
-  transition: transform .22s ease, bottom .2s ease;
-}
-
-#stageWrapper {
-  transition: bottom .2s ease, right .22s ease;
-}
-
-body.props-hidden #propsRight {
-  transform: translateX(100%);
-  pointer-events: none;
-}
-body.props-hidden #stageWrapper {
-  right: 0;
-}
-
-.props-toggle-btn {
-  position: fixed;
-  right: 320px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 22px;
-  height: 54px;
-  background: var(--sh-panel);
-  border: 1px solid var(--sh-border);
-  border-right: none;
-  border-radius: 8px 0 0 8px;
-  color: var(--sh-text-muted);
-  cursor: pointer;
-  font-size: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1079;
-  transition: right .22s ease, background .12s, color .12s;
-  font-family: inherit;
-  padding: 0;
-}
-.props-toggle-btn:hover {
-  background: var(--sh-panel-2);
-  color: var(--sh-text);
-}
-body.props-hidden .props-toggle-btn {
-  right: 0;
-}
-body.props-hidden .props-toggle-btn::before {
-  content: '‹';
-}
-.props-toggle-btn::before {
-  content: '›';
-}
-.props-toggle-btn {
-  font-size: 0;
-}
-.props-toggle-btn::before {
-  font-size: 16px;
-}
-
-@media (max-width: 900px) {
-  .props-toggle-btn { right: 260px; }
-}
-@media (max-width: 720px) {
-  .props-toggle-btn { display: none; }
-}
-/* ═══════════════════════════════════════════════════════════
-   17) MEDIA AS SHAPES — بلا إطار، شفاف، قابل للسحب من أي مكان
-   ═══════════════════════════════════════════════════════════ */
-
-/* إعادة تعريف أساسية لكل عناصر media */
-#videoLayer .media-obj {
-  position: absolute;
-  pointer-events: auto;
-  display: block;
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  overflow: visible !important;
-  outline: none;
-  transition: outline-color .12s;
-}
-
-/* مؤشر خفيف عند hover */
-#stage[data-tool="select"] #videoLayer .media-obj:hover {
-  outline: 1.5px solid rgba(74,126,255,.55);
-  outline-offset: 0;
-}
-
-/* حدود واضحة عند التحديد */
-#videoLayer .media-obj.selected {
-  outline: 2px solid var(--sh-accent) !important;
-  outline-offset: 0;
-  box-shadow: 0 0 0 5px rgba(74,126,255,.18) !important;
-}
-
-/* المحتوى يملأ العنصر بالكامل */
-#videoLayer .media-obj .media-content {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent !important;
-  overflow: hidden;
-}
-
-#videoLayer .media-obj .media-content img,
-#videoLayer .media-obj .media-content video {
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  display: block;
-  background: transparent;
-  border-radius: 0;
-}
-
-/* شريط العنوان عائم فوق العنصر — يظهر عند hover/select فقط */
-#videoLayer .media-obj .media-header {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-  gap: 6px;
-  background: linear-gradient(180deg, var(--sh-accent), #3b6ee0);
-  border-radius: 6px;
-  color: #fff;
-  font-size: 10.5px;
-  font-weight: 600;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .15s;
-  z-index: 15;
-  box-shadow: 0 2px 8px rgba(0,0,0,.35);
-  cursor: move;
-}
-#videoLayer .media-obj .media-header::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: #3b6ee0;
-}
-#stage[data-tool="select"] #videoLayer .media-obj:hover .media-header,
-#stage[data-tool="select"] #videoLayer .media-obj.selected .media-header {
-  opacity: 1;
-  pointer-events: auto;
-}
-#stage:not([data-tool="select"]) #videoLayer .media-obj .media-header {
-  display: none;
-}
-
-#videoLayer .media-obj .media-title {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  direction: ltr;
-  text-align: left;
-  font-weight: 500;
-}
-
-#videoLayer .media-obj .media-close {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  background: rgba(0,0,0,.25);
-  border: none;
-  color: #fff;
-  font-size: 11px;
-  line-height: 1;
-  padding: 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-#videoLayer .media-obj .media-close:hover {
-  background: rgba(0,0,0,.55);
-}
-
-/* مقبض التحجيم */
-#videoLayer .media-obj .media-resize {
-  position: absolute;
-  bottom: -7px;
-  right: -7px;
-  width: 14px;
-  height: 14px;
-  background: var(--sh-accent);
-  border: 2px solid #fff;
-  border-radius: 50%;
-  cursor: nwse-resize;
-  z-index: 12;
-  display: none;
-  box-shadow: 0 1px 4px rgba(0,0,0,.35);
-}
-#stage[data-tool="select"] #videoLayer .media-obj.selected .media-resize {
-  display: block;
-}
-
-/* زر التشغيل للفيديو */
-#videoLayer .media-obj .media-play-btn {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: rgba(0,0,0,.55);
-  border: 2px solid rgba(255,255,255,.9);
-  color: #fff;
-  font-size: 24px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0 0 4px;
-  z-index: 8;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  box-shadow: 0 6px 22px rgba(0,0,0,.4);
-  line-height: 1;
-  transition: opacity .2s, transform .15s;
-}
-#videoLayer .media-obj .media-play-btn:hover {
-  background: rgba(0,0,0,.75);
-  transform: translate(-50%, -50%) scale(1.06);
-}
-#videoLayer .media-obj .media-play-btn.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-#videoLayer .media-obj.media-error::after {
-  content: '⚠ تعذّر تحميل الملف';
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  background: rgba(0,0,0,.85);
-  font-size: 12px;
-  padding: 12px;
-  text-align: center;
-  border-radius: 6px;
-}
-/* ═══════════════════════════════════════════════════════════
-   18) REMOVE MEDIA HEADER — الملفات كالأشكال
-   ═══════════════════════════════════════════════════════════ */
-
-/* شريط العنوان القديم — مخفي تماماً */
-#videoLayer .media-obj .media-header {
-  display: none !important;
-}
-
-/* الصور والفيديوهات بلا خلفية افتراضية */
-#videoLayer .media-obj {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  outline: none;
-  border-radius: 0;
-  padding: 0;
-  overflow: visible;
-  transition: outline-color .12s;
-}
-
-#videoLayer .media-obj .media-content {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent !important;
-  overflow: hidden;
-}
-
-#videoLayer .media-obj .media-content img,
-#videoLayer .media-obj .media-content video {
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  display: block;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-}
-
-/* outline خفيف عند hover */
-#stage[data-tool="select"] #videoLayer .media-obj:hover {
-  outline: 1.5px solid rgba(74,126,255,.55);
-  outline-offset: 0;
-}
-
-/* outline أزرق واضح عند التحديد */
-#videoLayer .media-obj.selected {
-  outline: 2px solid var(--sh-accent) !important;
-  outline-offset: 0;
-  box-shadow: 0 0 0 5px rgba(74,126,255,.18) !important;
-}
-
-/* مقبض التحجيم */
-#videoLayer .media-obj .media-resize {
-  position: absolute;
-  bottom: -7px;
-  right: -7px;
-  width: 14px;
-  height: 14px;
-  background: var(--sh-accent);
-  border: 2px solid #fff;
-  border-radius: 50%;
-  cursor: nwse-resize;
-  z-index: 12;
-  display: none;
-  box-shadow: 0 1px 4px rgba(0,0,0,.35);
-}
-#stage[data-tool="select"] #videoLayer .media-obj.selected .media-resize {
-  display: block;
-}
-
-/* زر تشغيل الفيديو */
-#videoLayer .media-obj .media-play-btn {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: rgba(0,0,0,.55);
-  border: 2px solid rgba(255,255,255,.9);
-  color: #fff;
-  font-size: 24px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0 0 4px;
-  z-index: 8;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  box-shadow: 0 6px 22px rgba(0,0,0,.4);
-  line-height: 1;
-  transition: opacity .2s, transform .15s;
-}
-#videoLayer .media-obj .media-play-btn:hover {
-  background: rgba(0,0,0,.75);
-  transform: translate(-50%, -50%) scale(1.06);
-}
-#videoLayer .media-obj .media-play-btn.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   19) CLOSE PROJECT BUTTON + CONFIRM DIALOG
-   ═══════════════════════════════════════════════════════════ */
-
-/* زر الإغلاق في TopBar */
-#topbar .tb-btn.danger-ghost {
-  color: #d4a5a5;
-}
-#topbar .tb-btn.danger-ghost:hover {
-  background: rgba(239,68,68,.14);
-  color: #ffb4b4;
-  border-color: rgba(239,68,68,.35);
-}
-
-/* Backdrop */
-.ipb-confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(8, 10, 14, .78);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 3000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  opacity: 0;
-  transition: opacity .18s ease;
-}
-.ipb-confirm-backdrop.show {
-  opacity: 1;
-}
-
-/* Dialog */
-.ipb-confirm-dialog {
-  width: min(440px, calc(100vw - 40px));
-  background: #1c2028;
-  border: 1px solid var(--sh-border-2);
-  border-radius: 18px;
-  padding: 26px 24px 20px;
-  box-shadow: 0 40px 100px rgba(0,0,0,.75);
-  text-align: center;
-  animation: ipbConfirmPop .22s cubic-bezier(.2, .9, .3, 1.3);
-}
-@keyframes ipbConfirmPop {
-  from { opacity: 0; transform: scale(.94) translateY(10px); }
-  to   { opacity: 1; transform: none; }
-}
-
-.ipb-confirm-icon {
-  width: 60px;
-  height: 60px;
-  margin: 0 auto 14px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgba(245,158,11,.2), rgba(245,158,11,.06));
-  border: 1.5px solid rgba(245,158,11,.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-}
-
-.ipb-confirm-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--sh-text);
-  margin: 0 0 6px;
-}
-
-.ipb-confirm-subtitle {
-  font-size: 12px;
-  color: var(--sh-accent);
-  font-weight: 600;
-  margin: 0 0 12px;
-  word-break: break-word;
-  direction: ltr;
-  text-align: center;
-  opacity: .85;
-}
-.ipb-confirm-subtitle:empty {
-  display: none;
-}
-
-.ipb-confirm-message {
-  font-size: 13.5px;
-  color: var(--sh-text-muted);
-  margin: 0 0 22px;
-  line-height: 1.7;
-}
-
-.ipb-confirm-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.ipb-confirm-btn {
-  padding: 11px 16px;
-  border-radius: 10px;
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all .14s;
-}
-
-.ipb-confirm-btn.ipb-confirm-primary {
-  background: linear-gradient(135deg, var(--sh-accent), var(--sh-accent-2));
-  color: #fff;
-  box-shadow: 0 6px 18px rgba(74,126,255,.32);
-  grid-column: 1 / 2;
-  grid-row: 1 / 2;
-}
-.ipb-confirm-btn.ipb-confirm-primary:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
-  box-shadow: 0 8px 22px rgba(74,126,255,.42);
-}
-
-.ipb-confirm-btn.ipb-confirm-secondary {
-  background: rgba(239,68,68,.12);
-  color: #ffb4b4;
-  border-color: rgba(239,68,68,.3);
-  grid-column: 2 / 3;
-  grid-row: 1 / 2;
-}
-.ipb-confirm-btn.ipb-confirm-secondary:hover {
-  background: rgba(239,68,68,.22);
-  border-color: rgba(239,68,68,.5);
-  color: #fff;
-}
-
-.ipb-confirm-btn.ipb-confirm-cancel {
-  background: transparent;
-  color: var(--sh-text-muted);
-  border-color: var(--sh-border-2);
-  grid-column: 1 / 3;
-  grid-row: 2 / 3;
-  margin-top: 4px;
-}
-.ipb-confirm-btn.ipb-confirm-cancel:hover {
-  background: rgba(255,255,255,.05);
-  color: var(--sh-text);
-}
-
-/* زر الإغلاق في الثانوي */
-.ipb-confirm-btn:focus {
-  outline: 2px solid var(--sh-accent);
-  outline-offset: 2px;
 }

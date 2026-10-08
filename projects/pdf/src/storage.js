@@ -1,5 +1,9 @@
 /* ============================================================
  * storage.js — حفظ/فتح .actpdf + تصدير PDF
+ * ============================================================
+ *  ★ يحفظ zOrder لكل شريحة
+ *  ★ يدعم wrappers الجديدة للـ SVG annotations
+ *  ★ تصدير PDF مع z-order صحيح
  * ============================================================ */
 
 import {
@@ -82,7 +86,8 @@ async function svgStrToPngDataUrl(svgStr, w, h) {
   const img = await loadImageFromUrl(dataUrl);
   if (!img) return null;
   const cv = document.createElement('canvas');
-  cv.width = w; cv.height = h;
+  cv.width = w;
+  cv.height = h;
   cv.getContext('2d').drawImage(img, 0, 0, w, h);
   return cv.toDataURL('image/png');
 }
@@ -97,19 +102,19 @@ export async function saveProjectAsFile() {
     const JSZip = await ensureJSZip();
     savePageNow();
 
-    // Generate new version name
     const now = new Date();
     const version = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}`;
 
     const zip = new JSZip();
     const projectData = {
-      version: 1,
+      version: 2,
       slides: state.slides,
       pages: state.pages,
       currentPage: state.currentPage,
       totalPages: state.totalPages,
       pdfName: `${state.pdfName}_v${version}`,
       pdfIsImage: state.pdfIsImage,
+      projectDims: state.projectDims || null,
       savedAt: Date.now(),
     };
     zip.file('project.json', JSON.stringify(projectData));
@@ -125,7 +130,8 @@ export async function saveProjectAsFile() {
     });
 
     const blob = await zip.generateAsync({
-      type: 'blob', compression: 'DEFLATE',
+      type: 'blob',
+      compression: 'DEFLATE',
       compressionOptions: { level: 6 },
     });
     const outName = (state.pdfName || 'project').replace(/\.[^.]+$/, '') + FILE_EXT;
@@ -160,7 +166,10 @@ export async function loadProjectFromFile(file) {
 
     const metaFile = zip.file('meta.json');
     let meta = { ext: 'pdf' };
-    if (metaFile) { try { meta = JSON.parse(await metaFile.async('string')); } catch (_) {} }
+    if (metaFile) {
+      try { meta = JSON.parse(await metaFile.async('string')); }
+      catch (_) {}
+    }
 
     const docFile = zip.file(`document.${meta.ext}`)
                  || zip.file('document.pdf')
@@ -177,6 +186,12 @@ export async function loadProjectFromFile(file) {
       mediaBlobs.set(id, blob);
     }
 
+    if (data.projectDims) {
+      state.projectDims = data.projectDims;
+    } else {
+      state.projectDims = null;
+    }
+
     state.slides = data.slides || [];
     state.pages = data.pages || {};
     state.history = {};
@@ -184,6 +199,12 @@ export async function loadProjectFromFile(file) {
     state.currentPage = data.currentPage || 1;
     state.pdfName = data.pdfName || 'project.pdf';
     state.pdfIsImage = !!data.pdfIsImage;
+
+    const stageEl = document.getElementById('stage');
+    if (stageEl) stageEl.classList.remove('empty');
+
+    document.body.classList.add('has-project');
+    document.body.classList.remove('no-project');
 
     if (pdfBlob) {
       const f = new File([pdfBlob], state.pdfName, {
@@ -194,7 +215,8 @@ export async function loadProjectFromFile(file) {
         await loadImageFile(f, { keepPages: true, skipRender: true });
       } else {
         await loadPdfFile(f, {
-          keepPages: true, skipRender: true,
+          keepPages: true,
+          skipRender: true,
           restoredSlides: state.slides,
         });
       }
@@ -233,6 +255,9 @@ export async function exportAnnotatedPdf() {
       const vp = page.getViewport({ scale: 1 });
       pageW = vp.width;
       pageH = vp.height;
+    } else if (state.projectDims) {
+      pageW = state.projectDims.width;
+      pageH = state.projectDims.height;
     } else {
       pageW = 595;
       pageH = 842;
@@ -250,15 +275,22 @@ export async function exportAnnotatedPdf() {
     for (let i = 1; i <= state.totalPages; i++) {
       if (i > 1) pdf.addPage([pageW, pageH]);
 
-      /* ---- 1) Background page image ---- */
       let pageImg = state.pageCache.get(i) && state.pageCache.get(i).dataUrl;
       if (!pageImg || state.slides[i - 1].bg.type === 'blank') {
         const cvs = document.createElement('canvas');
         cvs.width = Math.floor(pageW);
         cvs.height = Math.floor(pageH);
         const c = cvs.getContext('2d');
-        c.fillStyle = '#fff';
+
+        let bgColor = '#ffffff';
+        const slide = state.slides[i - 1];
+        if (slide && slide.bg) {
+          if (slide.bg.type === 'blank' && slide.bg.color) bgColor = slide.bg.color;
+          else if (state.projectDims && state.projectDims.bg) bgColor = state.projectDims.bg;
+        }
+        c.fillStyle = bgColor;
         c.fillRect(0, 0, cvs.width, cvs.height);
+
         if (state.slides[i - 1].bg.type === 'pdf' && state.pdfDoc) {
           const page = await state.pdfDoc.getPage(state.slides[i - 1].bg.page);
           const vp = page.getViewport({ scale: 1 });
@@ -273,16 +305,17 @@ export async function exportAnnotatedPdf() {
       const saved = state.pages[i];
       if (!saved) continue;
 
-      /* ---- 2) SVG annotations ---- */
       if (saved.annotations && saved.annotations.length) {
-        const svgStr = buildAnnotationSvg(saved.annotations, state.pdfW, state.pdfH, strokeScale);
+        const svgStr = buildAnnotationSvg(
+          saved.annotations, state.pdfW, state.pdfH, strokeScale
+        );
         const pngUrl = await svgStrToPngDataUrl(
-          svgStr, EXPORT_W, Math.round(EXPORT_W * state.pdfH / state.pdfW)
+          svgStr, EXPORT_W,
+          Math.round(EXPORT_W * state.pdfH / state.pdfW)
         );
         if (pngUrl) pdf.addImage(pngUrl, 'PNG', 0, 0, pageW, pageH);
       }
 
-      /* ---- 3) Embeds (placeholder) ---- */
       (saved.embeds || []).forEach(spec => {
         const x = parseFloat(spec.x) / 100 * pageW;
         const y = parseFloat(spec.y) / 100 * pageH;
@@ -297,7 +330,6 @@ export async function exportAnnotatedPdf() {
         pdf.text('Embed: ' + (spec.url || ''), x + 8, y + 16, { maxWidth: w - 16 });
       });
 
-      /* ---- 4) Media (placeholder) ---- */
       const mediaList = saved.media || saved.videos || [];
       mediaList.forEach(spec => {
         const x = parseFloat(spec.x) / 100 * pageW;
@@ -313,7 +345,6 @@ export async function exportAnnotatedPdf() {
         pdf.text(label, x + 8, y + 16, { maxWidth: w - 16 });
       });
 
-      /* ---- 5) Texts (with math) ---- */
       for (const spec of (saved.texts || [])) {
         const x = parseFloat(spec.x) / 100 * pageW;
         const y = parseFloat(spec.y) / 100 * pageH;
@@ -338,7 +369,10 @@ export async function exportAnnotatedPdf() {
 
         try {
           const canvas = await html2canvas(temp, {
-            backgroundColor: null, scale: 3, logging: false, useCORS: true,
+            backgroundColor: null,
+            scale: 3,
+            logging: false,
+            useCORS: true,
           });
           const pngUrl = canvas.toDataURL('image/png');
           const realH = canvas.height / 3;
@@ -347,7 +381,6 @@ export async function exportAnnotatedPdf() {
         finally { document.body.removeChild(temp); }
       }
 
-      /* ---- 6) Buttons ---- */
       for (const spec of (saved.buttons || [])) {
         const x = parseFloat(spec.x) / 100 * pageW;
         const y = parseFloat(spec.y) / 100 * pageH;
@@ -379,8 +412,12 @@ export async function exportAnnotatedPdf() {
 
         try {
           const canvas = await html2canvas(temp, {
-            backgroundColor: null, scale: 3, logging: false,
-            useCORS: true, width: w, height: h,
+            backgroundColor: null,
+            scale: 3,
+            logging: false,
+            useCORS: true,
+            width: w,
+            height: h,
           });
           const pngUrl = canvas.toDataURL('image/png');
           pdf.addImage(pngUrl, 'PNG', x, y, w, h, undefined, 'FAST');

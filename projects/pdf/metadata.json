@@ -1,0 +1,6 @@
+{
+  "name": "لوحة الشرائح التفاعلية",
+  "description": "لوحة تفاعلية متقدمة لتصميم وتعديل وعرض الشرائح التفاعلية وملفات PDF مع أدوات الرسم وإعادة الترتيب بالسحب والإفلات.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

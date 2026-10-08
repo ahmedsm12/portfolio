@@ -11,14 +11,16 @@ export const stage            = $('stage');
 export const stageWrapper     = $('stageWrapper');
 export const stageContent     = $('stageContent');
 export const pdfCanvas        = $('pdfCanvas');
+export const svgDefs          = $('svgDefs');
 export const svgLayer         = $('svgLayer');
+export const selectionSvg     = $('selectionSvg');
 export const embedLayer       = $('embedLayer');
 export const videoLayer       = $('videoLayer');
 export const textLayer        = $('textLayer');
 export const interactiveLayer = $('interactiveLayer');
 export const transientCanvas  = $('transientCanvas');
 export const laserCanvas      = $('laserCanvas');
-laserCanvas.style.zIndex = '9999'; // Ensure laser is above all elements
+if (laserCanvas) laserCanvas.style.zIndex = '9999';
 export const emptyState       = $('emptyState');
 export const loadingEl        = $('loading');
 export const loadingText      = $('loadingText');
@@ -39,8 +41,8 @@ export const textContextToolbar  = $('textContextToolbar');
 export const shapeContextToolbar = $('shapeContextToolbar');
 export const equationEditor   = $('equationEditor');
 
-export const transCtx = transientCanvas.getContext('2d');
-export const laserCtx = laserCanvas.getContext('2d');
+export const transCtx = transientCanvas ? transientCanvas.getContext('2d') : null;
+export const laserCtx = laserCanvas ? laserCanvas.getContext('2d') : null;
 
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -120,8 +122,8 @@ export function uid() {
 }
 
 export function setLoading(on, text) {
-  loadingEl.classList.toggle('show', !!on);
-  if (text) loadingText.textContent = text;
+  if (loadingEl) loadingEl.classList.toggle('show', !!on);
+  if (text && loadingText) loadingText.textContent = text;
 }
 
 export function toast(msg, type) {
@@ -134,6 +136,7 @@ export function toast(msg, type) {
 
 let _saveStatusTimer = null;
 export function showSaveStatus(text) {
+  if (!saveStatusEl) return;
   saveStatusEl.textContent = text;
   saveStatusEl.classList.add('show');
   clearTimeout(_saveStatusTimer);
@@ -320,6 +323,7 @@ export const state = {
   pdfBlob: null,
   pdfName: '',
   pdfIsImage: false,
+  projectDims: null,
 
   slides: [],
   currentPage: 1,
@@ -394,6 +398,7 @@ export function serializeEmbed(el) {
     kind: 'embed', url: el.dataset.url,
     x: el.style.left, y: el.style.top,
     w: el.style.width, h: el.style.height,
+    z: el.style.zIndex || '',
   };
 }
 
@@ -404,6 +409,7 @@ export function serializeMedia(el) {
     url: el.dataset.url, title: el.dataset.title || '',
     x: el.style.left, y: el.style.top,
     w: el.style.width, h: el.style.height,
+    z: el.style.zIndex || '',
   };
 }
 
@@ -422,6 +428,7 @@ export function serializeButton(el) {
     isLtr: el.dataset.isLtr === 'true',
     x: el.style.left, y: el.style.top,
     w: el.style.width, h: el.style.height,
+    z: el.style.zIndex || '',
   };
 }
 
@@ -434,30 +441,71 @@ export function serializeText(el) {
     fontSize: parseFloat(el.dataset.fontSize || '20'),
     fontFamily: el.dataset.fontFamily || 'system-ui',
     fontWeight: el.dataset.fontWeight || 'normal',
-    fontStyle: el.dataset.fontStyle || 'normal',
+    fontStyle: el.dataset.fontStyle || 'italic',
     color: el.dataset.color || '#1e3a8a',
     align: el.dataset.align || 'right',
     dir: el.dataset.dir || 'rtl',
     isEquation: el.dataset.isEquation === 'true',
+    z: el.style.zIndex || '',
   };
 }
 
 export function snapshot() {
   const annotations = [];
-  svgLayer.querySelectorAll('[data-annot]').forEach(el => {
-    if (el.tagName.toLowerCase() === 'g') return;
-    if (el.classList.contains('handle') || el.classList.contains('selection-outline')) return;
-    annotations.push(serializeSvgElement(el));
-  });
+  if (svgLayer) {
+    svgLayer.querySelectorAll(':scope > .annot-wrapper > [data-annot]').forEach(el => {
+      if (el.tagName.toLowerCase() === 'g') return;
+      if (el.classList.contains('handle') || el.classList.contains('selection-outline')) return;
+      annotations.push(serializeSvgElement(el));
+    });
+  }
   const embeds = [];
-  embedLayer.querySelectorAll('.embed').forEach(el => embeds.push(serializeEmbed(el)));
+  if (embedLayer) embedLayer.querySelectorAll('.embed').forEach(el => embeds.push(serializeEmbed(el)));
   const media = [];
-  videoLayer.querySelectorAll('.media-obj').forEach(el => media.push(serializeMedia(el)));
+  if (videoLayer) videoLayer.querySelectorAll('.media-obj').forEach(el => media.push(serializeMedia(el)));
   const texts = [];
-  textLayer.querySelectorAll('.pdf-text-box').forEach(el => texts.push(serializeText(el)));
+  if (textLayer) textLayer.querySelectorAll('.pdf-text-box').forEach(el => texts.push(serializeText(el)));
   const buttons = [];
-  interactiveLayer.querySelectorAll('.pdf-interactive-btn').forEach(el => buttons.push(serializeButton(el)));
-  return { annotations, embeds, media, videos: media, texts, buttons };
+  if (interactiveLayer) interactiveLayer.querySelectorAll('.pdf-interactive-btn').forEach(el => buttons.push(serializeButton(el)));
+
+  const all = [];
+  if (svgLayer) {
+    svgLayer.querySelectorAll(':scope > .annot-wrapper').forEach(wrap => {
+      const inner = wrap.querySelector('[data-annot]');
+      if (!inner) return;
+      all.push({
+        z: parseInt(wrap.style.zIndex || '0', 10),
+        id: inner.dataset.id,
+      });
+    });
+  }
+  if (videoLayer) {
+    videoLayer.querySelectorAll('.media-obj').forEach(el => {
+      all.push({ z: parseInt(el.style.zIndex || '0', 10), id: el.dataset.mediaId });
+    });
+  }
+  if (textLayer) {
+    textLayer.querySelectorAll('.pdf-text-box').forEach(el => {
+      all.push({ z: parseInt(el.style.zIndex || '0', 10), id: el.dataset.textId });
+    });
+  }
+  if (interactiveLayer) {
+    interactiveLayer.querySelectorAll('.pdf-interactive-btn').forEach(el => {
+      all.push({ z: parseInt(el.style.zIndex || '0', 10), id: el.dataset.btnId });
+    });
+  }
+  if (embedLayer) {
+    embedLayer.querySelectorAll('.embed').forEach((el, i) => {
+      all.push({ z: parseInt(el.style.zIndex || '0', 10), id: 'embed-' + i });
+    });
+  }
+  all.sort((a, b) => a.z - b.z);
+  const zOrder = all.map(x => x.id).filter(Boolean);
+
+  return {
+    annotations, embeds, media, videos: media, texts, buttons,
+    zOrder,
+  };
 }
 
 /* ============================================================
@@ -474,7 +522,7 @@ export function savePageNow() {
 export function commitChange(pre) {
   if (!state.currentPage) return;
   const h = getHistory();
-  h.past.push(pre || { annotations: [], embeds: [], media: [], texts: [], buttons: [] });
+  h.past.push(pre || { annotations: [], embeds: [], media: [], texts: [], buttons: [], zOrder: [] });
   if (h.past.length > UNDO_LIMIT) h.past.shift();
   h.future.length = 0;
   savePageNow();
@@ -483,8 +531,8 @@ export function commitChange(pre) {
 
 export function updateUndoButtons() {
   const h = state.history[state.currentPage] || { past: [], future: [] };
-  btnUndo.disabled = h.past.length === 0;
-  btnRedo.disabled = h.future.length === 0;
+  if (btnUndo) btnUndo.disabled = h.past.length === 0;
+  if (btnRedo) btnRedo.disabled = h.future.length === 0;
 }
 
 export function undo() {
@@ -513,7 +561,6 @@ export function redo() {
    §8. APPLY SNAPSHOT (يُهيَّأ من main.js)
    ============================================================ */
 export let applySnapshot = function(s) {
-  /* Placeholder — main.js يعيّن التنفيذ الحقيقي */
   if (typeof applySnapshot._impl === 'function') applySnapshot._impl(s);
 };
 export function setApplySnapshot(fn) { applySnapshot._impl = fn; }
@@ -533,6 +580,7 @@ export function adjustToolbarSize() {
 }
 
 export function updateCursorForTool() {
+  if (!stage) return;
   const tool = state.tool;
   let cursor = '';
   if (tool === 'pen' || tool === 'highlighter' || tool === 'eraser') {

@@ -1,8 +1,15 @@
 /* ============================================================
  * ui-shell.js — الواجهة الجديدة
+ * ============================================================
+ *  ★ لوحة أبعاد المشروع (تظهر فقط بدون تحديد)
+ *  ★ لون الخلفية لكل شريحة
+ *  ★ الطبقات مع Drag and Drop
+ *  ★ إغلاق المشروع
+ *  ★ وضع العرض
+ *  ★ التحكم في إظهار وإخفاء الشريط الجانبي الأيمن والأيسر
  * ============================================================ */
 
-export const APP_VERSION = '0.5.0';
+export const APP_VERSION = '0.5.1';
 
 /* ============================================================
    §1. VERSION
@@ -118,12 +125,17 @@ export function refreshLayersPanel() {
 
   const svg = document.getElementById('svgLayer');
   if (svg) {
-    svg.querySelectorAll('[data-annot]').forEach(el => {
-      if (el.tagName.toLowerCase() === 'g') return;
-      const t = el.dataset.type || el.tagName.toLowerCase();
+    svg.querySelectorAll(':scope > .annot-wrapper').forEach(wrap => {
+      const inner = wrap.querySelector('[data-annot]');
+      if (!inner) return;
+      const t = inner.dataset.type || inner.tagName.toLowerCase();
       items.push({
-        el: el, kind: 'svg', type: t,
-        name: t + ' ' + (el.dataset.id ? el.dataset.id.slice(-4) : '')
+        el: wrap,
+        kind: 'svg',
+        type: t,
+        name: t + ' ' + (inner.dataset.id ? inner.dataset.id.slice(-4) : ''),
+        z: parseInt(wrap.style.zIndex || '0', 10),
+        id: wrap.dataset.annotId,
       });
     });
   }
@@ -133,9 +145,12 @@ export function refreshLayersPanel() {
     txt.querySelectorAll('.pdf-text-box').forEach((el, i) => {
       const isEq = el.dataset.isEquation === 'true';
       items.push({
-        el: el, kind: 'text',
+        el,
+        kind: 'text',
         type: isEq ? 'equation' : 'text',
-        name: (isEq ? 'معادلة ' : 'نص ') + (i + 1)
+        name: (isEq ? 'معادلة ' : 'نص ') + (i + 1),
+        z: parseInt(el.style.zIndex || '0', 10),
+        id: el.dataset.textId,
       });
     });
   }
@@ -144,8 +159,12 @@ export function refreshLayersPanel() {
   if (vid) {
     vid.querySelectorAll('.media-obj').forEach((el, i) => {
       items.push({
-        el: el, kind: 'media', type: 'media',
-        name: el.dataset.title || ('ميديا ' + (i + 1))
+        el,
+        kind: 'media',
+        type: 'media',
+        name: el.dataset.title || ('ميديا ' + (i + 1)),
+        z: parseInt(el.style.zIndex || '0', 10),
+        id: el.dataset.mediaId,
       });
     });
   }
@@ -154,8 +173,12 @@ export function refreshLayersPanel() {
   if (emb) {
     emb.querySelectorAll('.embed').forEach((el, i) => {
       items.push({
-        el: el, kind: 'embed', type: 'embed',
-        name: 'تضمين: ' + (el.dataset.url || ('#' + (i + 1)))
+        el,
+        kind: 'embed',
+        type: 'embed',
+        name: 'تضمين: ' + (el.dataset.url || ('#' + (i + 1))),
+        z: parseInt(el.style.zIndex || '0', 10),
+        id: 'embed-' + i,
       });
     });
   }
@@ -164,26 +187,39 @@ export function refreshLayersPanel() {
   if (ib) {
     ib.querySelectorAll('.pdf-interactive-btn').forEach((el, i) => {
       items.push({
-        el: el, kind: 'button', type: 'button',
-        name: el.dataset.text || ('زر ' + (i + 1))
+        el,
+        kind: 'button',
+        type: 'button',
+        name: el.dataset.text || ('زر ' + (i + 1)),
+        z: parseInt(el.style.zIndex || '0', 10),
+        id: el.dataset.btnId,
       });
     });
   }
 
-  items.reverse();
+  items.sort((a, b) => a.z - b.z);
+  const displayItems = items.slice().reverse();
 
   if (count) count.textContent = String(items.length);
 
-  if (!items.length) {
+  if (!displayItems.length) {
     list.innerHTML = '<div class="bp-empty">لا توجد عناصر في هذه الشريحة</div>';
     return;
   }
 
   list.innerHTML = '';
 
-  items.forEach(item => {
+  displayItems.forEach((item, displayIdx) => {
     const row = document.createElement('div');
     row.className = 'layer-row';
+    row.draggable = true;
+    row.dataset.zidx = String(item.z);
+    row.dataset.id = item.id || '';
+
+    const dragHandle = document.createElement('span');
+    dragHandle.className = 'ly-drag-handle';
+    dragHandle.textContent = '⋮⋮';
+    dragHandle.title = 'اسحب لإعادة الترتيب';
 
     const iconSpan = document.createElement('span');
     iconSpan.className = 'ly-icon';
@@ -199,6 +235,7 @@ export function refreshLayersPanel() {
     visSpan.title = 'إظهار / إخفاء';
     visSpan.textContent = '👁';
 
+    row.appendChild(dragHandle);
     row.appendChild(iconSpan);
     row.appendChild(nameSpan);
     row.appendChild(visSpan);
@@ -212,8 +249,82 @@ export function refreshLayersPanel() {
       list.querySelectorAll('.layer-row').forEach(r => r.classList.remove('active'));
       row.classList.add('active');
       document.dispatchEvent(new CustomEvent('ipb:selectLayer', {
-        detail: { el: item.el, kind: item.kind }
+        detail: { el: item.el, kind: item.kind },
       }));
+    });
+
+    row.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', String(displayIdx));
+      e.dataTransfer.effectAllowed = 'move';
+      row.classList.add('dragging');
+      list.classList.add('drag-active');
+    });
+
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      list.classList.remove('drag-active');
+      list.querySelectorAll('.layer-row').forEach(r =>
+        r.classList.remove('drag-over-top', 'drag-over-bottom')
+      );
+    });
+
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = row.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      const isTop = e.clientY < mid;
+      list.querySelectorAll('.layer-row').forEach(r => {
+        r.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      row.classList.add(isTop ? 'drag-over-top' : 'drag-over-bottom');
+    });
+
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+
+    row.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      row.classList.remove('drag-over-top', 'drag-over-bottom');
+
+      const fromDisplayIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      if (isNaN(fromDisplayIdx) || fromDisplayIdx === displayIdx) return;
+
+      const total = displayItems.length;
+      const fromZIdx = total - 1 - fromDisplayIdx;
+      const toZIdx = total - 1 - displayIdx;
+
+      const rect = row.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      const insertAbove = e.clientY < mid;
+
+      let targetZ = toZIdx;
+      if (!insertAbove) targetZ = toZIdx + 1;
+
+      try {
+        const inter = await import('./interaction.js');
+        if (!inter.moveLayerToPosition) return;
+
+        const all = inter.getAllZElements();
+        const fromIdx = all.findIndex(x => x.el === item.el);
+        if (fromIdx < 0) return;
+
+        const [fromItem] = all.splice(fromIdx, 1);
+
+        let finalIdx = targetZ;
+        if (fromIdx < targetZ) finalIdx = targetZ - 1;
+        finalIdx = Math.max(0, Math.min(all.length, finalIdx));
+        all.splice(finalIdx, 0, fromItem);
+
+        inter.assignZIndexesInOrder(all);
+
+        const core = await import('./core.js');
+        core.savePageNow();
+        setTimeout(refreshLayersPanel, 60);
+      } catch (err) {
+        console.warn(err);
+      }
     });
 
     list.appendChild(row);
@@ -272,14 +383,13 @@ function initTopbarActions() {
 }
 
 /* ============================================================
-   §7. CLOSE PROJECT — Dialog + Reset ★★★ جديد
+   §7. CLOSE PROJECT
    ============================================================ */
 function initCloseProject() {
   const btn = document.getElementById('btnCloseProject');
   if (!btn) return;
   btn.addEventListener('click', showCloseDialog);
 
-  /* Ctrl+W */
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
       e.preventDefault();
@@ -289,14 +399,12 @@ function initCloseProject() {
 }
 
 function showCloseDialog() {
-  /* هل هناك مشروع مفتوح؟ */
   import('./core.js').then(core => {
     const state = core.state;
     const hasProject = state.slides && state.slides.length > 0 &&
                        (state.pdfDoc || state.pdfBlob || state.projectDims);
 
     if (!hasProject) {
-      /* لا يوجد مشروع — لا حاجة للسؤال */
       resetToEmptyState();
       return;
     }
@@ -319,14 +427,11 @@ function showCloseDialog() {
       },
       onSecondary: () => {
         resetToEmptyState();
-      }
+      },
     });
   }).catch(err => console.error(err));
 }
 
-/**
- * Dialog تأكيد احترافي
- */
 function openConfirmDialog(opts) {
   const backdrop = document.createElement('div');
   backdrop.className = 'ipb-confirm-backdrop';
@@ -385,25 +490,48 @@ function openConfirmDialog(opts) {
   });
 
   requestAnimationFrame(() => backdrop.classList.add('show'));
-  /* تركيز زر الحفظ */
   setTimeout(() => {
     try { dialog.querySelector('.ipb-confirm-primary').focus(); } catch (_) {}
   }, 100);
 }
 
 /**
- * إعادة التطبيق إلى الحالة الفارغة
+ * إعادة التطبيق إلى الحالة الفارغة — إعادة تعيين كاملة
  */
 function resetToEmptyState() {
   import('./core.js').then(core => {
     const state = core.state;
 
-    /* إخفاء وضع العرض لو كان مفتوحاً */
     document.body.classList.remove('present-active');
     const presentOverlay = document.getElementById('presentOverlay');
     if (presentOverlay) presentOverlay.classList.remove('active');
 
-    /* تفريغ الحالة */
+    try {
+      if (window.__UI_SHELL__ && typeof window.__UI_SHELL__.closePresent === 'function') {
+        window.__UI_SHELL__.closePresent();
+      }
+    } catch (_) {}
+
+    ['textContextToolbar', 'shapeContextToolbar', 'slideContextMenu', 'submenu'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.remove('show');
+        if (id === 'textContextToolbar' || id === 'shapeContextToolbar') {
+          el.innerHTML = '';
+        }
+      }
+    });
+
+    document.querySelectorAll('.element-delete-btn').forEach(el => {
+      el.style.display = 'none';
+    });
+
+    try {
+      if (window.__INTERACTION__ && typeof window.__INTERACTION__.deselect === 'function') {
+        window.__INTERACTION__.deselect();
+      }
+    } catch (_) {}
+
     state.pdfDoc = null;
     state.pdfBlob = null;
     state.pdfName = '';
@@ -419,50 +547,115 @@ function resetToEmptyState() {
     state.thumbCache.clear();
     state.view = { scale: 1, tx: 0, ty: 0 };
 
-    /* تفريغ الطبقات */
+    state.pdfW = 0;
+    state.pdfH = 0;
+    state.cssW = 0;
+    state.cssH = 0;
+    state.canvasScale = 1;
+    state.dpr = 1;
+    state.stageRect0 = { left: 0, top: 0, width: 0, height: 0 };
+
     ['svgLayer', 'embedLayer', 'videoLayer', 'textLayer', 'interactiveLayer'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerHTML = '';
     });
 
-    /* تفريغ canvas */
     const pdfCanvas = document.getElementById('pdfCanvas');
     if (pdfCanvas) {
-      const ctx = pdfCanvas.getContext('2d');
-      ctx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
+      try {
+        const ctx = pdfCanvas.getContext('2d');
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
+      } catch (_) {}
+      pdfCanvas.width = 0;
+      pdfCanvas.height = 0;
+      pdfCanvas.style.width = '0';
+      pdfCanvas.style.height = '0';
     }
 
-    /* تفريغ الـ thumbs */
+    ['transientCanvas', 'laserCanvas'].forEach(id => {
+      const c = document.getElementById(id);
+      if (!c) return;
+      try {
+        const ctx = c.getContext('2d');
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, c.width, c.height);
+      } catch (_) {}
+      c.width = 0;
+      c.height = 0;
+      c.style.width = '0';
+      c.style.height = '0';
+    });
+
+    const stageEl = document.getElementById('stage');
+    if (stageEl) {
+      stageEl.classList.add('empty');
+      stageEl.style.cssText = '';
+      stageEl.classList.add('empty');
+      stageEl.style.width = '0';
+      stageEl.style.height = '0';
+      stageEl.style.transform = 'none';
+      stageEl.style.background = 'transparent';
+      stageEl.style.boxShadow = 'none';
+      stageEl.style.borderRadius = '0';
+      stageEl.dataset.tool = 'select';
+    }
+
+    const stageContent = document.getElementById('stageContent');
+    if (stageContent) {
+      stageContent.style.transform = 'none';
+      stageContent.style.transition = 'none';
+    }
+
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) loadingEl.classList.remove('show');
+
     const thumbsList = document.getElementById('thumbsList');
     if (thumbsList) {
       thumbsList.innerHTML = '<div class="thumbs-empty">لا توجد صفحات<br>افتح ملفاً للبدء</div>';
     }
 
-    /* إعادة مؤشر الصفحة */
     const pageIndicator = document.getElementById('pageIndicator');
     if (pageIndicator) pageIndicator.textContent = '';
 
-    /* إظهار شاشة البداية */
+    const btnPrev = document.getElementById('btnPrev');
+    const btnNext = document.getElementById('btnNext');
+    if (btnPrev) btnPrev.disabled = true;
+    if (btnNext) btnNext.disabled = true;
+
     const emptyState = document.getElementById('emptyState');
-    if (emptyState) emptyState.style.display = 'flex';
+    if (emptyState) {
+      emptyState.style.display = 'flex';
+      emptyState.style.backgroundColor = 'transparent';
+      emptyState.style.backgroundImage = 'none';
+    }
 
-    /* إخفاء الـ loading */
-    const loadingEl = document.getElementById('loading');
-    if (loadingEl) loadingEl.classList.remove('show');
-
-    /* تفريغ مؤشر الحفظ */
     setSaveBadge('لا مشروع', false);
 
-    /* تفريغ لوحة الخصائص */
     const docInfo = document.getElementById('documentInfoPanel');
     if (docInfo) docInfo.innerHTML = '';
 
-    /* تحديث الطبقات */
+    const propsHint = document.getElementById('elementPropsHint');
+    if (propsHint) {
+      propsHint.textContent = 'افتح مشروعاً أو أنشئ مشروعاً جديداً للبدء';
+      propsHint.style.display = '';
+    }
+
     refreshLayersPanel();
 
-    /* إشعار الواجهة */
+    try {
+      if (core.updateCursorForTool) core.updateCursorForTool();
+    } catch (_) {}
+
+    /* إخفاء الشريطين الجانبيين عند الإغلاق */
+    document.body.classList.remove('has-project');
+    document.body.classList.add('no-project');
+
     document.dispatchEvent(new CustomEvent('ipb:projectClosed'));
-  }).catch(err => console.error(err));
+    document.dispatchEvent(new CustomEvent('ipb:pageChanged', {
+      detail: { page: 0 },
+    }));
+  }).catch(err => console.error('resetToEmptyState failed:', err));
 }
 
 /* ============================================================
@@ -493,7 +686,272 @@ function initPropsToggle() {
 }
 
 /* ============================================================
-   §9. EQUATION DIALOG
+   §9. PROJECT DIMS PANEL — يظهر فقط بدون تحديد
+   ============================================================ */
+function initProjectDimsPanel() {
+  const infoPanel = document.getElementById('documentInfoPanel');
+  if (!infoPanel) return;
+
+  infoPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-title">📐 أبعاد المشروع</div>
+      <div class="prop-row">
+        <div class="prop-field">
+          <label>العرض (px)</label>
+          <input type="number" class="prop-input" id="projW"
+                 min="100" max="20000" step="1" />
+        </div>
+        <div class="prop-field">
+          <label>الارتفاع (px)</label>
+          <input type="number" class="prop-input" id="projH"
+                 min="100" max="20000" step="1" />
+        </div>
+      </div>
+      <div class="prop-row" style="grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:6px">
+        <button type="button" class="prop-input" data-preset="16:9" style="cursor:pointer;padding:6px 4px;font-size:11px">16:9</button>
+        <button type="button" class="prop-input" data-preset="4:3" style="cursor:pointer;padding:6px 4px;font-size:11px">4:3</button>
+        <button type="button" class="prop-input" data-preset="1:1" style="cursor:pointer;padding:6px 4px;font-size:11px">1:1</button>
+        <button type="button" class="prop-input" data-preset="A4-P" style="cursor:pointer;padding:6px 4px;font-size:11px">A4 ↓</button>
+        <button type="button" class="prop-input" data-preset="A4-L" style="cursor:pointer;padding:6px 4px;font-size:11px">A4 →</button>
+        <button type="button" class="prop-input" data-preset="9:16" style="cursor:pointer;padding:6px 4px;font-size:11px">9:16</button>
+      </div>
+      <button type="button" class="prop-input" id="projApply"
+        style="margin-top:10px;cursor:pointer;background:var(--sh-accent);color:#fff;border:none;font-weight:600;padding:8px;border-radius:8px">
+        ✨ تطبيق الأبعاد على جميع الشرائح
+      </button>
+      <div id="projHint" style="font-size:10px;color:var(--sh-text-dim);margin-top:6px;text-align:center;line-height:1.5"></div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-title">🎨 خلفية الشريحة الحالية</div>
+      <div class="prop-row" style="grid-template-columns:auto 1fr;gap:6px">
+        <input type="color" class="prop-input" id="projBgColor" value="#ffffff"
+               style="width:46px;height:32px;padding:2px;cursor:pointer">
+        <button type="button" class="prop-input" id="projBgApply"
+                style="cursor:pointer;font-weight:600;padding:6px">تطبيق اللون</button>
+      </div>
+      <div class="prop-row" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px">
+        <button type="button" class="prop-input" data-bgcolor="#ffffff" style="cursor:pointer;padding:6px 4px;background:#fff;color:#000;font-size:10.5px;border:1px solid #444">أبيض</button>
+        <button type="button" class="prop-input" data-bgcolor="#000000" style="cursor:pointer;padding:6px 4px;background:#000;color:#fff;font-size:10.5px">أسود</button>
+        <button type="button" class="prop-input" data-bgcolor="#f5f5dc" style="cursor:pointer;padding:6px 4px;background:#f5f5dc;color:#000;font-size:10.5px">بيج</button>
+        <button type="button" class="prop-input" data-bgcolor="#eef2ff" style="cursor:pointer;padding:6px 4px;background:#eef2ff;color:#000;font-size:10.5px">فاتح</button>
+      </div>
+      <div id="projBgHint" style="font-size:10px;color:var(--sh-text-dim);margin-top:6px;text-align:center;line-height:1.5"></div>
+    </div>
+  `;
+
+  const wInp = document.getElementById('projW');
+  const hInp = document.getElementById('projH');
+  const applyBtn = document.getElementById('projApply');
+  const hint = document.getElementById('projHint');
+  const bgColorInp = document.getElementById('projBgColor');
+  const bgApplyBtn = document.getElementById('projBgApply');
+  const bgHint = document.getElementById('projBgHint');
+
+  async function refresh() {
+    const core = await import('./core.js');
+    const st = core.state;
+
+    if (!st || !st.pdfW || !st.pdfH) {
+      if (hint) hint.textContent = 'افتح مشروعاً أولاً لتعديل الأبعاد';
+      if (wInp) { wInp.disabled = true; }
+      if (hInp) { hInp.disabled = true; }
+      if (applyBtn) { applyBtn.disabled = true; applyBtn.style.opacity = '0.5'; }
+      if (bgColorInp) { bgColorInp.disabled = true; }
+      if (bgApplyBtn) { bgApplyBtn.disabled = true; bgApplyBtn.style.opacity = '0.5'; }
+      if (bgHint) bgHint.textContent = 'لا توجد شريحة نشطة';
+      return;
+    }
+
+    if (wInp) wInp.disabled = false;
+    if (hInp) hInp.disabled = false;
+    if (applyBtn) { applyBtn.disabled = false; applyBtn.style.opacity = '1'; }
+
+    const w = st.projectDims && st.projectDims.width
+      ? st.projectDims.width
+      : Math.round(st.pdfW);
+    const h = st.projectDims && st.projectDims.height
+      ? st.projectDims.height
+      : Math.round(st.pdfH);
+    if (wInp && document.activeElement !== wInp) wInp.value = w;
+    if (hInp && document.activeElement !== hInp) hInp.value = h;
+    if (hint) hint.textContent = `النسبة: ${(w / h).toFixed(3)} : 1`;
+
+    const slide = st.slides[st.currentPage - 1];
+    if (slide && slide.bg) {
+      if (slide.bg.type === 'blank') {
+        if (bgColorInp) bgColorInp.disabled = false;
+        if (bgApplyBtn) { bgApplyBtn.disabled = false; bgApplyBtn.style.opacity = '1'; }
+        const c = slide.bg.color
+          || (st.projectDims && st.projectDims.bg)
+          || '#ffffff';
+        if (bgColorInp && document.activeElement !== bgColorInp) bgColorInp.value = c;
+        if (bgHint) bgHint.textContent = 'شريحة فارغة — يمكنك تغيير لونها';
+      } else {
+        if (bgColorInp) bgColorInp.disabled = true;
+        if (bgApplyBtn) { bgApplyBtn.disabled = true; bgApplyBtn.style.opacity = '0.5'; }
+        if (bgHint) bgHint.textContent = 'شريحة PDF — الخلفية ثابتة';
+      }
+    }
+  }
+
+  refresh();
+  document.addEventListener('ipb:pageChanged', () => setTimeout(refresh, 80));
+  document.addEventListener('ipb:projectCreated', () => setTimeout(refresh, 80));
+  document.addEventListener('ipb:projectClosed', () => setTimeout(refresh, 80));
+
+  infoPanel.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.preset;
+      let w = 2000, h = 1125;
+      if (p === '16:9') { w = 2000; h = 1125; }
+      if (p === '4:3') { w = 2000; h = 1500; }
+      if (p === '1:1') { w = 2000; h = 2000; }
+      if (p === 'A4-P') { w = 1414; h = 2000; }
+      if (p === 'A4-L') { w = 2000; h = 1414; }
+      if (p === '9:16') { w = 1125; h = 2000; }
+      if (wInp) wInp.value = w;
+      if (hInp) hInp.value = h;
+    });
+  });
+
+  if (applyBtn) {
+    applyBtn.addEventListener('click', async () => {
+      const w = parseInt(wInp.value, 10);
+      const h = parseInt(hInp.value, 10);
+      if (!w || !h) { alert('الرجاء إدخال أبعاد صالحة'); return; }
+      if (w < 100 || h < 100) { alert('الأبعاد صغيرة جداً (الحد الأدنى 100px)'); return; }
+      if (w > 20000 || h > 20000) { alert('الأبعاد كبيرة جداً (الحد الأقصى 20000px)'); return; }
+
+      try {
+        const core = await import('./core.js');
+        const pdf = await import('./pdf.js');
+        const st = core.state;
+        const oldW = st.pdfW || 2000;
+        const oldH = st.pdfH || 1414;
+        const scaleX = w / oldW;
+        const scaleY = h / oldH;
+
+        Object.keys(st.pages).forEach(pageNum => {
+          const pg = st.pages[pageNum];
+          if (!pg) return;
+
+          (pg.annotations || []).forEach(spec => {
+            const a = spec.attrs || {};
+            ['x', 'y', 'cx', 'cy', 'x1', 'y1', 'x2', 'y2', 'width', 'height', 'rx', 'ry'].forEach(k => {
+              if (a[k] !== undefined) {
+                const fx = (k === 'x' || k === 'width' || k === 'cx'
+                  || k === 'x1' || k === 'x2' || k === 'rx') ? scaleX : scaleY;
+                a[k] = parseFloat(a[k]) * fx;
+              }
+            });
+            if (a.transform) {
+              const m = a.transform.match(/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)/);
+              if (m) a.transform = `translate(${parseFloat(m[1]) * scaleX}, ${parseFloat(m[2]) * scaleY})`;
+            }
+            if (a['stroke-width']) {
+              a['stroke-width'] = parseFloat(a['stroke-width']) * ((scaleX + scaleY) / 2);
+            }
+          });
+
+          ['texts', 'buttons', 'embeds', 'media', 'videos'].forEach(key => {
+            (pg[key] || []).forEach(spec => {
+              if (spec.x && typeof spec.x === 'string' && !spec.x.endsWith('%')) {
+                spec.x = (parseFloat(spec.x) * scaleX) + 'px';
+              }
+              if (spec.y && typeof spec.y === 'string' && !spec.y.endsWith('%')) {
+                spec.y = (parseFloat(spec.y) * scaleY) + 'px';
+              }
+              if (spec.w && typeof spec.w === 'string' && spec.w.endsWith('px')) {
+                spec.w = (parseFloat(spec.w) * scaleX) + 'px';
+              }
+              if (spec.h && typeof spec.h === 'string' && spec.h.endsWith('px')) {
+                spec.h = (parseFloat(spec.h) * scaleY) + 'px';
+              }
+            });
+          });
+        });
+
+        st.projectDims = st.projectDims || {};
+        st.projectDims.width = w;
+        st.projectDims.height = h;
+
+        st.pageCache.clear();
+        st.thumbCache.clear();
+        st.history = {};
+
+        await pdf.renderPage(st.currentPage);
+        pdf.renderThumbnails();
+
+        if (hint) hint.textContent = `✓ تم التطبيق — ${w} × ${h}`;
+        setTimeout(refresh, 1500);
+      } catch (e) {
+        console.error(e);
+        alert('تعذّر التطبيق: ' + e.message);
+      }
+    });
+  }
+
+  async function applyBg(color) {
+    try {
+      const core = await import('./core.js');
+      const pdf = await import('./pdf.js');
+      const st = core.state;
+      if (!st.currentPage || st.currentPage < 1 || st.currentPage > st.totalPages) return;
+      const slide = st.slides[st.currentPage - 1];
+      if (!slide) return;
+      if (slide.bg.type !== 'blank') {
+        if (core.toast) core.toast('لا يمكن تغيير خلفية شريحة PDF', 'warn');
+        return;
+      }
+      slide.bg.color = color;
+      st.pageCache.delete(st.currentPage);
+      st.thumbCache.delete(st.currentPage);
+      await pdf.renderPage(st.currentPage);
+      pdf.renderThumbnails();
+      if (bgHint) bgHint.textContent = '✓ تم تطبيق اللون';
+      setTimeout(refresh, 1200);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  if (bgApplyBtn && bgColorInp) {
+    bgApplyBtn.addEventListener('click', () => applyBg(bgColorInp.value));
+  }
+  infoPanel.querySelectorAll('[data-bgcolor]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (bgColorInp) bgColorInp.value = btn.dataset.bgcolor;
+      applyBg(btn.dataset.bgcolor);
+    });
+  });
+
+  function updateVisibility() {
+    const hasSel = document.querySelectorAll('#stageContent .selected').length > 0;
+    const elemHint = document.getElementById('elementPropsHint');
+    if (hasSel) {
+      infoPanel.style.display = 'none';
+      if (elemHint) elemHint.style.display = '';
+    } else {
+      infoPanel.style.display = '';
+      if (elemHint) elemHint.style.display = 'none';
+    }
+  }
+  updateVisibility();
+
+  const stageContent = document.getElementById('stageContent');
+  if (stageContent) {
+    const obs = new MutationObserver(updateVisibility);
+    obs.observe(stageContent, {
+      attributes: true,
+      attributeFilter: ['class'],
+      subtree: true,
+    });
+  }
+}
+
+/* ============================================================
+   §10. EQUATION DIALOG
    ============================================================ */
 function setupEquationBackdropMirror() {
   let backdrop = document.getElementById('equationBackdrop');
@@ -514,7 +972,7 @@ function setupEquationBackdropMirror() {
       'click', 'dblclick',
       'touchstart', 'touchend', 'touchmove',
       'keydown', 'keyup', 'keypress',
-      'wheel', 'contextmenu'
+      'wheel', 'contextmenu',
     ];
     shieldEvents.forEach(evt => {
       editor.addEventListener(evt, (e) => { e.stopPropagation(); }, false);
@@ -676,7 +1134,7 @@ function buildFallbackPalette(host) {
       { label: 'ⁿ√',  latex: '\\sqrt[n]{x}' },
       { label: 'x/y', latex: '\\frac{x}{y}' },
       { label: '¹⁄₂', latex: '\\frac{1}{2}' },
-      { label: 'a+b/c', latex: '\\frac{a+b}{c}' }
+      { label: 'a+b/c', latex: '\\frac{a+b}{c}' },
     ]},
     { cat: 'الأسس', items: [
       { label: 'x²', latex: 'x^{2}' },
@@ -684,7 +1142,7 @@ function buildFallbackPalette(host) {
       { label: 'xⁿ', latex: 'x^{n}' },
       { label: 'xₐᵦ', latex: 'x_{a}^{b}' },
       { label: 'eˣ', latex: 'e^{x}' },
-      { label: 'a⁺ᵇ', latex: 'a^{n+1}' }
+      { label: 'a⁺ᵇ', latex: 'a^{n+1}' },
     ]},
     { cat: 'المجاميع والتكاملات', items: [
       { label: '∑',   latex: '\\sum_{i=1}^{n}' },
@@ -695,7 +1153,7 @@ function buildFallbackPalette(host) {
       { label: 'lim', latex: '\\lim_{x \\to \\infty}' },
       { label: 'd/dx', latex: '\\frac{d}{dx}' },
       { label: '∂/∂x', latex: '\\frac{\\partial}{\\partial x}' },
-      { label: '∞',   latex: '\\infty' }
+      { label: '∞',   latex: '\\infty' },
     ]},
     { cat: 'حروف يونانية', items: [
       { label: 'α', latex: '\\alpha' }, { label: 'β', latex: '\\beta' }, { label: 'γ', latex: '\\gamma' },
@@ -703,7 +1161,7 @@ function buildFallbackPalette(host) {
       { label: 'λ', latex: '\\lambda' }, { label: 'μ', latex: '\\mu' }, { label: 'π', latex: '\\pi' },
       { label: 'ρ', latex: '\\rho' }, { label: 'σ', latex: '\\sigma' }, { label: 'τ', latex: '\\tau' },
       { label: 'φ', latex: '\\phi' }, { label: 'χ', latex: '\\chi' }, { label: 'ψ', latex: '\\psi' },
-      { label: 'ω', latex: '\\omega' }, { label: 'Δ', latex: '\\Delta' }, { label: 'Σ', latex: '\\Sigma' }
+      { label: 'ω', latex: '\\omega' }, { label: 'Δ', latex: '\\Delta' }, { label: 'Σ', latex: '\\Sigma' },
     ]},
     { cat: 'العلاقات والعمليات', items: [
       { label: '≠',  latex: '\\neq' }, { label: '≤', latex: '\\leq' }, { label: '≥', latex: '\\geq' },
@@ -712,13 +1170,13 @@ function buildFallbackPalette(host) {
       { label: '·',  latex: '\\cdot' }, { label: '→', latex: '\\to' }, { label: '⇒', latex: '\\Rightarrow' },
       { label: '⇔',  latex: '\\Leftrightarrow' }, { label: '∈', latex: '\\in' }, { label: '∉', latex: '\\notin' },
       { label: '⊂',  latex: '\\subset' }, { label: '∪', latex: '\\cup' }, { label: '∩', latex: '\\cap' },
-      { label: '∀',  latex: '\\forall' }, { label: '∃', latex: '\\exists' }
+      { label: '∀',  latex: '\\forall' }, { label: '∃', latex: '\\exists' },
     ]},
     { cat: 'الدوال', items: [
       { label: 'sin',  latex: '\\sin' }, { label: 'cos', latex: '\\cos' }, { label: 'tan', latex: '\\tan' },
       { label: 'cot',  latex: '\\cot' }, { label: 'sec', latex: '\\sec' }, { label: 'csc', latex: '\\csc' },
       { label: 'log',  latex: '\\log' }, { label: 'ln',  latex: '\\ln' },  { label: 'exp', latex: '\\exp' },
-      { label: 'sin⁻¹', latex: '\\arcsin' }, { label: 'cos⁻¹', latex: '\\arccos' }, { label: 'tan⁻¹', latex: '\\arctan' }
+      { label: 'sin⁻¹', latex: '\\arcsin' }, { label: 'cos⁻¹', latex: '\\arccos' }, { label: 'tan⁻¹', latex: '\\arctan' },
     ]},
     { cat: 'مصفوفات', items: [
       { label: 'matrix 2×2', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
@@ -727,7 +1185,7 @@ function buildFallbackPalette(host) {
       { label: 'vec',        latex: '\\vec{v}' },
       { label: 'hat',        latex: '\\hat{x}' },
       { label: 'bar',        latex: '\\bar{x}' },
-      { label: 'det',        latex: '\\det A' }
+      { label: 'det',        latex: '\\det A' },
     ]},
     { cat: 'أحرف لاتينية', items: [
       { label: 'x',  latex: 'x' }, { label: 'y', latex: 'y' }, { label: 'z', latex: 'z' },
@@ -736,8 +1194,8 @@ function buildFallbackPalette(host) {
       { label: '≠0', latex: '\\neq 0' }, { label: 'x∈ℝ', latex: 'x \\in \\mathbb{R}' },
       { label: 'ℕ', latex: '\\mathbb{N}' }, { label: 'ℤ', latex: '\\mathbb{Z}' },
       { label: 'ℚ', latex: '\\mathbb{Q}' }, { label: 'ℝ', latex: '\\mathbb{R}' },
-      { label: 'ℂ', latex: '\\mathbb{C}' }
-    ]}
+      { label: 'ℂ', latex: '\\mathbb{C}' },
+    ]},
   ];
 
   host.innerHTML = '';
@@ -759,7 +1217,7 @@ function buildFallbackPalette(host) {
       try {
         if (window.katex) {
           window.katex.render(item.latex, inner, {
-            throwOnError: false, displayMode: false, output: 'html'
+            throwOnError: false, displayMode: false, output: 'html',
           });
         } else {
           inner.textContent = item.label;
@@ -787,7 +1245,7 @@ function buildFallbackPalette(host) {
 }
 
 /* ============================================================
-   §10. PRESENT MODE
+   §11. PRESENT MODE
    ============================================================ */
 const presentState = {
   active: false,
@@ -899,7 +1357,7 @@ function setPresentTool(tool) {
     btn.classList.toggle('active', btn.dataset.ptool === tool);
   });
   document.dispatchEvent(new CustomEvent('ipb:presentToolChanged', {
-    detail: { tool: tool }
+    detail: { tool: tool },
   }));
 }
 
@@ -1013,7 +1471,7 @@ function unbindPresentKeys() {
 }
 
 /* ============================================================
-   §11. LAYERS OBSERVER
+   §12. LAYERS OBSERVER
    ============================================================ */
 let _layersObserver = null;
 function initLayersObserver() {
@@ -1032,7 +1490,7 @@ function initPageChangeListener() {
 }
 
 /* ============================================================
-   §12. GLOBAL SHORTCUTS
+   §13. GLOBAL SHORTCUTS
    ============================================================ */
 function initGlobalShortcuts() {
   document.addEventListener('keydown', (e) => {
@@ -1045,7 +1503,7 @@ function initGlobalShortcuts() {
 }
 
 /* ============================================================
-   §13. INIT
+   §14. INIT
    ============================================================ */
 export function initUIShell() {
   applyVersion();
@@ -1056,6 +1514,19 @@ export function initUIShell() {
   setupEquationBackdropMirror();
   initPropsToggle();
   initCloseProject();
+  initProjectDimsPanel();
+
+  // إخفاء الشريطين افتراضياً حتى يتم فتح أو إنشاء ملف
+  import('./core.js').then(core => {
+    const hasProject = core.state.slides && core.state.slides.length > 0;
+    if (hasProject) {
+      document.body.classList.add('has-project');
+      document.body.classList.remove('no-project');
+    } else {
+      document.body.classList.remove('has-project');
+      document.body.classList.add('no-project');
+    }
+  });
 
   setTimeout(() => {
     initLayersObserver();
@@ -1070,6 +1541,6 @@ if (typeof window !== 'undefined') {
     openPresent: openPresentMode,
     closePresent: closePresentMode,
     refreshLayers: refreshLayersPanel,
-    closeProject: showCloseDialog
+    closeProject: showCloseDialog,
   };
 }
