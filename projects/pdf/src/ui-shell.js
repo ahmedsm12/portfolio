@@ -291,39 +291,44 @@ export function refreshLayersPanel() {
       const fromDisplayIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
       if (isNaN(fromDisplayIdx) || fromDisplayIdx === displayIdx) return;
 
-      const total = displayItems.length;
-      const fromZIdx = total - 1 - fromDisplayIdx;
-      const toZIdx = total - 1 - displayIdx;
-
       const rect = row.getBoundingClientRect();
       const mid = rect.top + rect.height / 2;
       const insertAbove = e.clientY < mid;
 
-      let targetZ = toZIdx;
-      if (!insertAbove) targetZ = toZIdx + 1;
-
       try {
         const inter = await import('./interaction.js');
-        if (!inter.moveLayerToPosition) return;
-
-        const all = inter.getAllZElements();
-        const fromIdx = all.findIndex(x => x.el === item.el);
-        if (fromIdx < 0) return;
-
-        const [fromItem] = all.splice(fromIdx, 1);
-
-        let finalIdx = targetZ;
-        if (fromIdx < targetZ) finalIdx = targetZ - 1;
-        finalIdx = Math.max(0, Math.min(all.length, finalIdx));
-        all.splice(finalIdx, 0, fromItem);
-
-        inter.assignZIndexesInOrder(all);
-
         const core = await import('./core.js');
-        core.savePageNow();
-        setTimeout(refreshLayersPanel, 60);
+
+        const reordered = [...displayItems];
+        const [movedItem] = reordered.splice(fromDisplayIdx, 1);
+        if (!movedItem) return;
+
+        let insertIdx = displayIdx;
+        if (fromDisplayIdx < displayIdx) {
+          insertIdx = displayIdx - 1;
+        }
+        if (!insertAbove) {
+          insertIdx += 1;
+        }
+        insertIdx = Math.max(0, Math.min(reordered.length, insertIdx));
+        reordered.splice(insertIdx, 0, movedItem);
+
+        // Convert top-to-bottom display order to bottom-to-top z-index order
+        const ascendingItems = reordered.slice().reverse();
+
+        const pre = core.snapshot();
+        inter.assignZIndexesInOrder(ascendingItems);
+        core.commitChange(pre);
+
+        refreshLayersPanel();
+
+        // تحديث المصغرات
+        const pdf = await import('./pdf.js');
+        if (pdf.captureStageThumbnail && core.state.currentPage) {
+          pdf.captureStageThumbnail(core.state.currentPage).catch(() => {});
+        }
       } catch (err) {
-        console.warn(err);
+        console.warn('layer reorder drop error:', err);
       }
     });
 
@@ -927,14 +932,14 @@ function initProjectDimsPanel() {
   });
 
   function updateVisibility() {
+    const panel = document.getElementById('selectedElementPropsPanel');
     const hasSel = document.querySelectorAll('#stageContent .selected').length > 0;
-    const elemHint = document.getElementById('elementPropsHint');
     if (hasSel) {
       infoPanel.style.display = 'none';
-      if (elemHint) elemHint.style.display = '';
+      if (panel) panel.style.display = 'block';
     } else {
-      infoPanel.style.display = '';
-      if (elemHint) elemHint.style.display = 'none';
+      infoPanel.style.display = 'block';
+      if (panel) panel.style.display = 'none';
     }
   }
   updateVisibility();
@@ -946,6 +951,372 @@ function initProjectDimsPanel() {
       attributes: true,
       attributeFilter: ['class'],
       subtree: true,
+    });
+  }
+}
+
+/* ============================================================
+   §9B. ELEMENT DESIGN PROPERTIES — خصائص التصميم (الموضع والحجم والترتيب)
+   ============================================================ */
+function initElementDesignProps() {
+  const panel = document.getElementById('selectedElementPropsPanel');
+  const infoPanel = document.getElementById('documentInfoPanel');
+  if (!panel) return;
+
+  panel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-title">📐 الموضع والحجم</div>
+      <div class="prop-row">
+        <div class="prop-field">
+          <label>الموضع الأفقي X (px)</label>
+          <input type="number" class="prop-input" id="elemPropX" step="1" />
+        </div>
+        <div class="prop-field">
+          <label>الموضع الرأسي Y (px)</label>
+          <input type="number" class="prop-input" id="elemPropY" step="1" />
+        </div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-field">
+          <label>العرض W (px)</label>
+          <input type="number" class="prop-input" id="elemPropW" min="1" step="1" />
+        </div>
+        <div class="prop-field">
+          <label>الارتفاع H (px)</label>
+          <input type="number" class="prop-input" id="elemPropH" min="1" step="1" />
+        </div>
+      </div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-title">🗂 ترتيب الطبقة</div>
+      <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
+        <button type="button" class="prop-input" id="elemFrontBtn" style="cursor:pointer;font-size:11px;font-weight:600">⏫ إلى المقدمة</button>
+        <button type="button" class="prop-input" id="elemBackBtn" style="cursor:pointer;font-size:11px;font-weight:600">⏬ إلى الخلف</button>
+        <button type="button" class="prop-input" id="elemFwdBtn" style="cursor:pointer;font-size:11px;font-weight:600">▲ تقديم خطوة</button>
+        <button type="button" class="prop-input" id="elemBwdBtn" style="cursor:pointer;font-size:11px;font-weight:600">▼ تأخير خطوة</button>
+      </div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-title">👁 الشفافية</div>
+      <div class="prop-row" style="grid-template-columns:1fr auto;align-items:center;gap:8px">
+        <input type="range" id="elemOpacitySlider" min="5" max="100" value="100" style="width:100%;accent-color:var(--sh-accent);cursor:pointer">
+        <span id="elemOpacityVal" style="font-size:11.5px;font-variant-numeric:tabular-nums;min-width:36px;text-align:center">100%</span>
+      </div>
+    </div>
+  `;
+
+  const inpX = document.getElementById('elemPropX');
+  const inpY = document.getElementById('elemPropY');
+  const inpW = document.getElementById('elemPropW');
+  const inpH = document.getElementById('elemPropH');
+  const opSlider = document.getElementById('elemOpacitySlider');
+  const opVal = document.getElementById('elemOpacityVal');
+
+  const btnFront = document.getElementById('elemFrontBtn');
+  const btnBack = document.getElementById('elemBackBtn');
+  const btnFwd = document.getElementById('elemFwdBtn');
+  const btnBwd = document.getElementById('elemBwdBtn');
+
+  async function getSelected() {
+    const core = await import('./core.js');
+    return core.state.selected;
+  }
+
+  async function syncInputsFromSelection() {
+    const sel = await getSelected();
+    if (!sel || !sel.el) {
+      panel.style.display = 'none';
+      if (infoPanel) infoPanel.style.display = 'block';
+      return;
+    }
+
+    panel.style.display = 'block';
+    if (infoPanel) infoPanel.style.display = 'none';
+
+    let x = 0, y = 0, w = 0, h = 0, opacity = 1;
+
+    if (sel.kind === 'svg') {
+      const inner = sel.el.querySelector('[data-annot]') || sel.el;
+      const tag = inner.tagName.toLowerCase();
+      if (tag === 'rect') {
+        x = parseFloat(inner.getAttribute('x')) || 0;
+        y = parseFloat(inner.getAttribute('y')) || 0;
+        w = parseFloat(inner.getAttribute('width')) || 0;
+        h = parseFloat(inner.getAttribute('height')) || 0;
+      } else if (tag === 'circle' || tag === 'ellipse') {
+        const cx = parseFloat(inner.getAttribute('cx')) || 0;
+        const cy = parseFloat(inner.getAttribute('cy')) || 0;
+        const rx = parseFloat(inner.getAttribute('rx') || inner.getAttribute('r')) || 0;
+        const ry = parseFloat(inner.getAttribute('ry') || inner.getAttribute('r')) || 0;
+        x = cx - rx;
+        y = cy - ry;
+        w = rx * 2;
+        h = ry * 2;
+      } else if (tag === 'line') {
+        const x1 = parseFloat(inner.getAttribute('x1')) || 0;
+        const y1 = parseFloat(inner.getAttribute('y1')) || 0;
+        const x2 = parseFloat(inner.getAttribute('x2')) || 0;
+        const y2 = parseFloat(inner.getAttribute('y2')) || 0;
+        x = Math.min(x1, x2);
+        y = Math.min(y1, y2);
+        w = Math.abs(x2 - x1);
+        h = Math.abs(y2 - y1);
+      } else {
+        try {
+          const b = inner.getBBox();
+          const t = inner.getAttribute('transform') || '';
+          const m = t.match(/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)/);
+          const tx = m ? parseFloat(m[1]) : 0;
+          const ty = m ? parseFloat(m[2]) : 0;
+          x = b.x + tx;
+          y = b.y + ty;
+          w = b.width;
+          h = b.height;
+        } catch (_) {}
+      }
+      opacity = parseFloat(inner.getAttribute('opacity') || sel.el.style.opacity || '1');
+    } else {
+      const el = sel.el;
+      x = parseFloat(el.style.left) || el.offsetLeft || 0;
+      y = parseFloat(el.style.top) || el.offsetTop || 0;
+      w = parseFloat(el.style.width) || el.offsetWidth || 0;
+      h = parseFloat(el.style.height) || el.offsetHeight || 0;
+      opacity = parseFloat(el.style.opacity || '1');
+    }
+
+    x = Math.round(x);
+    y = Math.round(y);
+    w = Math.round(w);
+    h = Math.round(h);
+    const opPct = Math.round(opacity * 100);
+
+    if (inpX && document.activeElement !== inpX) inpX.value = x;
+    if (inpY && document.activeElement !== inpY) inpY.value = y;
+    if (inpW && document.activeElement !== inpW) inpW.value = w;
+    if (inpH && document.activeElement !== inpH) inpH.value = h;
+    if (opSlider && document.activeElement !== opSlider) opSlider.value = opPct;
+    if (opVal) opVal.textContent = opPct + '%';
+  }
+
+  async function applyGeometryChange() {
+    const sel = await getSelected();
+    if (!sel || !sel.el) return;
+
+    const core = await import('./core.js');
+    const inter = await import('./interaction.js');
+    const pre = core.snapshot();
+
+    const newX = parseFloat(inpX.value) || 0;
+    const newY = parseFloat(inpY.value) || 0;
+    const newW = Math.max(2, parseFloat(inpW.value) || 10);
+    const newH = Math.max(2, parseFloat(inpH.value) || 10);
+
+    if (sel.kind === 'svg') {
+      const inner = sel.el.querySelector('[data-annot]') || sel.el;
+      const tag = inner.tagName.toLowerCase();
+      if (tag === 'rect') {
+        inner.setAttribute('x', newX);
+        inner.setAttribute('y', newY);
+        inner.setAttribute('width', newW);
+        inner.setAttribute('height', newH);
+      } else if (tag === 'circle' || tag === 'ellipse') {
+        inner.setAttribute('cx', newX + newW / 2);
+        inner.setAttribute('cy', newY + newH / 2);
+        inner.setAttribute('rx', newW / 2);
+        inner.setAttribute('ry', newH / 2);
+      } else if (tag === 'line') {
+        inner.setAttribute('x1', newX);
+        inner.setAttribute('y1', newY);
+        inner.setAttribute('x2', newX + newW);
+        inner.setAttribute('y2', newY + newH);
+      } else {
+        try {
+          const b = inner.getBBox();
+          inner.setAttribute('transform', `translate(${newX - b.x}, ${newY - b.y})`);
+        } catch (_) {}
+      }
+      inter.drawSelectionOverlay(inner);
+      inter.updateFloatingToolbarPosition();
+    } else {
+      sel.el.style.left = newX + 'px';
+      sel.el.style.top = newY + 'px';
+      sel.el.style.width = newW + 'px';
+      sel.el.style.height = newH + 'px';
+    }
+
+    core.commitChange(pre);
+  }
+
+  [inpX, inpY, inpW, inpH].forEach(inp => {
+    if (inp) {
+      inp.addEventListener('change', applyGeometryChange);
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          inp.blur();
+          applyGeometryChange();
+        }
+      });
+    }
+  });
+
+  if (opSlider) {
+    opSlider.addEventListener('input', async () => {
+      const sel = await getSelected();
+      if (!sel || !sel.el) return;
+      const val = parseInt(opSlider.value, 10);
+      if (opVal) opVal.textContent = val + '%';
+      const op = val / 100;
+      if (sel.kind === 'svg') {
+        const inner = sel.el.querySelector('[data-annot]') || sel.el;
+        inner.setAttribute('opacity', op);
+        sel.el.style.opacity = op;
+      } else {
+        sel.el.style.opacity = op;
+      }
+    });
+    opSlider.addEventListener('change', async () => {
+      const core = await import('./core.js');
+      core.commitChange();
+    });
+  }
+
+  async function handleLayerAction(action) {
+    const sel = await getSelected();
+    if (!sel || !sel.el) return;
+    const inter = await import('./interaction.js');
+    const core = await import('./core.js');
+    const pre = core.snapshot();
+    const target = sel.el;
+    if (action === 'front') inter.bringToFront(target);
+    else if (action === 'back') inter.sendToBack(target);
+    else if (action === 'fwd') inter.bringForward(target);
+    else if (action === 'bwd') inter.sendBackward(target);
+    core.commitChange(pre);
+    refreshLayersPanel();
+  }
+
+  if (btnFront) btnFront.addEventListener('click', () => handleLayerAction('front'));
+  if (btnBack) btnBack.addEventListener('click', () => handleLayerAction('back'));
+  if (btnFwd) btnFwd.addEventListener('click', () => handleLayerAction('fwd'));
+  if (btnBwd) btnBwd.addEventListener('click', () => handleLayerAction('bwd'));
+
+  document.addEventListener('ipb:selectionChanged', syncInputsFromSelection);
+  document.addEventListener('ipb:elementTransformed', syncInputsFromSelection);
+  document.addEventListener('ipb:pageChanged', syncInputsFromSelection);
+
+  syncInputsFromSelection();
+}
+
+/* ============================================================
+   §9C. CANVAS CONTROLS (من ui.html)
+   ============================================================ */
+function initCanvasControls() {
+  const zoomIn = document.getElementById('ctrlZoomIn');
+  const zoomOut = document.getElementById('ctrlZoomOut');
+  const zoomVal = document.getElementById('ctrlZoomVal');
+  const fitBtn = document.getElementById('ctrlFit');
+  const actualBtn = document.getElementById('ctrlActual');
+  const gridBtn = document.getElementById('ctrlGrid');
+  const presentBtn = document.getElementById('ctrlPresent');
+  const gridOverlay = document.getElementById('canvasGridOverlay');
+
+  async function updateZoomDisplay() {
+    const core = await import('./core.js');
+    if (!zoomVal || !core.state || !core.state.view) return;
+    const pct = Math.round((core.state.view.scale || 1) * 100);
+    zoomVal.textContent = pct + '%';
+  }
+
+  if (zoomIn) {
+    zoomIn.addEventListener('click', async () => {
+      const core = await import('./core.js');
+      const pdf = await import('./pdf.js');
+      core.state.view.scale = Math.min(5, Math.round((core.state.view.scale + 0.1) * 10) / 10);
+      pdf.applyView();
+      updateZoomDisplay();
+    });
+  }
+
+  if (zoomOut) {
+    zoomOut.addEventListener('click', async () => {
+      const core = await import('./core.js');
+      const pdf = await import('./pdf.js');
+      core.state.view.scale = Math.max(0.2, Math.round((core.state.view.scale - 0.1) * 10) / 10);
+      pdf.applyView();
+      updateZoomDisplay();
+    });
+  }
+
+  if (actualBtn) {
+    actualBtn.addEventListener('click', async () => {
+      const core = await import('./core.js');
+      const pdf = await import('./pdf.js');
+      core.state.view.scale = 1;
+      core.state.view.tx = 0;
+      core.state.view.ty = 0;
+      pdf.applyView();
+      updateZoomDisplay();
+    });
+  }
+
+  if (fitBtn) {
+    fitBtn.addEventListener('click', async () => {
+      const core = await import('./core.js');
+      const pdf = await import('./pdf.js');
+      const wrapper = document.getElementById('stageWrapper');
+      if (!wrapper || !core.state.cssW || !core.state.cssH) return;
+      const wrapRect = wrapper.getBoundingClientRect();
+      const availW = wrapRect.width - 60;
+      const availH = wrapRect.height - 60;
+      if (availW <= 0 || availH <= 0) return;
+      const scale = Math.min(availW / core.state.cssW, availH / core.state.cssH);
+      core.state.view.scale = Math.min(3, Math.max(0.2, Math.round(scale * 100) / 100));
+      core.state.view.tx = 0;
+      core.state.view.ty = 0;
+      pdf.applyView();
+      updateZoomDisplay();
+    });
+  }
+
+  if (gridBtn) {
+    gridBtn.addEventListener('click', () => {
+      if (!gridOverlay) return;
+      const isVisible = gridOverlay.style.display !== 'none';
+      gridOverlay.style.display = isVisible ? 'none' : 'block';
+      gridBtn.classList.toggle('active', !isVisible);
+    });
+  }
+
+  if (presentBtn) {
+    presentBtn.addEventListener('click', () => {
+      openPresentMode();
+    });
+  }
+
+  window.addEventListener('resize', updateZoomDisplay);
+  document.addEventListener('ipb:pageChanged', () => setTimeout(updateZoomDisplay, 80));
+  document.addEventListener('ipb:viewChanged', updateZoomDisplay);
+  updateZoomDisplay();
+}
+
+/* ============================================================
+   §9D. TOOLBAR TOGGLE
+   ============================================================ */
+function initToolbarToggle() {
+  const toggleBtn = document.getElementById('btnToggleToolbar');
+  const showBtn = document.getElementById('btnShowToolbar');
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      document.body.classList.add('tools-hidden');
+    });
+  }
+
+  if (showBtn) {
+    showBtn.addEventListener('click', () => {
+      document.body.classList.remove('tools-hidden');
     });
   }
 }
@@ -1515,6 +1886,9 @@ export function initUIShell() {
   initPropsToggle();
   initCloseProject();
   initProjectDimsPanel();
+  initElementDesignProps();
+  initCanvasControls();
+  initToolbarToggle();
 
   // إخفاء الشريطين افتراضياً حتى يتم فتح أو إنشاء ملف
   import('./core.js').then(core => {

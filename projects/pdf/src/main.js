@@ -86,11 +86,16 @@ function closeSubmenu() {
 function repositionSubmenu() {
   if (!submenuOwner || !submenu || !submenu.classList.contains('show')) return;
   const r = submenuOwner.getBoundingClientRect();
-  let top = r.top;
+  let top = r.bottom + 6;
+  let left = r.left + (r.width / 2) - (submenu.offsetWidth / 2);
   const h = submenu.offsetHeight;
-  if (top + h > window.innerHeight - 8) top = window.innerHeight - h - 8;
+  const w = submenu.offsetWidth;
+  if (top + h > window.innerHeight - 8) top = r.top - h - 6;
   if (top < 8) top = 8;
+  if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+  if (left < 8) left = 8;
   submenu.style.top = top + 'px';
+  submenu.style.left = left + 'px';
 }
 
 function openSubmenu(ownerBtn, kind) {

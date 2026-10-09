@@ -98,7 +98,12 @@
   <button id="btnResetZoom" title="إعادة ضبط التكبير">🔄</button>
   <button id="btnFullscreen" title="ملء الشاشة">⛶</button>
   <button id="btnExport" title="تصدير PDF">⬇️</button>
+
+  <div class="tb-divider"></div>
+
+  <button class="toggle-tools-btn" id="btnToggleToolbar" title="إخفاء شريط الأدوات">▲</button>
 </div>
+<button id="btnShowToolbar" class="show-tools-btn" title="إظهار شريط الأدوات">🛠️ الأدوات</button>
 
 <!-- ═══════════════════ SLIDES SIDEBAR ═══════════════════ -->
 <aside id="thumbnailSidebar">
@@ -121,6 +126,7 @@
   <div id="stage" data-tool="select" class="empty">
     <div id="stageContent">
       <canvas id="pdfCanvas"></canvas>
+      <div id="canvasGridOverlay" class="canvas-grid-overlay" style="display:none"></div>
 
       <!-- ★ SVG منفصل للـ defs (markers والأسهم) -->
       <svg id="svgDefs" xmlns="http://www.w3.org/2000/svg"
@@ -153,6 +159,19 @@
     </div>
   </div>
 
+  <!-- ═══════════════════ CANVAS CONTROLS (من ui.html) ═══════════════════ -->
+  <div class="canvas-controls" id="canvasControls">
+    <button id="ctrlZoomOut" title="تصغير (−)">−</button>
+    <span class="zoom-val" id="ctrlZoomVal">100%</span>
+    <button id="ctrlZoomIn" title="تكبير (+)">+</button>
+    <div class="ctrl-sep"></div>
+    <button id="ctrlFit" title="ملاءمة الشاشة">⛶</button>
+    <button id="ctrlActual" title="الحجم الفعلي (1:1)">1:1</button>
+    <div class="ctrl-sep"></div>
+    <button id="ctrlGrid" title="إظهار / إخفاء الشبكة">⊞</button>
+    <button id="ctrlPresent" title="تشغيل العرض (F5)">▶</button>
+  </div>
+
   <div id="emptyState">
     <div class="icon">🎨</div>
     <div class="empty-title">ابدأ مشروعاً جديداً</div>
@@ -179,10 +198,8 @@
 
   <div class="props-body">
     <div class="props-panel" data-ppanel="design">
+      <div id="selectedElementPropsPanel" style="display:none"></div>
       <div id="documentInfoPanel"></div>
-      <div class="props-hint" id="elementPropsHint">
-        حدّد عنصراً على اللوحة لعرض خصائصه
-      </div>
     </div>
     <div class="props-panel" data-ppanel="anim" style="display:none">
       <div class="props-hint">الحركات ستكون متاحة عند ربط محرّك الحركة</div>

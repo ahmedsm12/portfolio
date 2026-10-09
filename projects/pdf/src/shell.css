@@ -12,7 +12,8 @@
 
 :root {
   --topbar-h: 52px;
-  --tools-w: 56px;
+  --tools-w: 0px;
+  --tools-effective-w: 0px;
   --props-w: 320px;
   --bp-tabs-h: 34px;
   --bp-body-h: 200px;
@@ -33,6 +34,10 @@
   --sh-radius: 10px;
 }
 
+body.tools-hidden {
+  --tools-effective-w: 0px;
+}
+
 body {
   --bp-current-h: var(--bp-tabs-h);
 }
@@ -49,12 +54,16 @@ body:not(.has-project) #btnShowSidebar,
 body.no-project #btnShowSidebar,
 body:not(.has-project) #toolbar,
 body.no-project #toolbar,
+body:not(.has-project) #btnShowToolbar,
+body.no-project #btnShowToolbar,
 body:not(.has-project) #propsRight,
 body.no-project #propsRight,
 body:not(.has-project) .props-toggle-btn,
 body.no-project .props-toggle-btn,
 body:not(.has-project) #bottomPanel,
-body.no-project #bottomPanel {
+body.no-project #bottomPanel,
+body:not(.has-project) #canvasControls,
+body.no-project #canvasControls {
   display: none !important;
 }
 
@@ -206,49 +215,161 @@ body.no-project #btnCloseProject {
   50% { opacity: 1; }
 }
 
-/* ═══ TOOLBAR (يسار) ═══ */
+/* ═══ TOOLBAR (أفقي بالأعلى مطابق لـ ui.html — بدون أي تعارض مع الشريط السفلي) ═══ */
 #toolbar {
   position: fixed;
-  left: 8px;
-  right: auto;
   top: calc(var(--topbar-h) + 8px);
-  transform: none;
-  max-height: calc(100vh - var(--topbar-h) - var(--bp-tabs-h) - 20px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  transform: translateX(-50%);
+  height: 44px;
+  background: var(--sh-panel);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-radius);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 8px;
+  gap: 3px;
   z-index: 1150;
-  transition: opacity .2s ease, transform .2s ease;
+  box-shadow: 0 10px 30px rgba(0,0,0,.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: transform .22s ease, opacity .2s ease;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: calc(100vw - 30px);
+  scrollbar-width: none;
 }
-#toolbar::-webkit-scrollbar { width: 3px; }
-#toolbar::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,.1);
-  border-radius: 2px;
+#toolbar::-webkit-scrollbar { display: none; }
+
+body.tools-hidden #toolbar {
+  transform: translate(-50%, -75px) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.show-tools-btn {
+  position: fixed;
+  left: 50%;
+  top: calc(var(--topbar-h) + 8px);
+  transform: translateX(-50%);
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--sh-panel);
+  border: 1px solid var(--sh-border);
+  color: var(--sh-text);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  z-index: 1140;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all .15s;
+  box-shadow: 0 4px 14px rgba(0,0,0,.45);
+}
+.show-tools-btn:hover {
+  background: var(--sh-panel-2);
+  border-color: var(--sh-accent);
+}
+body.tools-hidden.has-project .show-tools-btn {
+  display: flex !important;
+}
+
+#toolbar button {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--sh-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .14s;
+  position: relative;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-family: inherit;
+  padding: 0;
+}
+#toolbar button:hover {
+  background: var(--sh-hover);
+  color: var(--sh-text);
+}
+#toolbar button.active {
+  background: var(--sh-accent);
+  color: #fff;
+  border-color: var(--sh-accent);
+}
+
+#toolbar .tb-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--sh-border);
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+
+#toolbar .toggle-tools-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--sh-border);
+  color: var(--sh-text-dim);
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .12s;
+  margin-right: 2px;
+}
+#toolbar .toggle-tools-btn:hover {
+  background: var(--sh-hover);
+  color: var(--sh-text);
+  border-color: var(--sh-accent);
 }
 
 /* ═══ SIDEBAR ═══ */
 #thumbnailSidebar {
-  left: calc(var(--tools-w) + 4px);
+  position: fixed;
+  left: 0;
   top: var(--topbar-h);
   bottom: var(--bp-current-h);
+  width: var(--sidebar-w);
+  background: var(--sh-panel);
+  border-right: 1px solid var(--sh-border);
+  z-index: 1080;
+  display: flex;
+  flex-direction: column;
   transition: bottom .2s ease, transform .22s ease, opacity .2s ease;
 }
 #thumbnailSidebar.collapsed {
-  transform: translateX(calc(-100% - var(--tools-w) - 8px)) !important;
+  transform: translateX(-100%) !important;
 }
 #btnShowSidebar {
-  left: calc(var(--tools-w) + 4px);
+  position: fixed;
+  left: 10px;
   top: calc(var(--topbar-h) + 10px);
+  z-index: 1079;
 }
 
 /* ═══ STAGE ═══ */
 #stageWrapper {
   top: var(--topbar-h);
   bottom: var(--bp-current-h);
-  left: var(--tools-w);
+  left: 0;
   right: var(--props-w);
   padding-left: var(--sidebar-effective-w, 0px);
-  transition: bottom .2s ease, right .22s ease, left .22s ease, padding-left .22s ease;
+  transition: bottom .2s ease, right .22s ease, padding-left .22s ease;
 }
 
 /* ═══ PROPS PANEL ═══ */
@@ -567,6 +688,33 @@ body.props-hidden .props-toggle-btn::before {
   line-height: 1;
 }
 
+.layer-row .ly-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+}
+.layer-row .ly-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--sh-text-dim);
+  cursor: pointer;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .12s;
+  padding: 0;
+}
+.layer-row .ly-btn:hover {
+  background: var(--sh-hover);
+  color: var(--sh-text);
+  border-color: var(--sh-border);
+}
+
 .layer-row.dragging {
   opacity: 0.4;
 }
@@ -578,6 +726,129 @@ body.props-hidden .props-toggle-btn::before {
 }
 #layersList.drag-active .layer-row {
   transition: background .12s, border-color .12s;
+}
+
+/* ===================== CANVAS CONTROLS (من ui.html) ===================== */
+.canvas-controls {
+  position: fixed;
+  bottom: calc(var(--bp-current-h) + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--sh-panel);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-radius);
+  padding: 4px 6px;
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,.55);
+  z-index: 1085;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: transform .2s ease, bottom .2s ease, opacity .2s ease;
+}
+.canvas-controls button {
+  background: transparent;
+  border: none;
+  color: var(--sh-text-muted);
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .12s;
+}
+.canvas-controls button:hover {
+  background: var(--sh-hover);
+  color: var(--sh-text);
+}
+.canvas-controls button.active {
+  background: var(--sh-accent);
+  color: #fff;
+}
+.canvas-controls .zoom-val {
+  font-size: 11.5px;
+  color: var(--sh-text);
+  padding: 0 8px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 48px;
+  text-align: center;
+}
+.canvas-controls .ctrl-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--sh-border);
+  margin: 0 4px;
+}
+
+/* ===================== CANVAS GRID OVERLAY ===================== */
+.canvas-grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6999;
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right, rgba(74, 126, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(74, 126, 255, 0.12) 1px, transparent 1px);
+}
+
+/* ===================== ALIGNMENT & ORDERING GRID ===================== */
+.align-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 3px;
+  margin-bottom: 6px;
+}
+.align-btn {
+  aspect-ratio: 1;
+  background: var(--sh-bg);
+  border: 1px solid var(--sh-border);
+  border-radius: 6px;
+  color: var(--sh-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all .12s;
+  padding: 0;
+}
+.align-btn:hover {
+  background: var(--sh-hover);
+  color: var(--sh-text);
+  border-color: var(--sh-accent);
+}
+.order-btn-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.order-btn-row button {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--sh-bg);
+  border: 1px solid var(--sh-border);
+  border-radius: 6px;
+  color: var(--sh-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all .12s;
+}
+.order-btn-row button:hover {
+  background: var(--sh-hover);
+  border-color: var(--sh-accent);
 }
 
 /* ═══ SUBMENU + FLOATING TOOLBARS ═══ */

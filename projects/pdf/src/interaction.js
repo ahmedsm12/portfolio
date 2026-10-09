@@ -103,18 +103,58 @@ export function assignZIndexesInOrder(orderedItems) {
   let z = 100;
   orderedItems.forEach(item => {
     item.el.style.zIndex = String(z);
+    if (item.el.parentNode) {
+      item.el.parentNode.appendChild(item.el);
+    }
     z += 5;
   });
   _zCounter = z + 100;
+  document.dispatchEvent(new CustomEvent('ipb:layersReordered'));
 }
 
 export function moveLayerToPosition(el, targetIdx) {
   const all = getAllZElements();
-  const currentIdx = all.findIndex(x => x.el === el);
+  const currentIdx = all.findIndex(x => x.el === el || (el.closest && x.el === el.closest('.annot-wrapper')));
   if (currentIdx < 0) return;
   const [item] = all.splice(currentIdx, 1);
   const idx = Math.max(0, Math.min(all.length, targetIdx));
   all.splice(idx, 0, item);
+  assignZIndexesInOrder(all);
+}
+
+export function bringToFront(el) {
+  const all = getAllZElements();
+  const currentIdx = all.findIndex(x => x.el === el || (el.closest && x.el === el.closest('.annot-wrapper')));
+  if (currentIdx < 0 || currentIdx === all.length - 1) return;
+  const [item] = all.splice(currentIdx, 1);
+  all.push(item);
+  assignZIndexesInOrder(all);
+}
+
+export function sendToBack(el) {
+  const all = getAllZElements();
+  const currentIdx = all.findIndex(x => x.el === el || (el.closest && x.el === el.closest('.annot-wrapper')));
+  if (currentIdx <= 0) return;
+  const [item] = all.splice(currentIdx, 1);
+  all.unshift(item);
+  assignZIndexesInOrder(all);
+}
+
+export function bringForward(el) {
+  const all = getAllZElements();
+  const currentIdx = all.findIndex(x => x.el === el || (el.closest && x.el === el.closest('.annot-wrapper')));
+  if (currentIdx < 0 || currentIdx === all.length - 1) return;
+  const [item] = all.splice(currentIdx, 1);
+  all.splice(currentIdx + 1, 0, item);
+  assignZIndexesInOrder(all);
+}
+
+export function sendBackward(el) {
+  const all = getAllZElements();
+  const currentIdx = all.findIndex(x => x.el === el || (el.closest && x.el === el.closest('.annot-wrapper')));
+  if (currentIdx <= 0) return;
+  const [item] = all.splice(currentIdx, 1);
+  all.splice(currentIdx - 1, 0, item);
   assignZIndexesInOrder(all);
 }
 
@@ -637,6 +677,7 @@ export function deselect() {
   if (textLayer) textLayer.querySelectorAll('.pdf-text-box').forEach(e => e.classList.remove('selected'));
   if (interactiveLayer) interactiveLayer.querySelectorAll('.pdf-interactive-btn').forEach(e => e.classList.remove('selected'));
   hideFloatingToolbars();
+  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: null } }));
 }
 
 export function selectAnnotation(el) {
@@ -645,30 +686,55 @@ export function selectAnnotation(el) {
   el.classList.add('selected');
   drawSelectionOverlay(el);
   showFloatingToolbarForSelection();
+  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: state.selected } }));
 }
 export function selectEmbed(el) {
   deselect();
   state.selected = { kind: 'embed', el };
   el.classList.add('selected');
   showDeleteBtnFor(el);
+  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: state.selected } }));
 }
 export function selectMedia(el) {
   deselect();
   state.selected = { kind: 'media', el };
   el.classList.add('selected');
   showDeleteBtnFor(el);
+  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: state.selected } }));
 }
 export function selectButton(el) {
   deselect();
   state.selected = { kind: 'button', el };
   el.classList.add('selected');
   showDeleteBtnFor(el);
+  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: state.selected } }));
 }
 export function selectTextBox(el) {
   deselect();
   state.selected = { kind: 'text', el };
   el.classList.add('selected');
   showFloatingToolbarForSelection();
+  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: state.selected } }));
+}
+
+// استماع لاختيار الطبقة من الشريط السفلي
+if (typeof document !== 'undefined') {
+  document.addEventListener('ipb:selectLayer', (e) => {
+    const { el, kind } = e.detail || {};
+    if (!el) return;
+    if (kind === 'svg') {
+      const inner = el.querySelector('[data-annot]') || el;
+      selectAnnotation(inner);
+    } else if (kind === 'text') {
+      selectTextBox(el);
+    } else if (kind === 'media') {
+      selectMedia(el);
+    } else if (kind === 'button') {
+      selectButton(el);
+    } else if (kind === 'embed') {
+      selectEmbed(el);
+    }
+  });
 }
 
 function getShapeBBox(el) {
@@ -1986,12 +2052,14 @@ export function initPointerEvents() {
       applySvgGeom(interaction.el, interaction.orig, p.x - interaction.start.x, p.y - interaction.start.y);
       drawSelectionOverlay(interaction.el);
       updateFloatingToolbarPosition();
+      document.dispatchEvent(new CustomEvent('ipb:elementTransformed', { detail: { el: interaction.el } }));
       return;
     }
     if (interaction.type === 'resizeSvg') {
       resizeSvg(interaction.el, interaction.handle, interaction.start, interaction.orig, p);
       drawSelectionOverlay(interaction.el);
       updateFloatingToolbarPosition();
+      document.dispatchEvent(new CustomEvent('ipb:elementTransformed', { detail: { el: interaction.el } }));
       return;
     }
   });
@@ -2056,7 +2124,10 @@ export function initPointerEvents() {
       }
       return;
     }
-    if (inter.type === 'moveSvg' || inter.type === 'resizeSvg') commitChange(inter.pre);
+    if (inter.type === 'moveSvg' || inter.type === 'resizeSvg') {
+      commitChange(inter.pre);
+      document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
+    }
   });
 
   stage.addEventListener('pointercancel', e => {
