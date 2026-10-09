@@ -664,7 +664,7 @@ function resetToEmptyState() {
 }
 
 /* ============================================================
-   §8. PROPS PANEL TOGGLE
+   §8. PROPS PANEL TOGGLE & SIDEBAR TOGGLE
    ============================================================ */
 function initPropsToggle() {
   let btn = document.getElementById('btnToggleProps');
@@ -690,15 +690,549 @@ function initPropsToggle() {
   });
 }
 
+function initSidebarToggle() {
+  const btn = document.getElementById('btnToggleSidebarArrow');
+  const sidebar = document.getElementById('thumbnailSidebar');
+  if (!btn || !sidebar) return;
+
+  function updateArrowPos() {
+    const isCollapsed = sidebar.classList.contains('collapsed');
+    document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+    if (isCollapsed) {
+      btn.style.left = '0';
+    } else {
+      const w = sidebar.offsetWidth || 240;
+      btn.style.left = w + 'px';
+    }
+  }
+
+  btn.addEventListener('click', async () => {
+    sidebar.classList.toggle('collapsed');
+    const isCollapsed = sidebar.classList.contains('collapsed');
+    document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+    localStorage.setItem('sidebar_visible', isCollapsed ? 'false' : 'true');
+    localStorage.setItem('pdfboard-sidebar-visible', isCollapsed ? 'false' : 'true');
+    const pdf = await import('./pdf.js');
+    if (pdf && pdf.updateSidebarPadding) pdf.updateSidebarPadding();
+    updateArrowPos();
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 240);
+  });
+
+  const obs = new MutationObserver(updateArrowPos);
+  obs.observe(sidebar, { attributes: true, attributeFilter: ['class', 'style'] });
+  window.addEventListener('resize', updateArrowPos);
+  updateArrowPos();
+}
+
 /* ============================================================
-   §9. PROJECT DIMS PANEL — يظهر فقط بدون تحديد
+   §9. PROJECT DIMS PANEL & ACTIVE TOOL PROPERTIES
    ============================================================ */
+function renderActiveToolProps(container, state) {
+  if (!container || !state) return;
+  const tool = state.tool || 'select';
+
+  if (tool === 'select') {
+    container.innerHTML = `
+      <div class="prop-section" style="background:rgba(74,126,255,.05);border:1px solid rgba(74,126,255,.25);border-radius:8px;margin-bottom:12px;padding:10px">
+        <div class="prop-title" style="color:var(--sh-accent);margin-bottom:4px">👆 أداة التحديد نشطة</div>
+        <div style="font-size:11px;color:var(--sh-text-muted);line-height:1.6">
+          • انقر على أي عنصر لتحديده وتعديل خصائصه.<br>
+          • <b>اسحب بالفأرة على مساحة فارغة</b> لرسم مستطيل شفاف يحدد كل العناصر التي يلمسها.<br>
+          • <b>Shift + نقرة</b> للتحديد المتعدد.<br>
+          • يمكنك سحب العناصر <b>خارج الكانفاس</b> بحرية تامة دون قيود.
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  if (tool === 'hand') {
+    container.innerHTML = `
+      <div class="prop-section" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:12px;padding:10px">
+        <div class="prop-title" style="margin-bottom:4px">🖐️ أداة اليد نشطة</div>
+        <div style="font-size:11px;color:var(--sh-text-muted);line-height:1.6">
+          اسحب لتحريك الشريحة (Pan) والتنقل بسلاسة أثناء الشرح.
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  if (tool === 'pen') {
+    const colors = ['#000000', '#2563eb', '#dc2626', '#16a34a', '#eab308', '#9333ea', '#ea580c', '#ffffff'];
+    const sizes = [2, 5, 10, 16];
+    const smooths = [{ v: 0, l: 'بدون' }, { v: 1, l: 'خفيف' }, { v: 2, l: 'متوسط' }, { v: 3, l: 'عالي' }];
+
+    container.innerHTML = `
+      <div class="prop-section" style="background:rgba(74,126,255,.04);border:1px solid rgba(74,126,255,.25);border-radius:8px;margin-bottom:12px;padding:10px">
+        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>✏️ خيارات القلم</span>
+          <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
+        </div>
+
+        <div style="margin-top:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <label style="font-size:10.5px;color:var(--sh-text-muted)">اللون:</label>
+            <span style="font-size:10.5px;font-family:monospace;color:var(--sh-text-dim)">${state.penColor}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            ${colors.map(c => `
+              <button type="button" class="tool-color-circle" data-pencolor="${c}"
+                style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.penColor ? '2.5px solid #4a7eff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0;box-shadow:${c === state.penColor ? '0 0 8px rgba(74,126,255,.6)' : 'none'}"></button>
+            `).join('')}
+            <input type="color" id="sidePenColorInp" value="${state.penColor}" style="width:26px;height:26px;border:none;background:transparent;cursor:pointer" title="لون مخصص">
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <label style="font-size:10.5px;color:var(--sh-text-muted)">سماكة الخط:</label>
+            <span style="font-size:11px;font-weight:700;color:var(--sh-accent)">${state.penSize}px</span>
+          </div>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
+            ${sizes.map(s => `
+              <button type="button" class="prop-input" data-pensize="${s}"
+                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px;${s === state.penSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
+                <span style="width:${Math.min(16, Math.max(4, s))}px;height:${Math.min(16, Math.max(4, s))}px;background:${state.penColor};border-radius:50%;display:inline-block"></span>
+                <span>${s}px</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">نعومة الخط (Smoothing):</label>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
+            ${smooths.map(sm => `
+              <button type="button" class="prop-input" data-pensmooth="${sm.v}"
+                style="cursor:pointer;padding:6px 0;font-size:10.5px;font-weight:500;text-align:center;${sm.v === state.penSmoothing ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
+                ${sm.l}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.querySelectorAll('[data-pencolor]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.penColor = b.dataset.pencolor;
+        import('./main.js').then(m => m.updateToolbarIndicators());
+        renderActiveToolProps(container, state);
+      });
+    });
+    const cInp = container.querySelector('#sidePenColorInp');
+    if (cInp) cInp.addEventListener('input', () => {
+      state.penColor = cInp.value;
+      import('./main.js').then(m => m.updateToolbarIndicators());
+      renderActiveToolProps(container, state);
+    });
+    container.querySelectorAll('[data-pensize]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.penSize = parseFloat(b.dataset.pensize);
+        renderActiveToolProps(container, state);
+      });
+    });
+    container.querySelectorAll('[data-pensmooth]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.penSmoothing = parseInt(b.dataset.pensmooth, 10);
+        renderActiveToolProps(container, state);
+      });
+    });
+    return;
+  }
+
+  if (tool === 'highlighter') {
+    const colors = ['#fde047', '#86efac', '#93c5fd', '#f472b6', '#fdba74'];
+    const sizes = [10, 18, 28, 40];
+    const smooths = [{ v: 0, l: 'بدون' }, { v: 1, l: 'خفيف' }, { v: 2, l: 'متوسط' }, { v: 3, l: 'عالي' }];
+
+    container.innerHTML = `
+      <div class="prop-section" style="background:rgba(234,179,8,.04);border:1px solid rgba(234,179,8,.25);border-radius:8px;margin-bottom:12px;padding:10px">
+        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🖍️ خيارات قلم التحديد</span>
+          <span style="font-size:10px;color:#eab308;background:rgba(234,179,8,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
+        </div>
+
+        <div style="margin-top:8px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">لون التمييز:</label>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            ${colors.map(c => `
+              <button type="button" class="tool-color-circle" data-hlcolor="${c}"
+                style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.highlighterColor ? '2.5px solid #fff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0;box-shadow:${c === state.highlighterColor ? '0 0 8px ' + c : 'none'}"></button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <label style="font-size:10.5px;color:var(--sh-text-muted)">العرض:</label>
+            <span style="font-size:11px;font-weight:700;color:#eab308">${state.highlighterSize}px</span>
+          </div>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
+            ${sizes.map(s => `
+              <button type="button" class="prop-input" data-hlsize="${s}"
+                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px;${s === state.highlighterSize ? 'border-color:#eab308;background:rgba(234,179,8,.15);color:#fff' : ''}">
+                <span style="width:${Math.min(16, Math.max(6, s/2.5))}px;height:6px;background:${state.highlighterColor};border-radius:2px;display:inline-block"></span>
+                <span>${s}px</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">النعومة:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
+            ${smooths.map(sm => `
+              <button type="button" class="prop-input" data-hlsmooth="${sm.v}"
+                style="cursor:pointer;padding:6px 0;font-size:10.5px;font-weight:500;text-align:center;${sm.v === state.highlighterSmoothing ? 'border-color:#eab308;background:rgba(234,179,8,.15);color:#fff' : ''}">
+                ${sm.l}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.querySelectorAll('[data-hlcolor]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.highlighterColor = b.dataset.hlcolor;
+        import('./main.js').then(m => m.updateToolbarIndicators());
+        renderActiveToolProps(container, state);
+      });
+    });
+    container.querySelectorAll('[data-hlsize]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.highlighterSize = parseFloat(b.dataset.hlsize);
+        renderActiveToolProps(container, state);
+      });
+    });
+    container.querySelectorAll('[data-hlsmooth]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.highlighterSmoothing = parseInt(b.dataset.hlsmooth, 10);
+        renderActiveToolProps(container, state);
+      });
+    });
+    return;
+  }
+
+  if (tool === 'laser') {
+    const colors = ['#ff0000', '#2563eb', '#22c55e', '#eab308'];
+    const glows = [{ v: 1.5, l: 'خفيف' }, { v: 3, l: 'متوسط' }, { v: 6, l: 'قوي' }];
+    const sizes = [4, 8, 14];
+    const lives = [{ ms: 2000, l: '2 ث' }, { ms: 3000, l: '3 ث' }, { ms: 5000, l: '5 ث' }];
+
+    container.innerHTML = `
+      <div class="prop-section" style="background:rgba(239,68,68,.04);border:1px solid rgba(239,68,68,.25);border-radius:8px;margin-bottom:12px;padding:10px">
+        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🔴 مؤشر الليزر التفاعلي</span>
+          <span style="font-size:10px;color:#ef4444;background:rgba(239,68,68,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
+        </div>
+
+        <div style="margin-top:8px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">لون التوهج (Glow):</label>
+          <div style="display:flex;align-items:center;gap:6px">
+            ${colors.map(c => `
+              <button type="button" class="tool-color-circle" data-lasercolor="${c}"
+                style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.laserColor ? '2.5px solid #fff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0;box-shadow:${c === state.laserColor ? '0 0 10px ' + c : 'none'}"></button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">شدة التوهج:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(3, 1fr); gap: 4px">
+            ${glows.map(g => `
+              <button type="button" class="prop-input" data-laserglow="${g.v}"
+                style="cursor:pointer;padding:6px 0;font-size:10.5px;font-weight:500;text-align:center;${g.v === state.laserGlowIntensity ? 'border-color:#ef4444;background:rgba(239,68,68,.15);color:#fff' : ''}">
+                ${g.l}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">حجم النقطة والمدة:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(3, 1fr); gap: 4px">
+            ${sizes.map(s => `
+              <button type="button" class="prop-input" data-lasersize="${s}"
+                style="cursor:pointer;padding:6px 0;font-size:10.5px;font-weight:600;text-align:center;${s === state.laserSize ? 'border-color:#ef4444;background:rgba(239,68,68,.15);color:#fff' : ''}">
+                ${s}px
+              </button>
+            `).join('')}
+          </div>
+          <div class="prop-row" style="grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 4px">
+            ${lives.map(l => `
+              <button type="button" class="prop-input" data-laserlife="${l.ms}"
+                style="cursor:pointer;padding:6px 0;font-size:10.5px;font-weight:500;text-align:center;${l.ms === state.laserLifeMs ? 'border-color:#ef4444;background:rgba(239,68,68,.15);color:#fff' : ''}">
+                ${l.l}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.querySelectorAll('[data-lasercolor]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.laserColor = b.dataset.lasercolor;
+        import('./main.js').then(m => m.updateToolbarIndicators());
+        renderActiveToolProps(container, state);
+      });
+    });
+    container.querySelectorAll('[data-laserglow]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.laserGlowIntensity = parseFloat(b.dataset.laserglow);
+        renderActiveToolProps(container, state);
+      });
+    });
+    container.querySelectorAll('[data-lasersize]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.laserSize = parseFloat(b.dataset.lasersize);
+        renderActiveToolProps(container, state);
+      });
+    });
+    container.querySelectorAll('[data-laserlife]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.laserLifeMs = parseInt(b.dataset.laserlife, 10);
+        renderActiveToolProps(container, state);
+      });
+    });
+    return;
+  }
+
+  if (tool === 'shape') {
+    const kinds = [{ k: 'rect', l: '▭ مستطيل' }, { k: 'circle', l: '◯ دائرة' }, { k: 'arrow', l: '↗ سهم / خط' }];
+    const sizes = [2, 5, 10, 16];
+    const starts = [{ v: 'none', l: 'بدون' }, { v: 'arrow', l: 'سهم' }, { v: 'arrow-hollow', l: 'مفرغ' }];
+    const ends = [{ v: 'none', l: 'بدون' }, { v: 'arrow', l: 'سهم' }, { v: 'arrow-hollow', l: 'مفرغ' }, { v: 'circle', l: 'دائرة' }];
+
+    container.innerHTML = `
+      <div class="prop-section" style="background:rgba(74,126,255,.04);border:1px solid rgba(74,126,255,.25);border-radius:8px;margin-bottom:12px;padding:10px">
+        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>▭ أداة الأشكال</span>
+          <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
+        </div>
+
+        <div style="margin-top:8px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">نوع الشكل:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(3, 1fr); gap: 4px">
+            ${kinds.map(k => `
+              <button type="button" class="prop-input" data-sideshape="${k.k}"
+                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;text-align:center;${k.k === state.shapeKind ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
+                ${k.l}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <div class="prop-row" style="grid-template-columns: 1fr 1fr; gap: 8px">
+            <div>
+              <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">الحد الخارجي (Stroke):</label>
+              <input type="color" id="sideShapeStroke" value="${state.shapeStroke}" style="width:100%;height:30px;border:none;background:transparent;cursor:pointer">
+            </div>
+            <div>
+              <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">التعبئة (Fill):</label>
+              <input type="color" id="sideShapeFill" value="${state.shapeFill}" ${state.shapeFillNone ? 'disabled style="opacity:0.4;width:100%;height:30px"' : 'style="width:100%;height:30px;border:none;background:transparent;cursor:pointer"'}>
+            </div>
+          </div>
+          <label style="font-size:10.5px;color:var(--sh-text);cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin-top:6px">
+            <input type="checkbox" id="sideShapeNoFill" ${state.shapeFillNone ? 'checked' : ''}> بدون تعبئة (شفاف)
+          </label>
+        </div>
+
+        <div style="margin-top:10px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">سماكة الحد:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
+            ${sizes.map(s => `
+              <button type="button" class="prop-input" data-sideshapesize="${s}"
+                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;text-align:center;${s === state.shapeSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
+                ${s}px
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">رأس السهم في البداية والنهاية:</label>
+          <div class="prop-row" style="grid-template-columns: 1fr 1fr; gap: 4px">
+            <select class="prop-input" id="sideShapeStart">
+              ${starts.map(o => `<option value="${o.v}" ${o.v === state.shapeLineStart ? 'selected' : ''}>البداية: ${o.l}</option>`).join('')}
+            </select>
+            <select class="prop-input" id="sideShapeEnd">
+              ${ends.map(o => `<option value="${o.v}" ${o.v === state.shapeLineEnd ? 'selected' : ''}>النهاية: ${o.l}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.querySelectorAll('[data-sideshape]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.shapeKind = b.dataset.sideshape;
+        renderActiveToolProps(container, state);
+      });
+    });
+    const sStr = container.querySelector('#sideShapeStroke');
+    if (sStr) sStr.addEventListener('input', () => { state.shapeStroke = sStr.value; });
+    const sFil = container.querySelector('#sideShapeFill');
+    if (sFil) sFil.addEventListener('input', () => { state.shapeFill = sFil.value; });
+    const sNoFil = container.querySelector('#sideShapeNoFill');
+    if (sNoFil) sNoFil.addEventListener('change', () => {
+      state.shapeFillNone = sNoFil.checked;
+      if (sFil) sFil.disabled = state.shapeFillNone;
+    });
+    container.querySelectorAll('[data-sideshapesize]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.shapeSize = parseFloat(b.dataset.sideshapesize);
+        renderActiveToolProps(container, state);
+      });
+    });
+    const sStart = container.querySelector('#sideShapeStart');
+    if (sStart) sStart.addEventListener('change', () => { state.shapeLineStart = sStart.value; });
+    const sEnd = container.querySelector('#sideShapeEnd');
+    if (sEnd) sEnd.addEventListener('change', () => { state.shapeLineEnd = sEnd.value; });
+    return;
+  }
+
+  if (tool === 'text') {
+    const fonts = ['system-ui', 'Cairo', 'Tajawal', 'Amiri', 'Noto Kufi Arabic', 'Arial', 'Georgia', 'Times New Roman'];
+    const sizes = [14, 18, 22, 28, 36, 48];
+    const colors = ['#000000', '#1e3a8a', '#dc2626', '#16a34a', '#eab308', '#7c3aed', '#ffffff'];
+
+    container.innerHTML = `
+      <div class="prop-section" style="background:rgba(74,126,255,.04);border:1px solid rgba(74,126,255,.25);border-radius:8px;margin-bottom:12px;padding:10px">
+        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🔤 أداة إضافة النص</span>
+          <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
+        </div>
+
+        <div style="margin-top:8px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">نوع الخط:</label>
+          <select class="prop-input" id="sideTextFont">
+            ${fonts.map(f => `<option value="${f}" ${f === state.textFamily ? 'selected' : ''}>${f}</option>`).join('')}
+          </select>
+        </div>
+
+        <div style="margin-top:10px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">حجم الخط:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(6, 1fr); gap: 3px">
+            ${sizes.map(s => `
+              <button type="button" class="prop-input" data-sidetextsize="${s}"
+                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;text-align:center;${s === state.textSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
+                ${s}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <div class="prop-row" style="grid-template-columns: 1fr 1fr; gap: 6px">
+            <button type="button" class="prop-input" id="sideTextBold" style="cursor:pointer;font-weight:bold;${state.textBold ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">B عريض</button>
+            <button type="button" class="prop-input" id="sideTextItalic" style="cursor:pointer;font-style:italic;${state.textItalic ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">I مائل</button>
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">لون النص:</label>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            ${colors.map(c => `
+              <button type="button" class="tool-color-circle" data-sidetextcolor="${c}"
+                style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.textColor ? '2.5px solid #4a7eff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0;box-shadow:${c === state.textColor ? '0 0 8px rgba(74,126,255,.6)' : 'none'}"></button>
+            `).join('')}
+            <input type="color" id="sideTextColorInp" value="${state.textColor}" style="width:26px;height:26px;border:none;background:transparent;cursor:pointer" title="لون مخصص">
+          </div>
+        </div>
+      </div>
+    `;
+
+    const fSel = container.querySelector('#sideTextFont');
+    if (fSel) fSel.addEventListener('change', () => { state.textFamily = fSel.value; });
+    container.querySelectorAll('[data-sidetextsize]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.textSize = parseFloat(b.dataset.sidetextsize);
+        renderActiveToolProps(container, state);
+      });
+    });
+    const bBtn = container.querySelector('#sideTextBold');
+    if (bBtn) bBtn.addEventListener('click', () => {
+      state.textBold = !state.textBold;
+      renderActiveToolProps(container, state);
+    });
+    const iBtn = container.querySelector('#sideTextItalic');
+    if (iBtn) iBtn.addEventListener('click', () => {
+      state.textItalic = !state.textItalic;
+      renderActiveToolProps(container, state);
+    });
+    container.querySelectorAll('[data-sidetextcolor]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.textColor = b.dataset.sidetextcolor;
+        import('./main.js').then(m => m.updateToolbarIndicators());
+        renderActiveToolProps(container, state);
+      });
+    });
+    const tColInp = container.querySelector('#sideTextColorInp');
+    if (tColInp) tColInp.addEventListener('input', () => {
+      state.textColor = tColInp.value;
+      import('./main.js').then(m => m.updateToolbarIndicators());
+      renderActiveToolProps(container, state);
+    });
+    return;
+  }
+
+  if (tool === 'eraser') {
+    const sizes = [12, 24, 40, 60];
+
+    container.innerHTML = `
+      <div class="prop-section" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);border-radius:8px;margin-bottom:12px;padding:10px">
+        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🧽 خيارات الممحاة</span>
+          <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
+        </div>
+
+        <div style="margin-top:8px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">قطر الممحاة:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
+            ${sizes.map(s => `
+              <button type="button" class="prop-input" data-erasersize="${s}"
+                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;text-align:center;${s === state.eraserSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
+                ${s}px
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <label style="font-size:11px;color:var(--sh-text);cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+            <input type="checkbox" id="sideEraseShapes" ${state.eraserErasesShapes ? 'checked' : ''}> مسح الأشكال أيضاً
+          </label>
+        </div>
+      </div>
+    `;
+
+    container.querySelectorAll('[data-erasersize]').forEach(b => {
+      b.addEventListener('click', () => {
+        state.eraserSize = parseFloat(b.dataset.erasersize);
+        renderActiveToolProps(container, state);
+      });
+    });
+    const cShapes = container.querySelector('#sideEraseShapes');
+    if (cShapes) cShapes.addEventListener('change', () => {
+      state.eraserErasesShapes = cShapes.checked;
+    });
+    return;
+  }
+}
+
 function initProjectDimsPanel() {
   const infoPanel = document.getElementById('documentInfoPanel');
   if (!infoPanel) return;
 
   infoPanel.innerHTML = `
-    <div class="prop-section">
+    <div id="activeToolPropsHost"></div>
+
+    <div class="prop-section" id="projectDimsSection">
       <div class="prop-title">📐 أبعاد المشروع</div>
       <div class="prop-row">
         <div class="prop-field">
@@ -752,10 +1286,15 @@ function initProjectDimsPanel() {
   const bgColorInp = document.getElementById('projBgColor');
   const bgApplyBtn = document.getElementById('projBgApply');
   const bgHint = document.getElementById('projBgHint');
+  const toolHost = document.getElementById('activeToolPropsHost');
 
   async function refresh() {
     const core = await import('./core.js');
     const st = core.state;
+
+    if (toolHost) {
+      renderActiveToolProps(toolHost, st);
+    }
 
     if (!st || !st.pdfW || !st.pdfH) {
       if (hint) hint.textContent = 'افتح مشروعاً أولاً لتعديل الأبعاد';
@@ -804,6 +1343,8 @@ function initProjectDimsPanel() {
   document.addEventListener('ipb:pageChanged', () => setTimeout(refresh, 80));
   document.addEventListener('ipb:projectCreated', () => setTimeout(refresh, 80));
   document.addEventListener('ipb:projectClosed', () => setTimeout(refresh, 80));
+  document.addEventListener('ipb:toolChanged', () => setTimeout(refresh, 40));
+  document.addEventListener('ipb:toolConfigChanged', () => setTimeout(refresh, 40));
 
   infoPanel.querySelectorAll('[data-preset]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -956,78 +1497,35 @@ function initProjectDimsPanel() {
 }
 
 /* ============================================================
-   §9B. ELEMENT DESIGN PROPERTIES — خصائص التصميم (الموضع والحجم والترتيب)
+   §9B. ELEMENT DESIGN PROPERTIES — لوحة التصميم والمحاذاة والخصائص
    ============================================================ */
 function initElementDesignProps() {
   const panel = document.getElementById('selectedElementPropsPanel');
   const infoPanel = document.getElementById('documentInfoPanel');
   if (!panel) return;
 
-  panel.innerHTML = `
-    <div class="prop-section">
-      <div class="prop-title">📐 الموضع والحجم</div>
-      <div class="prop-row">
-        <div class="prop-field">
-          <label>الموضع الأفقي X (px)</label>
-          <input type="number" class="prop-input" id="elemPropX" step="1" />
-        </div>
-        <div class="prop-field">
-          <label>الموضع الرأسي Y (px)</label>
-          <input type="number" class="prop-input" id="elemPropY" step="1" />
-        </div>
-      </div>
-      <div class="prop-row">
-        <div class="prop-field">
-          <label>العرض W (px)</label>
-          <input type="number" class="prop-input" id="elemPropW" min="1" step="1" />
-        </div>
-        <div class="prop-field">
-          <label>الارتفاع H (px)</label>
-          <input type="number" class="prop-input" id="elemPropH" min="1" step="1" />
-        </div>
-      </div>
-    </div>
+  let currentAlignTarget = 'selection';
 
-    <div class="prop-section">
-      <div class="prop-title">🗂 ترتيب الطبقة</div>
-      <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
-        <button type="button" class="prop-input" id="elemFrontBtn" style="cursor:pointer;font-size:11px;font-weight:600">⏫ إلى المقدمة</button>
-        <button type="button" class="prop-input" id="elemBackBtn" style="cursor:pointer;font-size:11px;font-weight:600">⏬ إلى الخلف</button>
-        <button type="button" class="prop-input" id="elemFwdBtn" style="cursor:pointer;font-size:11px;font-weight:600">▲ تقديم خطوة</button>
-        <button type="button" class="prop-input" id="elemBwdBtn" style="cursor:pointer;font-size:11px;font-weight:600">▼ تأخير خطوة</button>
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-title">👁 الشفافية</div>
-      <div class="prop-row" style="grid-template-columns:1fr auto;align-items:center;gap:8px">
-        <input type="range" id="elemOpacitySlider" min="5" max="100" value="100" style="width:100%;accent-color:var(--sh-accent);cursor:pointer">
-        <span id="elemOpacityVal" style="font-size:11.5px;font-variant-numeric:tabular-nums;min-width:36px;text-align:center">100%</span>
-      </div>
-    </div>
-  `;
-
-  const inpX = document.getElementById('elemPropX');
-  const inpY = document.getElementById('elemPropY');
-  const inpW = document.getElementById('elemPropW');
-  const inpH = document.getElementById('elemPropH');
-  const opSlider = document.getElementById('elemOpacitySlider');
-  const opVal = document.getElementById('elemOpacityVal');
-
-  const btnFront = document.getElementById('elemFrontBtn');
-  const btnBack = document.getElementById('elemBackBtn');
-  const btnFwd = document.getElementById('elemFwdBtn');
-  const btnBwd = document.getElementById('elemBwdBtn');
-
-  async function getSelected() {
+  async function getSelectionInfo() {
     const core = await import('./core.js');
-    return core.state.selected;
+    const list = core.state.selectedList && core.state.selectedList.length > 0
+      ? core.state.selectedList
+      : (core.state.selected ? [core.state.selected] : []);
+    return {
+      list,
+      count: list.length,
+      primary: list.length > 0 ? list[0] : null,
+    };
   }
 
-  async function syncInputsFromSelection() {
-    const sel = await getSelected();
-    if (!sel || !sel.el) {
+  async function renderProps() {
+    const { list, count, primary } = await getSelectionInfo();
+    const inter = await import('./interaction.js');
+    const core = await import('./core.js');
+
+    if (count === 0) {
       panel.style.display = 'none';
+      panel.innerHTML = '';
       if (infoPanel) infoPanel.style.display = 'block';
       return;
     }
@@ -1035,178 +1533,470 @@ function initElementDesignProps() {
     panel.style.display = 'block';
     if (infoPanel) infoPanel.style.display = 'none';
 
-    let x = 0, y = 0, w = 0, h = 0, opacity = 1;
+    // ═══════════ MULTI-SELECTION VIEW ═══════════
+    if (count > 1) {
+      panel.innerHTML = `
+        <div class="prop-section">
+          <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>🗂️ تحديد متعدد (${count} عناصر)</span>
+            <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.1);padding:2px 6px;border-radius:4px">كتلة واحدة</span>
+          </div>
 
+          <div style="margin-top:8px">
+            <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">مرجع المحاذاة والتوزيع:</label>
+            <div class="align-target-switch">
+              <button type="button" class="align-target-btn ${currentAlignTarget === 'selection' ? 'active' : ''}" data-target="selection">🔲 العناصر المحددة</button>
+              <button type="button" class="align-target-btn ${currentAlignTarget === 'canvas' ? 'active' : ''}" data-target="canvas">🖼️ الكانفاس</button>
+            </div>
+          </div>
+
+          <div style="margin-top:8px">
+            <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">المحاذاة:</label>
+            <div class="align-grid">
+              <button type="button" class="align-action-btn" data-align="left" title="محاذاة لليسار">⫷</button>
+              <button type="button" class="align-action-btn" data-align="centerH" title="توسيط أفقياً">⫿</button>
+              <button type="button" class="align-action-btn" data-align="right" title="محاذاة لليمين">⫸</button>
+              <button type="button" class="align-action-btn" data-align="top" title="محاذاة للأعلى">⫠</button>
+              <button type="button" class="align-action-btn" data-align="centerV" title="توسيط رأسياً">⫰</button>
+              <button type="button" class="align-action-btn" data-align="bottom" title="محاذاة للأسفل">⫡</button>
+            </div>
+          </div>
+
+          <div style="margin-top:8px">
+            <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">التوزيع بالتساوي:</label>
+            <div class="distribute-grid">
+              <button type="button" class="distribute-action-btn" data-dist="horizontal">⫯ توزيع أفقي</button>
+              <button type="button" class="distribute-action-btn" data-dist="vertical">⫶ توزيع رأسي</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="prop-section">
+          <div class="prop-title">🗂 ترتيب الطبقات</div>
+          <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
+            <button type="button" class="prop-input" id="bulkFrontBtn" style="cursor:pointer;font-size:11px;font-weight:600">⏫ إلى المقدمة</button>
+            <button type="button" class="prop-input" id="bulkBackBtn" style="cursor:pointer;font-size:11px;font-weight:600">⏬ إلى الخلف</button>
+          </div>
+        </div>
+
+        <div class="prop-section">
+          <div class="prop-title">👁 الشفافية للكل</div>
+          <div class="prop-row" style="grid-template-columns:1fr auto;align-items:center;gap:8px">
+            <input type="range" id="bulkOpacitySlider" min="5" max="100" value="100" style="width:100%;accent-color:var(--sh-accent);cursor:pointer">
+            <span id="bulkOpacityVal" style="font-size:11.5px;font-variant-numeric:tabular-nums;min-width:36px;text-align:center">100%</span>
+          </div>
+        </div>
+
+        <div class="prop-section">
+          <div class="prop-title">⚡ إجراءات سريعة</div>
+          <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
+            <button type="button" class="prop-input" id="bulkDupBtn" style="cursor:pointer;font-size:11px;font-weight:600;background:rgba(74,126,255,.1);border-color:var(--sh-accent);color:#fff">📑 تكرار العناصر</button>
+            <button type="button" class="prop-input" id="bulkDelBtn" style="cursor:pointer;font-size:11px;font-weight:600;background:rgba(239,68,68,.12);border-color:#ef4444;color:#ef4444">🗑️ حذف العناصر</button>
+          </div>
+        </div>
+      `;
+
+      // Wire target switch
+      panel.querySelectorAll('.align-target-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentAlignTarget = btn.dataset.target;
+          panel.querySelectorAll('.align-target-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+      });
+
+      // Wire align buttons
+      panel.querySelectorAll('.align-action-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          inter.alignSelected(btn.dataset.align, currentAlignTarget);
+        });
+      });
+
+      // Wire distribute buttons
+      panel.querySelectorAll('.distribute-action-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          inter.distributeSelected(btn.dataset.dist, currentAlignTarget);
+        });
+      });
+
+      // Bulk layer
+      const bFront = document.getElementById('bulkFrontBtn');
+      const bBack = document.getElementById('bulkBackBtn');
+      if (bFront) bFront.addEventListener('click', () => {
+        list.forEach(it => inter.bringToFront(it.el));
+        core.commitChange();
+        refreshLayersPanel();
+      });
+      if (bBack) bBack.addEventListener('click', () => {
+        list.forEach(it => inter.sendToBack(it.el));
+        core.commitChange();
+        refreshLayersPanel();
+      });
+
+      // Bulk opacity
+      const bOpSlider = document.getElementById('bulkOpacitySlider');
+      const bOpVal = document.getElementById('bulkOpacityVal');
+      if (bOpSlider) {
+        bOpSlider.addEventListener('input', () => {
+          const v = parseInt(bOpSlider.value, 10);
+          if (bOpVal) bOpVal.textContent = v + '%';
+          const op = v / 100;
+          list.forEach(it => {
+            if (it.kind === 'svg') {
+              const inner = it.el.querySelector('[data-annot]') || it.el;
+              inner.setAttribute('opacity', op);
+              it.el.style.opacity = op;
+            } else {
+              it.el.style.opacity = op;
+            }
+          });
+        });
+        bOpSlider.addEventListener('change', () => core.commitChange());
+      }
+
+      // Bulk Duplicate & Delete
+      const bDup = document.getElementById('bulkDupBtn');
+      const bDel = document.getElementById('bulkDelBtn');
+      if (bDup) bDup.addEventListener('click', () => inter.duplicateSelectedElements());
+      if (bDel) bDel.addEventListener('click', () => inter.deleteSelectedElements());
+      return;
+    }
+
+    // ═══════════ SINGLE-ELEMENT VIEW ═══════════
+    const sel = primary;
+    const kindLabel = {
+      svg: 'شكل / رسم',
+      text: 'مربع نص',
+      media: 'صورة / فيديو',
+      button: 'زر تفاعلي',
+      embed: 'تضمين ويب',
+    }[sel.kind] || 'عنصر';
+
+    panel.innerHTML = `
+      <div class="prop-section">
+        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>✨ خصائص العنصر</span>
+          <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.1);padding:2px 6px;border-radius:4px">${kindLabel}</span>
+        </div>
+        <div class="prop-row">
+          <div class="prop-field">
+            <label>الموضع الأفقي X (px)</label>
+            <input type="number" class="prop-input" id="elemPropX" step="1" />
+          </div>
+          <div class="prop-field">
+            <label>الموضع الرأسي Y (px)</label>
+            <input type="number" class="prop-input" id="elemPropY" step="1" />
+          </div>
+        </div>
+        <div class="prop-row">
+          <div class="prop-field">
+            <label>العرض W (px)</label>
+            <input type="number" class="prop-input" id="elemPropW" min="1" step="1" />
+          </div>
+          <div class="prop-field">
+            <label>الارتفاع H (px)</label>
+            <input type="number" class="prop-input" id="elemPropH" min="1" step="1" />
+          </div>
+        </div>
+      </div>
+
+      <div class="prop-section">
+        <div class="prop-title">📐 محاذاة للشريحة (الكانفاس)</div>
+        <div class="align-grid">
+          <button type="button" class="align-action-btn" data-align="left" title="محاذاة لليسار">⫷</button>
+          <button type="button" class="align-action-btn" data-align="centerH" title="توسيط أفقياً">⫿</button>
+          <button type="button" class="align-action-btn" data-align="right" title="محاذاة لليمين">⫸</button>
+          <button type="button" class="align-action-btn" data-align="top" title="محاذاة للأعلى">⫠</button>
+          <button type="button" class="align-action-btn" data-align="centerV" title="توسيط رأسياً">⫰</button>
+          <button type="button" class="align-action-btn" data-align="bottom" title="محاذاة للأسفل">⫡</button>
+        </div>
+      </div>
+
+      <div id="elementSpecificProps"></div>
+
+      <div class="prop-section">
+        <div class="prop-title">🗂 ترتيب الطبقة</div>
+        <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
+          <button type="button" class="prop-input" id="elemFrontBtn" style="cursor:pointer;font-size:11px;font-weight:600">⏫ إلى المقدمة</button>
+          <button type="button" class="prop-input" id="elemBackBtn" style="cursor:pointer;font-size:11px;font-weight:600">⏬ إلى الخلف</button>
+          <button type="button" class="prop-input" id="elemFwdBtn" style="cursor:pointer;font-size:11px;font-weight:600">▲ تقديم خطوة</button>
+          <button type="button" class="prop-input" id="elemBwdBtn" style="cursor:pointer;font-size:11px;font-weight:600">▼ تأخير خطوة</button>
+        </div>
+      </div>
+
+      <div class="prop-section">
+        <div class="prop-title">👁 الشفافية</div>
+        <div class="prop-row" style="grid-template-columns:1fr auto;align-items:center;gap:8px">
+          <input type="range" id="elemOpacitySlider" min="5" max="100" value="100" style="width:100%;accent-color:var(--sh-accent);cursor:pointer">
+          <span id="elemOpacityVal" style="font-size:11.5px;font-variant-numeric:tabular-nums;min-width:36px;text-align:center">100%</span>
+        </div>
+      </div>
+
+      <div class="prop-section">
+        <div class="prop-title">⚡ إجراءات</div>
+        <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
+          <button type="button" class="prop-input" id="elemDupBtn" style="cursor:pointer;font-size:11px;font-weight:600;background:rgba(74,126,255,.1);border-color:var(--sh-accent);color:#fff">📑 تكرار العنصر</button>
+          <button type="button" class="prop-input" id="elemDelBtn" style="cursor:pointer;font-size:11px;font-weight:600;background:rgba(239,68,68,.12);border-color:#ef4444;color:#ef4444">🗑️ حذف العنصر</button>
+        </div>
+      </div>
+    `;
+
+    // Populate type-specific controls
+    const specHost = document.getElementById('elementSpecificProps');
+    if (specHost) {
+      if (sel.kind === 'text') {
+        const curFont = sel.el.dataset.fontFamily || 'Cairo, sans-serif';
+        const curSize = parseInt(sel.el.dataset.fontSize || '20', 10);
+        const curColor = sel.el.dataset.color || '#1e3a8a';
+        const isBold = sel.el.dataset.fontWeight === 'bold';
+        const isItalic = sel.el.dataset.fontStyle === 'italic';
+
+        specHost.innerHTML = `
+          <div class="prop-section">
+            <div class="prop-title">✍️ خصائص النص</div>
+            <div class="prop-row" style="margin-bottom:6px">
+              <div class="prop-field">
+                <label>حجم الخط (px)</label>
+                <input type="number" class="prop-input" id="textPropSize" value="${curSize}" min="8" max="200" />
+              </div>
+              <div class="prop-field">
+                <label>لون النص</label>
+                <input type="color" class="prop-input" id="textPropColor" value="${curColor}" style="padding:2px;height:28px" />
+              </div>
+            </div>
+            <div class="prop-row" style="grid-template-columns:1fr 1fr 1fr;gap:4px">
+              <button type="button" class="prop-input ${isBold ? 'active' : ''}" id="textBoldBtn" style="cursor:pointer;font-weight:bold">B عريض</button>
+              <button type="button" class="prop-input ${isItalic ? 'active' : ''}" id="textItalicBtn" style="cursor:pointer;font-style:italic">I مائل</button>
+              <button type="button" class="prop-input" id="textAlignRBtn" style="cursor:pointer">يمين ⇥</button>
+            </div>
+          </div>
+        `;
+
+        const tSize = document.getElementById('textPropSize');
+        const tColor = document.getElementById('textPropColor');
+        const tBold = document.getElementById('textBoldBtn');
+        const tItal = document.getElementById('textItalicBtn');
+        const tAlign = document.getElementById('textAlignRBtn');
+
+        if (tSize) tSize.addEventListener('change', () => {
+          sel.el.dataset.fontSize = tSize.value;
+          inter.applyTextStyles(sel.el);
+          core.commitChange();
+        });
+        if (tColor) tColor.addEventListener('input', () => {
+          sel.el.dataset.color = tColor.value;
+          inter.applyTextStyles(sel.el);
+          core.commitChange();
+        });
+        if (tBold) tBold.addEventListener('click', () => {
+          const nowB = sel.el.dataset.fontWeight === 'bold';
+          sel.el.dataset.fontWeight = nowB ? 'normal' : 'bold';
+          inter.applyTextStyles(sel.el);
+          tBold.classList.toggle('active', !nowB);
+          core.commitChange();
+        });
+        if (tItal) tItal.addEventListener('click', () => {
+          const nowI = sel.el.dataset.fontStyle === 'italic';
+          sel.el.dataset.fontStyle = nowI ? 'normal' : 'italic';
+          inter.applyTextStyles(sel.el);
+          tItal.classList.toggle('active', !nowI);
+          core.commitChange();
+        });
+        if (tAlign) tAlign.addEventListener('click', () => {
+          const curA = sel.el.dataset.align || 'right';
+          const nextA = curA === 'right' ? 'center' : (curA === 'center' ? 'left' : 'right');
+          sel.el.dataset.align = nextA;
+          inter.applyTextStyles(sel.el);
+          core.commitChange();
+        });
+      } else if (sel.kind === 'svg') {
+        const inner = sel.el.querySelector('[data-annot]') || sel.el;
+        const curStroke = inner.getAttribute('stroke') || '#000000';
+        const curFill = inner.getAttribute('fill') || 'none';
+        const curSW = inner.getAttribute('stroke-width') || '3';
+
+        specHost.innerHTML = `
+          <div class="prop-section">
+            <div class="prop-title">🎨 مظهر الشكل</div>
+            <div class="prop-row">
+              <div class="prop-field">
+                <label>لون الحدود</label>
+                <input type="color" class="prop-input" id="shapeStrokeColor" value="${curStroke.startsWith('#') ? curStroke : '#000000'}" style="padding:2px;height:28px" />
+              </div>
+              <div class="prop-field">
+                <label>لون التعبئة</label>
+                <div style="display:flex;gap:4px">
+                  <input type="color" class="prop-input" id="shapeFillColor" value="${curFill.startsWith('#') ? curFill : '#4a7eff'}" style="padding:2px;height:28px" />
+                  <button type="button" class="prop-input" id="shapeFillNoneBtn" style="cursor:pointer;font-size:10px;padding:0 6px" title="تعبئة شفافة">شفاف</button>
+                </div>
+              </div>
+            </div>
+            <div class="prop-row" style="margin-top:6px">
+              <div class="prop-field">
+                <label>سمك الخط (px)</label>
+                <input type="number" class="prop-input" id="shapeStrokeWidth" value="${parseFloat(curSW) || 3}" min="1" max="40" />
+              </div>
+            </div>
+          </div>
+        `;
+
+        const sStr = document.getElementById('shapeStrokeColor');
+        const sFill = document.getElementById('shapeFillColor');
+        const sFillNone = document.getElementById('shapeFillNoneBtn');
+        const sSW = document.getElementById('shapeStrokeWidth');
+
+        if (sStr) sStr.addEventListener('input', () => {
+          inner.setAttribute('stroke', sStr.value);
+          core.commitChange();
+        });
+        if (sFill) sFill.addEventListener('input', () => {
+          inner.setAttribute('fill', sFill.value);
+          core.commitChange();
+        });
+        if (sFillNone) sFillNone.addEventListener('click', () => {
+          inner.setAttribute('fill', 'none');
+          core.commitChange();
+        });
+        if (sSW) sSW.addEventListener('change', () => {
+          inner.setAttribute('stroke-width', sSW.value);
+          core.commitChange();
+        });
+      }
+    }
+
+    // Align to canvas for single item
+    panel.querySelectorAll('.align-action-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        inter.alignSelected(btn.dataset.align, 'canvas');
+      });
+    });
+
+    // Populate geometry inputs
+    const inpX = document.getElementById('elemPropX');
+    const inpY = document.getElementById('elemPropY');
+    const inpW = document.getElementById('elemPropW');
+    const inpH = document.getElementById('elemPropH');
+    const opSlider = document.getElementById('elemOpacitySlider');
+    const opVal = document.getElementById('elemOpacityVal');
+
+    const b = inter.getElementBBoxInStage(sel.el);
+    if (b) {
+      if (inpX) inpX.value = Math.round(b.x);
+      if (inpY) inpY.value = Math.round(b.y);
+      if (inpW) inpW.value = Math.round(b.width);
+      if (inpH) inpH.value = Math.round(b.height);
+    }
+
+    let opacity = 1;
     if (sel.kind === 'svg') {
       const inner = sel.el.querySelector('[data-annot]') || sel.el;
-      const tag = inner.tagName.toLowerCase();
-      if (tag === 'rect') {
-        x = parseFloat(inner.getAttribute('x')) || 0;
-        y = parseFloat(inner.getAttribute('y')) || 0;
-        w = parseFloat(inner.getAttribute('width')) || 0;
-        h = parseFloat(inner.getAttribute('height')) || 0;
-      } else if (tag === 'circle' || tag === 'ellipse') {
-        const cx = parseFloat(inner.getAttribute('cx')) || 0;
-        const cy = parseFloat(inner.getAttribute('cy')) || 0;
-        const rx = parseFloat(inner.getAttribute('rx') || inner.getAttribute('r')) || 0;
-        const ry = parseFloat(inner.getAttribute('ry') || inner.getAttribute('r')) || 0;
-        x = cx - rx;
-        y = cy - ry;
-        w = rx * 2;
-        h = ry * 2;
-      } else if (tag === 'line') {
-        const x1 = parseFloat(inner.getAttribute('x1')) || 0;
-        const y1 = parseFloat(inner.getAttribute('y1')) || 0;
-        const x2 = parseFloat(inner.getAttribute('x2')) || 0;
-        const y2 = parseFloat(inner.getAttribute('y2')) || 0;
-        x = Math.min(x1, x2);
-        y = Math.min(y1, y2);
-        w = Math.abs(x2 - x1);
-        h = Math.abs(y2 - y1);
-      } else {
-        try {
-          const b = inner.getBBox();
-          const t = inner.getAttribute('transform') || '';
-          const m = t.match(/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)/);
-          const tx = m ? parseFloat(m[1]) : 0;
-          const ty = m ? parseFloat(m[2]) : 0;
-          x = b.x + tx;
-          y = b.y + ty;
-          w = b.width;
-          h = b.height;
-        } catch (_) {}
-      }
       opacity = parseFloat(inner.getAttribute('opacity') || sel.el.style.opacity || '1');
     } else {
-      const el = sel.el;
-      x = parseFloat(el.style.left) || el.offsetLeft || 0;
-      y = parseFloat(el.style.top) || el.offsetTop || 0;
-      w = parseFloat(el.style.width) || el.offsetWidth || 0;
-      h = parseFloat(el.style.height) || el.offsetHeight || 0;
-      opacity = parseFloat(el.style.opacity || '1');
+      opacity = parseFloat(sel.el.style.opacity || '1');
     }
-
-    x = Math.round(x);
-    y = Math.round(y);
-    w = Math.round(w);
-    h = Math.round(h);
     const opPct = Math.round(opacity * 100);
-
-    if (inpX && document.activeElement !== inpX) inpX.value = x;
-    if (inpY && document.activeElement !== inpY) inpY.value = y;
-    if (inpW && document.activeElement !== inpW) inpW.value = w;
-    if (inpH && document.activeElement !== inpH) inpH.value = h;
-    if (opSlider && document.activeElement !== opSlider) opSlider.value = opPct;
+    if (opSlider) opSlider.value = opPct;
     if (opVal) opVal.textContent = opPct + '%';
-  }
 
-  async function applyGeometryChange() {
-    const sel = await getSelected();
-    if (!sel || !sel.el) return;
+    // Apply geometry changes
+    async function applyGeometry() {
+      const pre = core.snapshot();
+      const newX = parseFloat(inpX.value) || 0;
+      const newY = parseFloat(inpY.value) || 0;
+      const newW = Math.max(2, parseFloat(inpW.value) || 10);
+      const newH = Math.max(2, parseFloat(inpH.value) || 10);
 
-    const core = await import('./core.js');
-    const inter = await import('./interaction.js');
-    const pre = core.snapshot();
-
-    const newX = parseFloat(inpX.value) || 0;
-    const newY = parseFloat(inpY.value) || 0;
-    const newW = Math.max(2, parseFloat(inpW.value) || 10);
-    const newH = Math.max(2, parseFloat(inpH.value) || 10);
-
-    if (sel.kind === 'svg') {
-      const inner = sel.el.querySelector('[data-annot]') || sel.el;
-      const tag = inner.tagName.toLowerCase();
-      if (tag === 'rect') {
-        inner.setAttribute('x', newX);
-        inner.setAttribute('y', newY);
-        inner.setAttribute('width', newW);
-        inner.setAttribute('height', newH);
-      } else if (tag === 'circle' || tag === 'ellipse') {
-        inner.setAttribute('cx', newX + newW / 2);
-        inner.setAttribute('cy', newY + newH / 2);
-        inner.setAttribute('rx', newW / 2);
-        inner.setAttribute('ry', newH / 2);
-      } else if (tag === 'line') {
-        inner.setAttribute('x1', newX);
-        inner.setAttribute('y1', newY);
-        inner.setAttribute('x2', newX + newW);
-        inner.setAttribute('y2', newY + newH);
-      } else {
-        try {
-          const b = inner.getBBox();
-          inner.setAttribute('transform', `translate(${newX - b.x}, ${newY - b.y})`);
-        } catch (_) {}
-      }
-      inter.drawSelectionOverlay(inner);
-      inter.updateFloatingToolbarPosition();
-    } else {
-      sel.el.style.left = newX + 'px';
-      sel.el.style.top = newY + 'px';
-      sel.el.style.width = newW + 'px';
-      sel.el.style.height = newH + 'px';
-    }
-
-    core.commitChange(pre);
-  }
-
-  [inpX, inpY, inpW, inpH].forEach(inp => {
-    if (inp) {
-      inp.addEventListener('change', applyGeometryChange);
-      inp.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          inp.blur();
-          applyGeometryChange();
-        }
-      });
-    }
-  });
-
-  if (opSlider) {
-    opSlider.addEventListener('input', async () => {
-      const sel = await getSelected();
-      if (!sel || !sel.el) return;
-      const val = parseInt(opSlider.value, 10);
-      if (opVal) opVal.textContent = val + '%';
-      const op = val / 100;
       if (sel.kind === 'svg') {
         const inner = sel.el.querySelector('[data-annot]') || sel.el;
-        inner.setAttribute('opacity', op);
-        sel.el.style.opacity = op;
+        const tag = inner.tagName.toLowerCase();
+        if (tag === 'rect') {
+          inner.setAttribute('x', newX);
+          inner.setAttribute('y', newY);
+          inner.setAttribute('width', newW);
+          inner.setAttribute('height', newH);
+        } else if (tag === 'circle' || tag === 'ellipse') {
+          inner.setAttribute('cx', newX + newW / 2);
+          inner.setAttribute('cy', newY + newH / 2);
+          inner.setAttribute('rx', newW / 2);
+          inner.setAttribute('ry', newH / 2);
+        } else if (tag === 'line') {
+          inner.setAttribute('x1', newX);
+          inner.setAttribute('y1', newY);
+          inner.setAttribute('x2', newX + newW);
+          inner.setAttribute('y2', newY + newH);
+        } else {
+          try {
+            const curB = inner.getBBox();
+            inner.setAttribute('transform', `translate(${newX - curB.x}, ${newY - curB.y})`);
+          } catch (_) {}
+        }
       } else {
-        sel.el.style.opacity = op;
+        sel.el.style.left = (newX / (core.state.pdfW || 2000) * 100) + '%';
+        sel.el.style.top = (newY / (core.state.pdfH || 2828) * 100) + '%';
+        sel.el.style.width = newW + 'px';
+        sel.el.style.height = newH + 'px';
+      }
+
+      inter.drawSelectionOverlay();
+      core.commitChange(pre);
+      document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
+    }
+
+    [inpX, inpY, inpW, inpH].forEach(inp => {
+      if (inp) {
+        inp.addEventListener('change', applyGeometry);
+        inp.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { inp.blur(); applyGeometry(); }
+        });
       }
     });
-    opSlider.addEventListener('change', async () => {
-      const core = await import('./core.js');
-      core.commitChange();
+
+    if (opSlider) {
+      opSlider.addEventListener('input', () => {
+        const val = parseInt(opSlider.value, 10);
+        if (opVal) opVal.textContent = val + '%';
+        const op = val / 100;
+        if (sel.kind === 'svg') {
+          const inner = sel.el.querySelector('[data-annot]') || sel.el;
+          inner.setAttribute('opacity', op);
+          sel.el.style.opacity = op;
+        } else {
+          sel.el.style.opacity = op;
+        }
+      });
+      opSlider.addEventListener('change', () => core.commitChange());
+    }
+
+    // Layer Ordering
+    const btnFront = document.getElementById('elemFrontBtn');
+    const btnBack = document.getElementById('elemBackBtn');
+    const btnFwd = document.getElementById('elemFwdBtn');
+    const btnBwd = document.getElementById('elemBwdBtn');
+    if (btnFront) btnFront.addEventListener('click', () => {
+      inter.bringToFront(sel.el); core.commitChange(); refreshLayersPanel();
     });
+    if (btnBack) btnBack.addEventListener('click', () => {
+      inter.sendToBack(sel.el); core.commitChange(); refreshLayersPanel();
+    });
+    if (btnFwd) btnFwd.addEventListener('click', () => {
+      inter.bringForward(sel.el); core.commitChange(); refreshLayersPanel();
+    });
+    if (btnBwd) btnBwd.addEventListener('click', () => {
+      inter.sendBackward(sel.el); core.commitChange(); refreshLayersPanel();
+    });
+
+    // Duplicate & Delete
+    const btnDup = document.getElementById('elemDupBtn');
+    const btnDel = document.getElementById('elemDelBtn');
+    if (btnDup) btnDup.addEventListener('click', () => inter.duplicateSelectedElements());
+    if (btnDel) btnDel.addEventListener('click', () => inter.deleteSelectedElements());
   }
 
-  async function handleLayerAction(action) {
-    const sel = await getSelected();
-    if (!sel || !sel.el) return;
-    const inter = await import('./interaction.js');
-    const core = await import('./core.js');
-    const pre = core.snapshot();
-    const target = sel.el;
-    if (action === 'front') inter.bringToFront(target);
-    else if (action === 'back') inter.sendToBack(target);
-    else if (action === 'fwd') inter.bringForward(target);
-    else if (action === 'bwd') inter.sendBackward(target);
-    core.commitChange(pre);
-    refreshLayersPanel();
-  }
+  document.addEventListener('ipb:selectionChanged', renderProps);
+  document.addEventListener('ipb:elementTransformed', renderProps);
+  document.addEventListener('ipb:pageChanged', renderProps);
 
-  if (btnFront) btnFront.addEventListener('click', () => handleLayerAction('front'));
-  if (btnBack) btnBack.addEventListener('click', () => handleLayerAction('back'));
-  if (btnFwd) btnFwd.addEventListener('click', () => handleLayerAction('fwd'));
-  if (btnBwd) btnBwd.addEventListener('click', () => handleLayerAction('bwd'));
-
-  document.addEventListener('ipb:selectionChanged', syncInputsFromSelection);
-  document.addEventListener('ipb:elementTransformed', syncInputsFromSelection);
-  document.addEventListener('ipb:pageChanged', syncInputsFromSelection);
-
-  syncInputsFromSelection();
+  renderProps();
 }
 
 /* ============================================================
@@ -1884,6 +2674,7 @@ export function initUIShell() {
   initGlobalShortcuts();
   setupEquationBackdropMirror();
   initPropsToggle();
+  initSidebarToggle();
   initCloseProject();
   initProjectDimsPanel();
   initElementDesignProps();

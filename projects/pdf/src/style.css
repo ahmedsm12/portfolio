@@ -443,28 +443,19 @@ html,body{
 .handle.nw,.handle.se{cursor:nwse-resize}
 .handle.ne,.handle.sw{cursor:nesw-resize}
 
-/* ===================== ELEMENT DELETE BUTTON ===================== */
+/* ===================== ELEMENT DELETE BUTTON (إلغاء الدائرة الحمراء نهائياً) ===================== */
 .element-delete-btn{
-  position:fixed;width:26px;height:26px;border-radius:50%;
-  background:#ef4444;border:2px solid #fff;color:#fff;
-  font-size:14px;font-weight:900;line-height:1;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;z-index:1500;box-shadow:0 3px 10px rgba(0,0,0,.35);
-  touch-action:manipulation;transition:transform .12s,background .15s;padding:0;
+  display:none !important;
+  visibility:hidden !important;
+  pointer-events:none !important;
 }
-.element-delete-btn:hover{background:#dc2626;transform:scale(1.1)}
-.element-delete-btn:active{transform:scale(.95)}
 
-/* ===================== FLOATING CONTEXT TOOLBARS ===================== */
+/* ===================== FLOATING CONTEXT TOOLBARS (تم نقل الخصائص للشريط الجانبي) ===================== */
 #textContextToolbar,#shapeContextToolbar{
-  position:fixed;display:none;align-items:center;gap:4px;padding:5px 6px;
-  background:rgba(28,32,40,.98);
-  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
-  border:1px solid rgba(255,255,255,.12);border-radius:10px;
-  box-shadow:0 8px 28px rgba(0,0,0,.55);z-index:1600;
-  flex-wrap:wrap;max-width:calc(100vw - 20px);
+  display:none !important;
+  visibility:hidden !important;
+  pointer-events:none !important;
 }
-#textContextToolbar.show,#shapeContextToolbar.show{display:flex}
 
 .ctx-btn{
   width:28px;height:28px;border-radius:6px;

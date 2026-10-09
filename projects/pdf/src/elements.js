@@ -91,14 +91,19 @@ export function addEmbedElement(url, x, y, w, h, save, z) {
     if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault(); e.stopPropagation();
     try { header.setPointerCapture(e.pointerId); } catch (_) {}
-    if (typeof el.__selectEmbed === 'function') el.__selectEmbed(el);
+    const isAlreadySelected = (state.selectedList || []).some(it => it.el === el);
+    if (e.shiftKey) {
+      if (typeof el.__selectEmbed === 'function') el.__selectEmbed(el, true);
+    } else if (!isAlreadySelected) {
+      if (typeof el.__selectEmbed === 'function') el.__selectEmbed(el, false);
+    }
     if (typeof el.__startEmbedDrag === 'function') el.__startEmbedDrag(el, e, 'move');
   });
   resize.addEventListener('pointerdown', e => {
     if (state.tool !== 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault(); e.stopPropagation();
     try { resize.setPointerCapture(e.pointerId); } catch (_) {}
-    if (typeof el.__selectEmbed === 'function') el.__selectEmbed(el);
+    if (typeof el.__selectEmbed === 'function') el.__selectEmbed(el, false);
     if (typeof el.__startEmbedDrag === 'function') el.__startEmbedDrag(el, e, 'resize');
   });
 
@@ -185,7 +190,12 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     e.preventDefault();
     e.stopPropagation();
     try { el.setPointerCapture(e.pointerId); } catch (_) {}
-    if (typeof el.__selectMedia === 'function') el.__selectMedia(el);
+    const isAlreadySelected = (state.selectedList || []).some(it => it.el === el);
+    if (e.shiftKey) {
+      if (typeof el.__selectMedia === 'function') el.__selectMedia(el, true);
+    } else if (!isAlreadySelected) {
+      if (typeof el.__selectMedia === 'function') el.__selectMedia(el, false);
+    }
     if (typeof el.__startMediaDrag === 'function') el.__startMediaDrag(el, e, 'move');
   });
 
@@ -210,7 +220,7 @@ export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     try { resize.setPointerCapture(e.pointerId); } catch (_) {}
-    if (typeof el.__selectMedia === 'function') el.__selectMedia(el);
+    if (typeof el.__selectMedia === 'function') el.__selectMedia(el, false);
     if (typeof el.__startMediaDrag === 'function') el.__startMediaDrag(el, e, 'resize');
   });
 
@@ -288,7 +298,12 @@ export function addButtonElement(spec, save, z) {
     } else if (state.tool === 'select') {
       e.preventDefault(); e.stopPropagation();
       try { el.setPointerCapture(e.pointerId); } catch (_) {}
-      if (typeof el.__selectButton === 'function') el.__selectButton(el);
+      const isAlreadySelected = (state.selectedList || []).some(it => it.el === el);
+      if (e.shiftKey) {
+        if (typeof el.__selectButton === 'function') el.__selectButton(el, true);
+      } else if (!isAlreadySelected) {
+        if (typeof el.__selectButton === 'function') el.__selectButton(el, false);
+      }
       if (typeof el.__startButtonDrag === 'function') el.__startButtonDrag(el, e, 'move');
     }
   });

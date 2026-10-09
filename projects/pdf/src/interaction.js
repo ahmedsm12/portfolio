@@ -651,23 +651,37 @@ function laserAdd(p) {
 function laserEnd() { currentLaserStroke = null; laserLastActivity = performance.now(); }
 
 /* ============================================================
-   §8. SELECTION
+   §8. SELECTION & MULTI-SELECTION
    ============================================================ */
 export function deselect() {
-  if (state.selected) {
+  if (state.selectedList && state.selectedList.length > 0) {
+    state.selectedList.forEach(sel => {
+      try {
+        if (sel.kind === 'svg') {
+          const inner = sel.el.querySelector && sel.el.querySelector('[data-annot]') || sel.el;
+          inner.classList.remove('selected');
+        } else if (sel.kind === 'text') {
+          sel.el.classList.remove('selected');
+          if (sel.el.classList.contains('editing')) finishEdit(sel.el);
+        } else {
+          sel.el.classList.remove('selected');
+        }
+      } catch (_) {}
+    });
+  } else if (state.selected) {
     const sel = state.selected;
     if (sel.kind === 'svg') {
-      const inner = sel.el.querySelector('[data-annot]') || sel.el;
+      const inner = sel.el.querySelector && sel.el.querySelector('[data-annot]') || sel.el;
       inner.classList.remove('selected');
-    }
-    if (sel.kind === 'embed') sel.el.classList.remove('selected');
-    if (sel.kind === 'media') sel.el.classList.remove('selected');
-    if (sel.kind === 'text') {
+    } else if (sel.kind === 'text') {
       sel.el.classList.remove('selected');
       if (sel.el.classList.contains('editing')) finishEdit(sel.el);
+    } else if (sel.el) {
+      sel.el.classList.remove('selected');
     }
-    if (sel.kind === 'button') sel.el.classList.remove('selected');
   }
+
+  state.selectedList = [];
   state.selected = null;
 
   if (selectionSvg) selectionSvg.innerHTML = '';
@@ -677,44 +691,48 @@ export function deselect() {
   if (textLayer) textLayer.querySelectorAll('.pdf-text-box').forEach(e => e.classList.remove('selected'));
   if (interactiveLayer) interactiveLayer.querySelectorAll('.pdf-interactive-btn').forEach(e => e.classList.remove('selected'));
   hideFloatingToolbars();
-  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: null } }));
+  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: null, list: [] } }));
 }
 
-export function selectAnnotation(el) {
-  deselect();
-  state.selected = { kind: 'svg', el };
-  el.classList.add('selected');
-  drawSelectionOverlay(el);
-  showFloatingToolbarForSelection();
-  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: state.selected } }));
+function addToSelection(item, additive = false) {
+  if (!state.selectedList) state.selectedList = [];
+  if (!additive) {
+    deselect();
+    state.selectedList = [item];
+    item.el.classList.add('selected');
+  } else {
+    const idx = state.selectedList.findIndex(it => it.el === item.el);
+    if (idx >= 0) {
+      state.selectedList.splice(idx, 1);
+      item.el.classList.remove('selected');
+      if (state.selectedList.length === 0) { deselect(); return; }
+    } else {
+      state.selectedList.push(item);
+      item.el.classList.add('selected');
+    }
+  }
+  state.selected = state.selectedList.length > 0 ? state.selectedList[0] : null;
+  drawSelectionOverlay();
+  hideFloatingToolbars();
+  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', {
+    detail: { selected: state.selected, list: state.selectedList }
+  }));
 }
-export function selectEmbed(el) {
-  deselect();
-  state.selected = { kind: 'embed', el };
-  el.classList.add('selected');
-  showDeleteBtnFor(el);
-  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: state.selected } }));
+
+export function selectAnnotation(el, additive = false) {
+  addToSelection({ kind: 'svg', el }, additive);
 }
-export function selectMedia(el) {
-  deselect();
-  state.selected = { kind: 'media', el };
-  el.classList.add('selected');
-  showDeleteBtnFor(el);
-  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: state.selected } }));
+export function selectEmbed(el, additive = false) {
+  addToSelection({ kind: 'embed', el }, additive);
 }
-export function selectButton(el) {
-  deselect();
-  state.selected = { kind: 'button', el };
-  el.classList.add('selected');
-  showDeleteBtnFor(el);
-  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: state.selected } }));
+export function selectMedia(el, additive = false) {
+  addToSelection({ kind: 'media', el }, additive);
 }
-export function selectTextBox(el) {
-  deselect();
-  state.selected = { kind: 'text', el };
-  el.classList.add('selected');
-  showFloatingToolbarForSelection();
-  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', { detail: { selected: state.selected } }));
+export function selectButton(el, additive = false) {
+  addToSelection({ kind: 'button', el }, additive);
+}
+export function selectTextBox(el, additive = false) {
+  addToSelection({ kind: 'text', el }, additive);
 }
 
 // استماع لاختيار الطبقة من الشريط السفلي
@@ -737,29 +755,107 @@ if (typeof document !== 'undefined') {
   });
 }
 
-function getShapeBBox(el) {
+export function getShapeBBox(el) {
   try {
     if (el.tagName === 'line') {
       const x1 = +el.getAttribute('x1'), y1 = +el.getAttribute('y1');
       const x2 = +el.getAttribute('x2'), y2 = +el.getAttribute('y2');
       const pad = 8;
       return {
-        x: Math.min(x1,x2)-pad, y: Math.min(y1,y2)-pad,
-        width: Math.abs(x2-x1)+pad*2, height: Math.abs(y2-y1)+pad*2,
+        x: Math.min(x1, x2) - pad, y: Math.min(y1, y2) - pad,
+        width: Math.abs(x2 - x1) + pad * 2, height: Math.abs(y2 - y1) + pad * 2,
       };
     }
     return el.getBBox();
   } catch (_) { return null; }
 }
 
-function drawSelectionOverlay(el) {
+export function getElementBBoxInStage(el) {
+  if (!el || !stage) return null;
+  const tag = el.tagName ? el.tagName.toLowerCase() : '';
+  if (tag === 'rect' || tag === 'circle' || tag === 'ellipse' || tag === 'line' || tag === 'path') {
+    const b = getShapeBBox(el);
+    if (b) return b;
+  }
+  const inner = el.querySelector && el.querySelector('[data-annot]');
+  if (inner) {
+    const b = getShapeBBox(inner);
+    if (b) return b;
+  }
+  const sr = stage.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  if (sr.width === 0 || sr.height === 0) return null;
+  const sx = (state.pdfW || 2000) / sr.width;
+  const sy = (state.pdfH || 2828) / sr.height;
+  return {
+    x: (er.left - sr.left) * sx,
+    y: (er.top - sr.top) * sy,
+    width: er.width * sx,
+    height: er.height * sy,
+  };
+}
+
+export function rectsIntersect(r1, r2) {
+  return !(
+    r2.x > r1.x + r1.width ||
+    r2.x + r2.width < r1.x ||
+    r2.y > r1.y + r1.height ||
+    r2.y + r2.height < r1.y
+  );
+}
+
+export function getAllSelectableElements() {
+  const list = [];
+  if (svgLayer) {
+    svgLayer.querySelectorAll('[data-annot]').forEach(inner => {
+      if (inner.tagName.toLowerCase() !== 'g' && !inner.classList.contains('handle')) {
+        list.push({ kind: 'svg', el: inner });
+      }
+    });
+  }
+  if (textLayer) {
+    textLayer.querySelectorAll('.pdf-text-box').forEach(el => {
+      list.push({ kind: 'text', el });
+    });
+  }
+  if (videoLayer) {
+    videoLayer.querySelectorAll('.media-obj').forEach(el => {
+      list.push({ kind: 'media', el });
+    });
+  }
+  if (embedLayer) {
+    embedLayer.querySelectorAll('.embed').forEach(el => {
+      list.push({ kind: 'embed', el });
+    });
+  }
+  if (interactiveLayer) {
+    interactiveLayer.querySelectorAll('.pdf-interactive-btn').forEach(el => {
+      list.push({ kind: 'button', el });
+    });
+  }
+  return list;
+}
+
+export function drawSelectionOverlay(target) {
   if (!selectionSvg) return;
+  const marqueeEl = selectionSvg.querySelector('.marquee-box');
+  const savedMarquee = marqueeEl ? marqueeEl.cloneNode(true) : null;
+
   selectionSvg.innerHTML = '';
+  if (savedMarquee) selectionSvg.appendChild(savedMarquee);
+
+  const selectedItems = state.selectedList && state.selectedList.length > 0
+    ? state.selectedList
+    : (state.selected ? [state.selected] : []);
+
+  if (selectedItems.length === 0) return;
+
   const g = document.createElementNS(SVG_NS, 'g');
   g.setAttribute('class', 'selection-overlay');
-  const hs = Math.max(6, state.pdfW / 140);
+  const hs = Math.max(6, (state.pdfW || 2000) / 140);
 
-  if (el.tagName === 'line') {
+  if (selectedItems.length === 1 && selectedItems[0].kind === 'svg' && selectedItems[0].el.tagName === 'line') {
+    const el = selectedItems[0].el;
     const x1 = +el.getAttribute('x1'), y1 = +el.getAttribute('y1');
     const x2 = +el.getAttribute('x2'), y2 = +el.getAttribute('y2');
     const outline = document.createElementNS(SVG_NS, 'line');
@@ -779,29 +875,335 @@ function drawSelectionOverlay(el) {
     return;
   }
 
-  const bbox = getShapeBBox(el);
-  if (!bbox) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  selectedItems.forEach(item => {
+    const b = getElementBBoxInStage(item.el);
+    if (!b) return;
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.width);
+    maxY = Math.max(maxY, b.y + b.height);
+
+    if (selectedItems.length > 1) {
+      const subRect = document.createElementNS(SVG_NS, 'rect');
+      subRect.setAttribute('x', b.x);
+      subRect.setAttribute('y', b.y);
+      subRect.setAttribute('width', b.width);
+      subRect.setAttribute('height', b.height);
+      subRect.setAttribute('class', 'selection-outline-sub');
+      subRect.style.stroke = 'rgba(74, 126, 255, 0.45)';
+      subRect.style.strokeDasharray = '3 3';
+      subRect.style.fill = 'none';
+      g.appendChild(subRect);
+    }
+  });
+
+  if (minX === Infinity) return;
+
+  const width = Math.max(2, maxX - minX);
+  const height = Math.max(2, maxY - minY);
+
   const rect = document.createElementNS(SVG_NS, 'rect');
-  rect.setAttribute('x', bbox.x); rect.setAttribute('y', bbox.y);
-  rect.setAttribute('width', bbox.width); rect.setAttribute('height', bbox.height);
+  rect.setAttribute('x', minX);
+  rect.setAttribute('y', minY);
+  rect.setAttribute('width', width);
+  rect.setAttribute('height', height);
   rect.setAttribute('class', 'selection-outline');
   g.appendChild(rect);
 
   const pts = {
-    nw: [bbox.x, bbox.y],
-    ne: [bbox.x + bbox.width, bbox.y],
-    se: [bbox.x + bbox.width, bbox.y + bbox.height],
-    sw: [bbox.x, bbox.y + bbox.height],
+    nw: [minX, minY],
+    ne: [minX + width, minY],
+    se: [minX + width, minY + height],
+    sw: [minX, minY + height],
   };
   Object.keys(pts).forEach(k => {
     const c = document.createElementNS(SVG_NS, 'circle');
-    c.setAttribute('cx', pts[k][0]); c.setAttribute('cy', pts[k][1]);
+    c.setAttribute('cx', pts[k][0]);
+    c.setAttribute('cy', pts[k][1]);
     c.setAttribute('r', hs);
     c.setAttribute('class', 'handle ' + k);
     c.dataset.handle = k;
     g.appendChild(c);
   });
+
   selectionSvg.appendChild(g);
+}
+
+export function deleteSelectedElements() {
+  const items = state.selectedList && state.selectedList.length > 0
+    ? [...state.selectedList]
+    : (state.selected ? [state.selected] : []);
+  if (items.length === 0) return;
+
+  const pre = snapshot();
+  items.forEach(sel => {
+    try {
+      if (sel.kind === 'media') {
+        const v = sel.el.querySelector && sel.el.querySelector('video');
+        if (v) { v.pause(); v.src = ''; }
+      }
+      const wrap = sel.el.closest && sel.el.closest('.annot-wrapper');
+      (wrap || sel.el).remove();
+    } catch (_) {}
+  });
+
+  deselect();
+  commitChange(pre);
+}
+
+export function duplicateSelectedElements() {
+  const items = state.selectedList && state.selectedList.length > 0
+    ? [...state.selectedList]
+    : (state.selected ? [state.selected] : []);
+  if (items.length === 0) return;
+
+  const pre = snapshot();
+  const offset = 24;
+  const newSelected = [];
+
+  items.forEach(it => {
+    try {
+      if (it.kind === 'svg') {
+        const wrap = it.el.closest && it.el.closest('.annot-wrapper');
+        if (wrap) {
+          const clone = wrap.cloneNode(true);
+          const inner = clone.querySelector('[data-annot]') || clone.firstElementChild;
+          if (inner) {
+            inner.dataset.id = uid();
+            const orig = captureSvgGeom(inner);
+            applySvgGeom(inner, orig, offset, offset);
+            inner.classList.remove('selected');
+            if (svgLayer) svgLayer.appendChild(clone);
+            newSelected.push({ kind: 'svg', el: inner });
+          }
+        }
+      } else if (it.kind === 'text') {
+        const curLeft = parseFloat(it.el.style.left) || 0;
+        const curTop = parseFloat(it.el.style.top) || 0;
+        const isLeftPct = String(it.el.style.left).includes('%');
+        const isTopPct = String(it.el.style.top).includes('%');
+        const newLeft = isLeftPct ? (curLeft + (offset / (state.pdfW || 2000) * 100)) + '%' : (curLeft + offset) + 'px';
+        const newTop = isTopPct ? (curTop + (offset / (state.pdfH || 2828) * 100)) + '%' : (curTop + offset) + 'px';
+        const newEl = addTextBox({
+          text: it.el.dataset.text || '',
+          x: newLeft, y: newTop,
+          w: it.el.style.width || '200px',
+          h: it.el.style.height || 'auto',
+          fontSize: it.el.dataset.fontSize,
+          fontFamily: it.el.dataset.fontFamily,
+          fontWeight: it.el.dataset.fontWeight,
+          fontStyle: it.el.dataset.fontStyle,
+          color: it.el.dataset.color,
+          align: it.el.dataset.align,
+          dir: it.el.dataset.dir,
+          isEquation: it.el.dataset.isEquation === 'true',
+        }, false);
+        newSelected.push({ kind: 'text', el: newEl });
+      } else if (it.kind === 'media') {
+        const curLeft = parseFloat(it.el.style.left) || 0;
+        const curTop = parseFloat(it.el.style.top) || 0;
+        const isLeftPct = String(it.el.style.left).includes('%');
+        const isTopPct = String(it.el.style.top).includes('%');
+        const newLeft = isLeftPct ? (curLeft + (offset / (state.pdfW || 2000) * 100)) + '%' : (curLeft + offset) + 'px';
+        const newTop = isTopPct ? (curTop + (offset / (state.pdfH || 2828) * 100)) + '%' : (curTop + offset) + 'px';
+        const newEl = addMediaElement(
+          uid(), it.el.dataset.url, it.el.dataset.title, it.el.dataset.mediaType,
+          newLeft, newTop, it.el.style.width, it.el.style.height, false
+        );
+        newSelected.push({ kind: 'media', el: newEl });
+      } else if (it.kind === 'button') {
+        const curLeft = parseFloat(it.el.style.left) || 0;
+        const curTop = parseFloat(it.el.style.top) || 0;
+        const isLeftPct = String(it.el.style.left).includes('%');
+        const isTopPct = String(it.el.style.top).includes('%');
+        const newLeft = isLeftPct ? (curLeft + (offset / (state.pdfW || 2000) * 100)) + '%' : (curLeft + offset) + 'px';
+        const newTop = isTopPct ? (curTop + (offset / (state.pdfH || 2828) * 100)) + '%' : (curTop + offset) + 'px';
+        const newEl = addButtonElement({
+          text: it.el.dataset.text,
+          fillColor: it.el.dataset.fillColor,
+          fillOpacity: it.el.dataset.fillOpacity,
+          borderColor: it.el.dataset.borderColor,
+          borderOpacity: it.el.dataset.borderOpacity,
+          textColor: it.el.dataset.textColor,
+          fontSize: it.el.dataset.fontSize,
+          borderRadius: it.el.dataset.borderRadius,
+          isCorrect: it.el.dataset.isCorrect === 'true',
+          isLtr: it.el.dataset.isLtr === 'true',
+          x: newLeft, y: newTop,
+          w: it.el.style.width, h: it.el.style.height,
+        }, false);
+        newSelected.push({ kind: 'button', el: newEl });
+      }
+    } catch (_) {}
+  });
+
+  deselect();
+  state.selectedList = newSelected;
+  state.selected = newSelected[0] || null;
+  newSelected.forEach(it => it.el.classList.add('selected'));
+  drawSelectionOverlay();
+  commitChange(pre);
+  document.dispatchEvent(new CustomEvent('ipb:selectionChanged', {
+    detail: { selected: state.selected, list: state.selectedList }
+  }));
+}
+
+export function alignSelected(alignType, targetMode = 'selection') {
+  const items = state.selectedList && state.selectedList.length > 0
+    ? state.selectedList
+    : (state.selected ? [state.selected] : []);
+  if (items.length === 0) return;
+
+  if (items.length === 1) targetMode = 'canvas';
+
+  const pre = snapshot();
+  const boxes = items.map(it => ({
+    item: it,
+    box: getElementBBoxInStage(it.el),
+  })).filter(b => b.box != null);
+
+  if (boxes.length === 0) return;
+
+  let refLeft = 0, refTop = 0, refW = state.pdfW || 2000, refH = state.pdfH || 2828;
+  if (targetMode === 'selection') {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    boxes.forEach(b => {
+      minX = Math.min(minX, b.box.x);
+      minY = Math.min(minY, b.box.y);
+      maxX = Math.max(maxX, b.box.x + b.box.width);
+      maxY = Math.max(maxY, b.box.y + b.box.height);
+    });
+    refLeft = minX;
+    refTop = minY;
+    refW = maxX - minX;
+    refH = maxY - minY;
+  }
+
+  boxes.forEach(({ item, box }) => {
+    let targetX = box.x;
+    let targetY = box.y;
+
+    if (alignType === 'left') {
+      targetX = refLeft;
+    } else if (alignType === 'centerH') {
+      targetX = refLeft + (refW - box.width) / 2;
+    } else if (alignType === 'right') {
+      targetX = refLeft + refW - box.width;
+    } else if (alignType === 'top') {
+      targetY = refTop;
+    } else if (alignType === 'centerV') {
+      targetY = refTop + (refH - box.height) / 2;
+    } else if (alignType === 'bottom') {
+      targetY = refTop + refH - box.height;
+    }
+
+    const dx = targetX - box.x;
+    const dy = targetY - box.y;
+    applyElementDelta(item, dx, dy);
+  });
+
+  drawSelectionOverlay();
+  commitChange(pre);
+  document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
+}
+
+export function distributeSelected(axis, targetMode = 'selection') {
+  const items = state.selectedList && state.selectedList.length > 0
+    ? state.selectedList
+    : (state.selected ? [state.selected] : []);
+  if (items.length < 2) return;
+
+  const pre = snapshot();
+  const boxes = items.map(it => ({
+    item: it,
+    box: getElementBBoxInStage(it.el),
+  })).filter(b => b.box != null);
+
+  if (boxes.length < 2) return;
+
+  if (axis === 'horizontal') {
+    boxes.sort((a, b) => a.box.x - b.box.x);
+    const canvasW = state.pdfW || 2000;
+    let refLeft = targetMode === 'canvas' ? 0 : boxes[0].box.x;
+    let refRight = targetMode === 'canvas' ? canvasW : (boxes[boxes.length - 1].box.x + boxes[boxes.length - 1].box.width);
+    const totalW = boxes.reduce((acc, b) => acc + b.box.width, 0);
+    const availSpace = refRight - refLeft - totalW;
+
+    if (targetMode === 'selection' && boxes.length > 2) {
+      const gap = availSpace / (boxes.length - 1);
+      let curX = boxes[0].box.x;
+      boxes.forEach((b, idx) => {
+        if (idx > 0) {
+          const dx = curX - b.box.x;
+          applyElementDelta(b.item, dx, 0);
+        }
+        curX += b.box.width + gap;
+      });
+    } else if (targetMode === 'canvas') {
+      const gap = Math.max(0, availSpace / (boxes.length + 1));
+      let curX = refLeft + gap;
+      boxes.forEach(b => {
+        const dx = curX - b.box.x;
+        applyElementDelta(b.item, dx, 0);
+        curX += b.box.width + gap;
+      });
+    }
+  } else if (axis === 'vertical') {
+    boxes.sort((a, b) => a.box.y - b.box.y);
+    const canvasH = state.pdfH || 2828;
+    let refTop = targetMode === 'canvas' ? 0 : boxes[0].box.y;
+    let refBottom = targetMode === 'canvas' ? canvasH : (boxes[boxes.length - 1].box.y + boxes[boxes.length - 1].box.height);
+    const totalH = boxes.reduce((acc, b) => acc + b.box.height, 0);
+    const availSpace = refBottom - refTop - totalH;
+
+    if (targetMode === 'selection' && boxes.length > 2) {
+      const gap = availSpace / (boxes.length - 1);
+      let curY = boxes[0].box.y;
+      boxes.forEach((b, idx) => {
+        if (idx > 0) {
+          const dy = curY - b.box.y;
+          applyElementDelta(b.item, 0, dy);
+        }
+        curY += b.box.height + gap;
+      });
+    } else if (targetMode === 'canvas') {
+      const gap = Math.max(0, availSpace / (boxes.length + 1));
+      let curY = refTop + gap;
+      boxes.forEach(b => {
+        const dy = curY - b.box.y;
+        applyElementDelta(b.item, 0, dy);
+        curY += b.box.height + gap;
+      });
+    }
+  }
+
+  drawSelectionOverlay();
+  commitChange(pre);
+  document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
+}
+
+export function applyElementDelta(item, dx, dy) {
+  if (item.kind === 'svg') {
+    const orig = captureSvgGeom(item.el);
+    applySvgGeom(item.el, orig, dx, dy);
+  } else {
+    const curLeft = parseFloat(item.el.style.left) || 0;
+    const curTop = parseFloat(item.el.style.top) || 0;
+    const isLeftPct = String(item.el.style.left).includes('%');
+    const isTopPct = String(item.el.style.top).includes('%');
+    if (isLeftPct) {
+      item.el.style.left = (curLeft + (dx / (state.pdfW || 2000) * 100)) + '%';
+    } else {
+      item.el.style.left = (curLeft + dx) + 'px';
+    }
+    if (isTopPct) {
+      item.el.style.top = (curTop + (dy / (state.pdfH || 2828) * 100)) + '%';
+    } else {
+      item.el.style.top = (curTop + dy) + 'px';
+    }
+  }
 }
 
 /* ============================================================
@@ -861,7 +1263,12 @@ export function addTextBox(spec, save, z) {
     if (state.tool === 'select') {
       if (e.target.classList.contains('pdf-text-resize')) return;
       e.preventDefault(); e.stopPropagation();
-      selectTextBox(el);
+      const isAlreadySelected = (state.selectedList || []).some(it => it.el === el);
+      if (e.shiftKey) {
+        selectTextBox(el, true);
+      } else if (!isAlreadySelected) {
+        selectTextBox(el, false);
+      }
       try { el.setPointerCapture(e.pointerId); } catch (_) {}
       startTextDrag(el, e, 'move');
     } else if (state.tool === 'text' || state.tool === 'equation') {
@@ -899,29 +1306,65 @@ export function startTextDrag(el, e, mode) {
   const sW = er.width;
   const pre = snapshot();
 
+  const isMulti = state.selectedList && state.selectedList.length > 1 && state.selectedList.some(it => it.el === el);
+  const multiOrigs = isMulti ? state.selectedList.map(it => ({
+    item: it,
+    kind: it.kind,
+    svgOrig: it.kind === 'svg' ? captureSvgGeom(it.el) : null,
+    left: parseFloat(it.el.style.left) || 0,
+    top: parseFloat(it.el.style.top) || 0,
+    isLeftPct: String(it.el.style.left).includes('%'),
+    isTopPct: String(it.el.style.top).includes('%'),
+  })) : null;
+
   function onMove(ev) {
     const dx = ev.clientX - sX, dy = ev.clientY - sY;
     if (mode === 'move') {
-      const nl = sL + dx;
-      const nt = sT + dy;
-      el.style.left = (nl / sr.width * 100) + '%';
-      el.style.top = (nt / sr.height * 100) + '%';
+      if (isMulti && multiOrigs) {
+        const sx = (state.pdfW || 2000) / sr.width;
+        const sy = (state.pdfH || 2828) / sr.height;
+        const stageDx = dx * sx;
+        const stageDy = dy * sy;
+        multiOrigs.forEach(o => {
+          if (o.kind === 'svg') {
+            applySvgGeom(o.item.el, o.svgOrig, stageDx, stageDy);
+          } else {
+            if (o.isLeftPct) {
+              o.item.el.style.left = (o.left + (stageDx / (state.pdfW || 2000) * 100)) + '%';
+            } else {
+              o.item.el.style.left = (o.left + stageDx) + 'px';
+            }
+            if (o.isTopPct) {
+              o.item.el.style.top = (o.top + (stageDy / (state.pdfH || 2828) * 100)) + '%';
+            } else {
+              o.item.el.style.top = (o.top + stageDy) + 'px';
+            }
+          }
+        });
+      } else {
+        const nl = sL + dx;
+        const nt = sT + dy;
+        el.style.left = (nl / sr.width * 100) + '%';
+        el.style.top = (nt / sr.height * 100) + '%';
+      }
     } else {
       const nw = Math.max(60, sW + dx);
       el.style.width = nw + 'px';
     }
-    updateFloatingToolbarPosition();
+    drawSelectionOverlay();
+    document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
   }
   function onUp() {
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.removeEventListener('pointercancel', onUp);
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
     commitChange(pre);
-    updateFloatingToolbarPosition();
+    drawSelectionOverlay();
+    document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
   }
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-  document.addEventListener('pointercancel', onUp);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
 }
 
 function startEditTextBox(el) {
@@ -1094,44 +1537,26 @@ export function bindEquationEditor() {
 }
 
 /* ============================================================
-   §11. FLOATING TOOLBARS
+   §11. FLOATING TOOLBARS (تم استبدالها بلوحة الخصائص بالكامل)
    ============================================================ */
 function ensureDeleteBtn() {
-  if (!_floatingDeleteBtn) {
-    _floatingDeleteBtn = document.createElement('button');
-    _floatingDeleteBtn.className = 'element-delete-btn';
-    _floatingDeleteBtn.innerHTML = '×';
-    _floatingDeleteBtn.title = 'حذف العنصر';
-    _floatingDeleteBtn.addEventListener('pointerdown', e => e.stopPropagation());
-    _floatingDeleteBtn.addEventListener('click', e => {
-      e.stopPropagation(); e.preventDefault();
-      if (!state.selected) return;
-      const pre = snapshot();
-      const el = state.selected.el;
-      if (el) {
-        try {
-          const v = el.querySelector && el.querySelector('video');
-          if (v) { v.pause(); v.src = ''; }
-        } catch (_) {}
-        el.remove();
-      }
-      state.selected = null;
-      hideFloatingToolbars();
-      commitChange(pre);
-    });
-    document.body.appendChild(_floatingDeleteBtn);
+  if (_floatingDeleteBtn) {
+    try { _floatingDeleteBtn.remove(); } catch (_) {}
+    _floatingDeleteBtn = null;
   }
-  return _floatingDeleteBtn;
+  return null;
 }
 
 function showDeleteBtnFor(el) {
-  const btn = ensureDeleteBtn();
-  const r = el.getBoundingClientRect();
-  btn.style.left = (r.right - 13) + 'px';
-  btn.style.top = (r.top - 13) + 'px';
-  btn.style.display = 'flex';
+  // تم إلغاء الدائرة الحمراء نهائياً كما طلب المستخدم
+  hideDeleteBtn();
 }
-function hideDeleteBtn() { if (_floatingDeleteBtn) _floatingDeleteBtn.style.display = 'none'; }
+function hideDeleteBtn() {
+  if (_floatingDeleteBtn) {
+    try { _floatingDeleteBtn.remove(); } catch (_) {}
+    _floatingDeleteBtn = null;
+  }
+}
 
 export function hideTextContextToolbar() {
   if (textContextToolbar) {
@@ -1151,47 +1576,14 @@ export function hideFloatingToolbars() {
   hideDeleteBtn();
 }
 
-function positionToolbar(toolbarEl, el) {
-  if (!toolbarEl) return;
-  const r = el.getBoundingClientRect();
-  toolbarEl.style.visibility = 'hidden';
-  toolbarEl.style.left = '0';
-  toolbarEl.style.top = '0';
-  void toolbarEl.offsetWidth;
-  const tw = toolbarEl.offsetWidth, th = toolbarEl.offsetHeight;
-  let top = r.top - th - 8;
-  if (top < 8) top = r.bottom + 8;
-  let left = r.left + r.width/2 - tw/2;
-  if (left < 8) left = 8;
-  if (left + tw > window.innerWidth - 8) left = window.innerWidth - tw - 8;
-  toolbarEl.style.left = left + 'px';
-  toolbarEl.style.top = top + 'px';
-  toolbarEl.style.visibility = 'visible';
-}
-
 export function updateFloatingToolbarPosition() {
-  if (!state.selected) { hideFloatingToolbars(); return; }
-  const el = state.selected.el;
-  if (!el || !el.parentNode) { hideFloatingToolbars(); return; }
-
-  if (state.selected.kind === 'text' && textContextToolbar && textContextToolbar.classList.contains('show')) {
-    positionToolbar(textContextToolbar, el);
-    showDeleteBtnFor(el);
-  } else if (state.selected.kind === 'svg' && shapeContextToolbar && shapeContextToolbar.classList.contains('show')) {
-    positionToolbar(shapeContextToolbar, el);
-    showDeleteBtnFor(el);
-  } else {
-    showDeleteBtnFor(el);
-  }
+  // لا توجد أشرطة عائمة فوق العناصر بعد الآن
+  hideFloatingToolbars();
 }
 
 export function showFloatingToolbarForSelection() {
+  // جميع الخصائص تم توجيهها للوحة الخصائص والتصميم في الشريط الجانبي
   hideFloatingToolbars();
-  if (!state.selected) return;
-  const el = state.selected.el;
-  if (state.selected.kind === 'text') showTextContextToolbar(el);
-  else if (state.selected.kind === 'svg') showShapeContextToolbar(el);
-  else showDeleteBtnFor(el);
 }
 
 /* ============================================================
@@ -1542,31 +1934,68 @@ export function startEmbedDrag(el, e, mode) {
   const sL = er.left - sr.left, sT = er.top - sr.top;
   const sW = er.width, sH = er.height;
   const pre = snapshot();
+
+  const isMulti = state.selectedList && state.selectedList.length > 1 && state.selectedList.some(it => it.el === el);
+  const multiOrigs = isMulti ? state.selectedList.map(it => ({
+    item: it,
+    kind: it.kind,
+    svgOrig: it.kind === 'svg' ? captureSvgGeom(it.el) : null,
+    left: parseFloat(it.el.style.left) || 0,
+    top: parseFloat(it.el.style.top) || 0,
+    isLeftPct: String(it.el.style.left).includes('%'),
+    isTopPct: String(it.el.style.top).includes('%'),
+  })) : null;
+
   function onMove(ev) {
     const dx = ev.clientX - sX, dy = ev.clientY - sY;
     if (mode === 'move') {
-      const nl = sL + dx;
-      const nt = sT + dy;
-      el.style.left = (nl / sr.width * 100) + '%';
-      el.style.top = (nt / sr.height * 100) + '%';
+      if (isMulti && multiOrigs) {
+        const sx = (state.pdfW || 2000) / sr.width;
+        const sy = (state.pdfH || 2828) / sr.height;
+        const stageDx = dx * sx;
+        const stageDy = dy * sy;
+        multiOrigs.forEach(o => {
+          if (o.kind === 'svg') {
+            applySvgGeom(o.item.el, o.svgOrig, stageDx, stageDy);
+          } else {
+            if (o.isLeftPct) {
+              o.item.el.style.left = (o.left + (stageDx / (state.pdfW || 2000) * 100)) + '%';
+            } else {
+              o.item.el.style.left = (o.left + stageDx) + 'px';
+            }
+            if (o.isTopPct) {
+              o.item.el.style.top = (o.top + (stageDy / (state.pdfH || 2828) * 100)) + '%';
+            } else {
+              o.item.el.style.top = (o.top + stageDy) + 'px';
+            }
+          }
+        });
+      } else {
+        const nl = sL + dx;
+        const nt = sT + dy;
+        el.style.left = (nl / sr.width * 100) + '%';
+        el.style.top = (nt / sr.height * 100) + '%';
+      }
     } else {
       const nw = Math.max(80, sW + dx);
       const nh = Math.max(60, sH + dy);
       el.style.width = (nw / sr.width * 100) + '%';
       el.style.height = (nh / sr.height * 100) + '%';
     }
-    updateFloatingToolbarPosition();
+    drawSelectionOverlay();
+    document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
   }
   function onUp() {
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.removeEventListener('pointercancel', onUp);
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
     commitChange(pre);
-    updateFloatingToolbarPosition();
+    drawSelectionOverlay();
+    document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
   }
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-  document.addEventListener('pointercancel', onUp);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
 }
 
 export function startMediaDrag(el, e, mode) {
@@ -1576,31 +2005,68 @@ export function startMediaDrag(el, e, mode) {
   const sL = er.left - sr.left, sT = er.top - sr.top;
   const sW = er.width, sH = er.height;
   const pre = snapshot();
+
+  const isMulti = state.selectedList && state.selectedList.length > 1 && state.selectedList.some(it => it.el === el);
+  const multiOrigs = isMulti ? state.selectedList.map(it => ({
+    item: it,
+    kind: it.kind,
+    svgOrig: it.kind === 'svg' ? captureSvgGeom(it.el) : null,
+    left: parseFloat(it.el.style.left) || 0,
+    top: parseFloat(it.el.style.top) || 0,
+    isLeftPct: String(it.el.style.left).includes('%'),
+    isTopPct: String(it.el.style.top).includes('%'),
+  })) : null;
+
   function onMove(ev) {
     const dx = ev.clientX - sX, dy = ev.clientY - sY;
     if (mode === 'move') {
-      const nl = sL + dx;
-      const nt = sT + dy;
-      el.style.left = (nl / sr.width * 100) + '%';
-      el.style.top = (nt / sr.height * 100) + '%';
+      if (isMulti && multiOrigs) {
+        const sx = (state.pdfW || 2000) / sr.width;
+        const sy = (state.pdfH || 2828) / sr.height;
+        const stageDx = dx * sx;
+        const stageDy = dy * sy;
+        multiOrigs.forEach(o => {
+          if (o.kind === 'svg') {
+            applySvgGeom(o.item.el, o.svgOrig, stageDx, stageDy);
+          } else {
+            if (o.isLeftPct) {
+              o.item.el.style.left = (o.left + (stageDx / (state.pdfW || 2000) * 100)) + '%';
+            } else {
+              o.item.el.style.left = (o.left + stageDx) + 'px';
+            }
+            if (o.isTopPct) {
+              o.item.el.style.top = (o.top + (stageDy / (state.pdfH || 2828) * 100)) + '%';
+            } else {
+              o.item.el.style.top = (o.top + stageDy) + 'px';
+            }
+          }
+        });
+      } else {
+        const nl = sL + dx;
+        const nt = sT + dy;
+        el.style.left = (nl / sr.width * 100) + '%';
+        el.style.top = (nt / sr.height * 100) + '%';
+      }
     } else {
       const nw = Math.max(80, sW + dx);
       const nh = Math.max(60, sH + dy);
       el.style.width = (nw / sr.width * 100) + '%';
       el.style.height = (nh / sr.height * 100) + '%';
     }
-    updateFloatingToolbarPosition();
+    drawSelectionOverlay();
+    document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
   }
   function onUp() {
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.removeEventListener('pointercancel', onUp);
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
     commitChange(pre);
-    updateFloatingToolbarPosition();
+    drawSelectionOverlay();
+    document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
   }
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-  document.addEventListener('pointercancel', onUp);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
 }
 
 export function startButtonDrag(el, e, mode) {
@@ -1611,32 +2077,69 @@ export function startButtonDrag(el, e, mode) {
   const sW = er.width, sH = er.height;
   const pre = snapshot();
   let moved = false;
+
+  const isMulti = state.selectedList && state.selectedList.length > 1 && state.selectedList.some(it => it.el === el);
+  const multiOrigs = isMulti ? state.selectedList.map(it => ({
+    item: it,
+    kind: it.kind,
+    svgOrig: it.kind === 'svg' ? captureSvgGeom(it.el) : null,
+    left: parseFloat(it.el.style.left) || 0,
+    top: parseFloat(it.el.style.top) || 0,
+    isLeftPct: String(it.el.style.left).includes('%'),
+    isTopPct: String(it.el.style.top).includes('%'),
+  })) : null;
+
   function onMove(ev) {
     const dx = ev.clientX - sX, dy = ev.clientY - sY;
     if (!moved && Math.hypot(dx, dy) > 3) moved = true;
     if (mode === 'move') {
-      const nl = sL + dx;
-      const nt = sT + dy;
-      el.style.left = (nl / sr.width * 100) + '%';
-      el.style.top = (nt / sr.height * 100) + '%';
+      if (isMulti && multiOrigs) {
+        const sx = (state.pdfW || 2000) / sr.width;
+        const sy = (state.pdfH || 2828) / sr.height;
+        const stageDx = dx * sx;
+        const stageDy = dy * sy;
+        multiOrigs.forEach(o => {
+          if (o.kind === 'svg') {
+            applySvgGeom(o.item.el, o.svgOrig, stageDx, stageDy);
+          } else {
+            if (o.isLeftPct) {
+              o.item.el.style.left = (o.left + (stageDx / (state.pdfW || 2000) * 100)) + '%';
+            } else {
+              o.item.el.style.left = (o.left + stageDx) + 'px';
+            }
+            if (o.isTopPct) {
+              o.item.el.style.top = (o.top + (stageDy / (state.pdfH || 2828) * 100)) + '%';
+            } else {
+              o.item.el.style.top = (o.top + stageDy) + 'px';
+            }
+          }
+        });
+      } else {
+        const nl = sL + dx;
+        const nt = sT + dy;
+        el.style.left = (nl / sr.width * 100) + '%';
+        el.style.top = (nt / sr.height * 100) + '%';
+      }
     } else {
       const nw = Math.max(40, sW + dx);
       const nh = Math.max(24, sH + dy);
       el.style.width = nw + 'px';
       el.style.height = nh + 'px';
     }
-    updateFloatingToolbarPosition();
+    drawSelectionOverlay();
+    document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
   }
   function onUp() {
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.removeEventListener('pointercancel', onUp);
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
     if (moved) commitChange(pre);
-    updateFloatingToolbarPosition();
+    drawSelectionOverlay();
+    document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
   }
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-  document.addEventListener('pointercancel', onUp);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
 }
 
 export function installElementHooks() {
@@ -1940,21 +2443,52 @@ export function initPointerEvents() {
           orig: captureSvgGeom(state.selected.el),
           pre: snapshot(),
         };
+        try { stage.setPointerCapture(e.pointerId); } catch (_) {}
         e.preventDefault();
         return;
       }
       const annot = e.target.closest && e.target.closest('#svgLayer [data-annot]');
       if (annot && annot.tagName.toLowerCase() !== 'g' && !annot.classList.contains('handle')) {
-        selectAnnotation(annot);
+        const isAlreadySelected = (state.selectedList || []).some(it => it.el === annot);
+        if (e.shiftKey) {
+          selectAnnotation(annot, true);
+        } else if (!isAlreadySelected) {
+          selectAnnotation(annot, false);
+        }
+
+        const selectedItems = (state.selectedList && state.selectedList.length > 0)
+          ? state.selectedList
+          : [{ kind: 'svg', el: annot }];
+
         interaction = {
-          type: 'moveSvg', el: annot, start: p,
-          orig: captureSvgGeom(annot),
+          type: 'moveMulti',
+          start: p,
+          origs: selectedItems.map(it => ({
+            item: it,
+            kind: it.kind,
+            svgOrig: it.kind === 'svg' ? captureSvgGeom(it.el) : null,
+            left: parseFloat(it.el.style.left) || 0,
+            top: parseFloat(it.el.style.top) || 0,
+            isLeftPct: String(it.el.style.left).includes('%'),
+            isTopPct: String(it.el.style.top).includes('%'),
+          })),
           pre: snapshot(),
         };
+        try { stage.setPointerCapture(e.pointerId); } catch (_) {}
         e.preventDefault();
         return;
       }
-      deselect();
+
+      if (!e.shiftKey) deselect();
+      interaction = {
+        type: 'marquee',
+        start: p,
+        startClient: { x: e.clientX, y: e.clientY },
+        additive: e.shiftKey,
+        preSelected: e.shiftKey ? [...(state.selectedList || [])] : [],
+      };
+      try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+      e.preventDefault();
       return;
     }
 
@@ -2048,17 +2582,82 @@ export function initPointerEvents() {
       }
       return;
     }
-    if (interaction.type === 'moveSvg') {
-      applySvgGeom(interaction.el, interaction.orig, p.x - interaction.start.x, p.y - interaction.start.y);
-      drawSelectionOverlay(interaction.el);
-      updateFloatingToolbarPosition();
-      document.dispatchEvent(new CustomEvent('ipb:elementTransformed', { detail: { el: interaction.el } }));
+    if (interaction.type === 'marquee') {
+      const s = interaction.start;
+      const rx = Math.min(s.x, p.x), ry = Math.min(s.y, p.y);
+      const rw = Math.max(1, Math.abs(p.x - s.x)), rh = Math.max(1, Math.abs(p.y - s.y));
+
+      let mRect = selectionSvg ? selectionSvg.querySelector('.marquee-box') : null;
+      if (!mRect && selectionSvg) {
+        mRect = document.createElementNS(SVG_NS, 'rect');
+        mRect.setAttribute('class', 'marquee-box');
+        selectionSvg.appendChild(mRect);
+      }
+      if (mRect) {
+        mRect.setAttribute('x', rx);
+        mRect.setAttribute('y', ry);
+        mRect.setAttribute('width', rw);
+        mRect.setAttribute('height', rh);
+      }
+
+      const marqueeBox = { x: rx, y: ry, width: rw, height: rh };
+      const allSelectable = getAllSelectableElements();
+      const newlyHit = [];
+
+      allSelectable.forEach(item => {
+        const b = getElementBBoxInStage(item.el);
+        if (b && rectsIntersect(b, marqueeBox)) {
+          newlyHit.push(item);
+        }
+      });
+
+      const combined = [...interaction.preSelected];
+      newlyHit.forEach(item => {
+        if (!combined.some(it => it.el === item.el)) {
+          combined.push(item);
+        }
+      });
+
+      allSelectable.forEach(it => {
+        const isSel = combined.some(c => c.el === it.el);
+        it.el.classList.toggle('selected', isSel);
+      });
+
+      state.selectedList = combined;
+      state.selected = combined.length > 0 ? combined[0] : null;
+      drawSelectionOverlay();
+      return;
+    }
+    if (interaction.type === 'moveMulti' || interaction.type === 'moveSvg') {
+      const dx = p.x - interaction.start.x;
+      const dy = p.y - interaction.start.y;
+      if (interaction.origs) {
+        interaction.origs.forEach(o => {
+          if (o.kind === 'svg') {
+            applySvgGeom(o.item.el, o.svgOrig, dx, dy);
+          } else {
+            if (o.isLeftPct) {
+              o.item.el.style.left = (o.left + (dx / (state.pdfW || 2000) * 100)) + '%';
+            } else {
+              o.item.el.style.left = (o.left + dx) + 'px';
+            }
+            if (o.isTopPct) {
+              o.item.el.style.top = (o.top + (dy / (state.pdfH || 2828) * 100)) + '%';
+            } else {
+              o.item.el.style.top = (o.top + dy) + 'px';
+            }
+          }
+        });
+      } else if (interaction.orig) {
+        applySvgGeom(interaction.el, interaction.orig, dx, dy);
+      }
+      drawSelectionOverlay();
+      document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
       return;
     }
     if (interaction.type === 'resizeSvg') {
       resizeSvg(interaction.el, interaction.handle, interaction.start, interaction.orig, p);
       drawSelectionOverlay(interaction.el);
-      updateFloatingToolbarPosition();
       document.dispatchEvent(new CustomEvent('ipb:elementTransformed', { detail: { el: interaction.el } }));
       return;
     }
@@ -2076,6 +2675,27 @@ export function initPointerEvents() {
     try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
 
     if (inter.type === 'stroke') { endStroke(); return; }
+    if (inter.type === 'marquee') {
+      const mRect = selectionSvg ? selectionSvg.querySelector('.marquee-box') : null;
+      if (mRect) mRect.remove();
+      interaction = null;
+      if (!state.selectedList || state.selectedList.length === 0) {
+        deselect();
+      } else {
+        drawSelectionOverlay();
+        document.dispatchEvent(new CustomEvent('ipb:selectionChanged', {
+          detail: { selected: state.selected, list: state.selectedList }
+        }));
+      }
+      return;
+    }
+    if (inter.type === 'moveMulti' || inter.type === 'moveSvg') {
+      commitChange(inter.pre);
+      drawSelectionOverlay();
+      interaction = null;
+      document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
+      return;
+    }
     interaction = null;
     if (inter.type === 'pan') return;
 
@@ -2137,6 +2757,15 @@ export function initPointerEvents() {
       interaction = null;
       clearTransient();
       if (strokeRAF) { cancelAnimationFrame(strokeRAF); strokeRAF = null; }
+    }
+  });
+
+  // ضمان استمرار وإتمام السحب خارج الكانفاس بدون أي فقدان أو تجمد
+  window.addEventListener('pointerup', e => {
+    if (!interaction) return;
+    if (interaction.type === 'moveMulti' || interaction.type === 'moveSvg' || interaction.type === 'resizeSvg' || interaction.type === 'marquee') {
+      const upEvt = new PointerEvent('pointerup', e);
+      stage.dispatchEvent(upEvt);
     }
   });
 

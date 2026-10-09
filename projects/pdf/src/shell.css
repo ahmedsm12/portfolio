@@ -60,6 +60,8 @@ body:not(.has-project) #propsRight,
 body.no-project #propsRight,
 body:not(.has-project) .props-toggle-btn,
 body.no-project .props-toggle-btn,
+body:not(.has-project) .sidebar-toggle-btn,
+body.no-project .sidebar-toggle-btn,
 body:not(.has-project) #bottomPanel,
 body.no-project #bottomPanel,
 body:not(.has-project) #canvasControls,
@@ -355,11 +357,50 @@ body.tools-hidden.has-project .show-tools-btn {
 #thumbnailSidebar.collapsed {
   transform: translateX(-100%) !important;
 }
+.sidebar-toggle-btn {
+  position: fixed;
+  left: var(--sidebar-w);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 54px;
+  background: var(--sh-panel);
+  border: 1px solid var(--sh-border);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  color: var(--sh-text-muted);
+  cursor: pointer;
+  font-size: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1079;
+  transition: left .22s ease, background .12s, color .12s;
+  font-family: inherit;
+  padding: 0;
+}
+.sidebar-toggle-btn::before {
+  content: '‹';
+  font-size: 16px;
+}
+.sidebar-toggle-btn:hover {
+  background: var(--sh-panel-2);
+  color: var(--sh-text);
+}
+#thumbnailSidebar.collapsed ~ .sidebar-toggle-btn,
+body.sidebar-collapsed .sidebar-toggle-btn {
+  left: 0 !important;
+}
+#thumbnailSidebar.collapsed ~ .sidebar-toggle-btn::before,
+body.sidebar-collapsed .sidebar-toggle-btn::before {
+  content: '›';
+}
 #btnShowSidebar {
   position: fixed;
   left: 10px;
   top: calc(var(--topbar-h) + 10px);
   z-index: 1079;
+  display: none !important;
 }
 
 /* ═══ STAGE ═══ */
@@ -851,15 +892,306 @@ body.props-hidden .props-toggle-btn::before {
   border-color: var(--sh-accent);
 }
 
-/* ═══ SUBMENU + FLOATING TOOLBARS ═══ */
+/* ═══ SUBMENU (شريط خيارات الأداة السريع — متناسق ومريح بدون حجب الكانفاس) ═══ */
 #submenu {
-  right: auto;
-  left: calc(var(--tools-w) + 4px);
-  z-index: 1250 !important;
+  position: fixed !important;
+  top: calc(var(--topbar-h) + 54px) !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important;
+  height: 46px !important;
+  max-height: 46px !important;
+  background: var(--sh-panel) !important;
+  border: 1px solid var(--sh-border) !important;
+  border-radius: var(--sh-radius) !important;
+  display: none;
+  flex-direction: row !important;
+  align-items: center !important;
+  padding: 0 12px !important;
+  gap: 10px !important;
+  z-index: 1145 !important;
+  box-shadow: 0 12px 36px rgba(0,0,0,.65) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  max-width: calc(100vw - 40px) !important;
+  scrollbar-width: none !important;
+  white-space: nowrap !important;
+}
+#submenu.show {
+  display: flex !important;
+}
+#submenu::-webkit-scrollbar { display: none !important; }
+
+#submenu .submenu-head {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 0 8px 0 0 !important;
+  margin: 0 !important;
+  border-bottom: none !important;
+  border-left: 1px solid var(--sh-border) !important;
+  height: 32px !important;
+}
+#submenu .submenu-head .sub-title {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: var(--sh-accent) !important;
+  white-space: nowrap !important;
+}
+#submenu .submenu-head .sub-close {
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 6px !important;
+  background: rgba(255,255,255,.08) !important;
+  border: none !important;
+  color: var(--sh-text-dim) !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 11px !important;
+  transition: all .12s !important;
+}
+#submenu .submenu-head .sub-close:hover {
+  background: rgba(239,68,68,.35) !important;
+  color: #fff !important;
+}
+
+#submenu .sub-section {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 0 6px !important;
+  margin: 0 !important;
+  border-top: none !important;
+  border-left: 1px solid rgba(255,255,255,.08) !important;
+  height: 32px !important;
+}
+#submenu .sub-section:last-child {
+  border-left: none !important;
+}
+#submenu .sub-label {
+  font-size: 10.5px !important;
+  color: var(--sh-text-dim) !important;
+  padding: 0 !important;
+  white-space: nowrap !important;
+  font-weight: 600 !important;
+}
+
+#submenu .color-grid,
+#submenu .size-grid,
+#submenu .smooth-grid,
+#submenu .shape-grid,
+#submenu .txt-align-grid,
+#submenu .txt-dir-grid {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 0 !important;
+}
+#submenu .color-btn {
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 50% !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+  padding: 0 !important;
+  border: 2px solid rgba(255,255,255,.15) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: transform .12s, box-shadow .12s !important;
+}
+#submenu .color-btn .swatch {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 50% !important;
+}
+#submenu .color-btn:hover {
+  transform: scale(1.1) !important;
+}
+#submenu .color-btn.active {
+  border-color: #fff !important;
+  box-shadow: 0 0 0 2px var(--sh-accent), 0 0 8px rgba(74,126,255,.6) !important;
+  transform: scale(1.12) !important;
+}
+#submenu .size-btn {
+  width: auto !important;
+  min-width: 32px !important;
+  height: 28px !important;
+  padding: 0 6px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  background: rgba(255,255,255,.05) !important;
+  border: 1px solid var(--sh-border) !important;
+  color: var(--sh-text) !important;
+  cursor: pointer !important;
+  transition: all .12s !important;
+}
+#submenu .size-btn:hover {
+  background: var(--sh-hover) !important;
+  border-color: var(--sh-accent) !important;
+}
+#submenu .size-btn.active {
+  background: rgba(74,126,255,.2) !important;
+  border-color: var(--sh-accent) !important;
+  color: #fff !important;
+}
+#submenu .smooth-btn {
+  width: auto !important;
+  min-width: 30px !important;
+  height: 26px !important;
+  padding: 0 6px !important;
+  font-size: 10.5px !important;
+  font-weight: 500 !important;
+  border-radius: 6px !important;
+}
+#submenu .shape-btn {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 13px !important;
+  border-radius: 6px !important;
+}
+#submenu .txt-align-btn,
+#submenu .txt-dir-btn {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+}
+
+/* ═══ إخفاء الدائرة الحمراء والشريط العائم فوق الكائنات ═══ */
+.element-delete-btn {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 #textContextToolbar,
 #shapeContextToolbar {
-  z-index: 1255 !important;
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+/* ═══ مستطيل التحديد الشفاف (Marquee Selection Box) ═══ */
+.marquee-box {
+  fill: rgba(74, 126, 255, 0.16) !important;
+  stroke: #4a7eff !important;
+  stroke-width: 1.5 !important;
+  stroke-dasharray: 4 3 !important;
+  pointer-events: none !important;
+}
+
+/* ═══ السماح بتحريك الكائنات خارج الـ CANVAS بحرية كاملة ═══ */
+#stageWrapper,
+#stage,
+#stageContent,
+#svgLayer,
+#svgLayer > .annot-wrapper,
+#svgLayer > .annot-wrapper > svg,
+#selectionSvg,
+#embedLayer,
+#videoLayer,
+#textLayer,
+#interactiveLayer {
+  overflow: visible !important;
+}
+
+/* ═══ خيارات المحاذاة والتوزيع في لوحة الخصائص ═══ */
+.align-target-switch {
+  display: flex;
+  background: var(--sh-panel-2);
+  border: 1px solid var(--sh-border);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+.align-target-btn {
+  flex: 1;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--sh-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: inherit;
+  transition: all .12s;
+}
+.align-target-btn:hover {
+  color: var(--sh-text);
+}
+.align-target-btn.active {
+  background: var(--sh-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.align-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.align-action-btn {
+  height: 28px;
+  border-radius: 6px;
+  background: var(--sh-panel-2);
+  border: 1px solid var(--sh-border);
+  color: var(--sh-text);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .12s;
+  padding: 0;
+}
+.align-action-btn:hover {
+  background: var(--sh-hover);
+  border-color: var(--sh-accent);
+  color: #fff;
+}
+.distribute-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.distribute-action-btn {
+  height: 28px;
+  border-radius: 6px;
+  background: var(--sh-panel-2);
+  border: 1px solid var(--sh-border);
+  color: var(--sh-text);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: inherit;
+  transition: all .12s;
+}
+.distribute-action-btn:hover {
+  background: var(--sh-hover);
+  border-color: var(--sh-accent);
+  color: #fff;
 }
 
 /* ═══ EQUATION DIALOG ═══ */

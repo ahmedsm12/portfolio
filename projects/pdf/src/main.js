@@ -69,6 +69,7 @@ export function setTool(tool) {
   });
   updateCursorForTool();
   if (tool !== 'select') hideFloatingToolbars();
+  document.dispatchEvent(new CustomEvent('ipb:toolChanged', { detail: { tool } }));
 }
 
 /* ============================================================
@@ -76,14 +77,14 @@ export function setTool(tool) {
    ============================================================ */
 let submenuOwner = null;
 
-function closeSubmenu() {
+export function closeSubmenu() {
   if (!submenu) return;
   submenu.classList.remove('show');
   submenu.innerHTML = '';
   submenuOwner = null;
 }
 
-function repositionSubmenu() {
+export function repositionSubmenu() {
   if (!submenuOwner || !submenu || !submenu.classList.contains('show')) return;
   const r = submenuOwner.getBoundingClientRect();
   let top = r.bottom + 6;
@@ -98,7 +99,7 @@ function repositionSubmenu() {
   submenu.style.left = left + 'px';
 }
 
-function openSubmenu(ownerBtn, kind) {
+export function openSubmenu(ownerBtn, kind) {
   if (!submenu) return;
   submenuOwner = ownerBtn;
   const t = {
@@ -107,7 +108,7 @@ function openSubmenu(ownerBtn, kind) {
     equation: 'معادلة',
   }[kind] || '';
   submenu.innerHTML =
-    `<div class="submenu-head"><span class="sub-title">${t}</span><button type="button" class="sub-close">×</button></div>` +
+    `<div class="submenu-head"><span class="sub-title">${t}</span><button type="button" class="sub-close" title="إغلاق القائمة">✕</button></div>` +
     renderSubmenuHTML(kind);
   submenu.classList.add('show');
   requestAnimationFrame(repositionSubmenu);
@@ -128,41 +129,43 @@ function renderSubmenuHTML(kind) {
 }
 
 function renderSmoothingSection(current) {
-  const labels = ['٠','١','٢','٣'];
-  return `<div class="sub-section"><div class="sub-label">نعومة الخط</div><div class="smooth-grid">` +
+  const labels = ['بدون','خفيف','متوسط','عالي'];
+  return `<div class="sub-section"><div class="sub-label">النعومة</div><div class="smooth-grid">` +
     labels.map((l, i) => `<button type="button" class="smooth-btn ${i===current?'active':''}" data-smooth="${i}">${l}</button>`).join('') +
     `</div></div>`;
 }
 
 function renderPenSubmenu() {
-  const colors = ['#000000','#e11d48','#2563eb','#eab308'];
-  const sizes = [2,5,10];
+  const colors = ['#000000','#2563eb','#dc2626','#16a34a','#eab308','#9333ea','#ffffff'];
+  const sizes = [2,5,10,16];
   return `
   <div class="sub-section"><div class="sub-label">اللون</div><div class="color-grid">${colors.map(c =>
     `<button type="button" class="color-btn ${c===state.penColor?'active':''}" data-kind="pen" data-color="${c}"><div class="swatch" style="background:${c}"></div></button>`
-  ).join('')}</div></div>
+  ).join('')}
+  <input type="color" id="subPenCustomColor" value="${state.penColor}" style="width:24px;height:24px;border:none;background:transparent;cursor:pointer;border-radius:4px" title="لون مخصص">
+  </div></div>
   <div class="sub-section"><div class="sub-label">الحجم</div><div class="size-grid">${sizes.map(s =>
-    `<button type="button" class="size-btn ${s===state.penSize?'active':''}" data-kind="pen" data-size="${s}"><div class="dot" style="width:${Math.min(20,Math.max(3,s))}px;height:${Math.min(20,Math.max(3,s))}px"></div></button>`
+    `<button type="button" class="size-btn ${s===state.penSize?'active':''}" data-kind="pen" data-size="${s}"><div class="dot" style="width:${Math.min(18,Math.max(4,s))}px;height:${Math.min(18,Math.max(4,s))}px"></div><span style="font-size:9.5px">${s}</span></button>`
   ).join('')}</div></div>
   ${renderSmoothingSection(state.penSmoothing)}`;
 }
 
 function renderHighlighterSubmenu() {
-  const colors = ['#ff0000','#2563eb','#22c55e','#eab308'];
-  const sizes = [8,16,30];
+  const colors = ['#fde047','#86efac','#93c5fd','#f472b6','#fdba74'];
+  const sizes = [10,18,28,40];
   return `
   <div class="sub-section"><div class="sub-label">اللون</div><div class="color-grid">${colors.map(c =>
     `<button type="button" class="color-btn ${c===state.highlighterColor?'active':''}" data-kind="highlighter" data-color="${c}"><div class="swatch" style="background:${c}"></div></button>`
   ).join('')}</div></div>
   <div class="sub-section"><div class="sub-label">الحجم</div><div class="size-grid">${sizes.map(s =>
-    `<button type="button" class="size-btn ${s===state.highlighterSize?'active':''}" data-kind="highlighter" data-size="${s}"><div class="dot" style="width:${Math.min(20,Math.max(3,s/1.5))}px;height:${Math.min(20,Math.max(3,s/1.5))}px"></div></button>`
+    `<button type="button" class="size-btn ${s===state.highlighterSize?'active':''}" data-kind="highlighter" data-size="${s}"><div class="dot" style="width:${Math.min(18,Math.max(5,s/2))}px;height:${Math.min(18,Math.max(5,s/2))}px"></div><span style="font-size:9.5px">${s}</span></button>`
   ).join('')}</div></div>
   ${renderSmoothingSection(state.highlighterSmoothing)}`;
 }
 
 function renderLaserSubmenu() {
   const colors = ['#ff0000','#2563eb','#22c55e','#eab308'];
-  const sizes = [3,6,12];
+  const sizes = [4,8,14];
   const lives = [{ms:2000,l:'2 ث'},{ms:3000,l:'3 ث'},{ms:5000,l:'5 ث'}];
   const innerColors = [
     {c:'#ffffff',t:'أبيض'},{c:'#000000',t:'أسود'},{c:'#ff0000',t:'أحمر'},
@@ -170,30 +173,30 @@ function renderLaserSubmenu() {
   ];
   const glows = [{v:1.5,l:'خفيف'},{v:3,l:'متوسط'},{v:6,l:'قوي'}];
   return `
-  <div class="sub-section"><div class="sub-label">لون الـ Glow</div><div class="color-grid">${colors.map(c =>
+  <div class="sub-section"><div class="sub-label">لون Glow</div><div class="color-grid">${colors.map(c =>
     `<button type="button" class="color-btn ${c===state.laserColor?'active':''}" data-kind="laser" data-color="${c}"><div class="swatch" style="background:${c}"></div></button>`
   ).join('')}</div></div>
-  <div class="sub-section"><div class="sub-label">شدة الـ Glow</div><div class="size-grid">${glows.map(o =>
+  <div class="sub-section"><div class="sub-label">الشدة</div><div class="size-grid">${glows.map(o =>
     `<button type="button" class="size-btn ${o.v===state.laserGlowIntensity?'active':''}" data-kind="laserGlow" data-size="${o.v}">${o.l}</button>`
   ).join('')}</div></div>
-  <div class="sub-section"><div class="sub-label">اللون الداخلي</div><div class="color-grid">${innerColors.map(o =>
+  <div class="sub-section"><div class="sub-label">القلب الداخلي</div><div class="color-grid">${innerColors.map(o =>
     `<button type="button" class="color-btn ${o.c===state.laserInnerColor?'active':''} ${o.c==='transparent'?'transparent':''}" data-kind="laserInner" data-color="${o.c}" title="${o.t}"><div class="swatch" style="background:${o.c==='transparent'?'transparent':o.c}"></div></button>`
   ).join('')}</div></div>
   <div class="sub-section"><div class="sub-label">الحجم</div><div class="size-grid">${sizes.map(s =>
-    `<button type="button" class="size-btn ${s===state.laserSize?'active':''}" data-kind="laser" data-size="${s}"><div class="dot" style="width:${Math.max(3,s)}px;height:${Math.max(3,s)}px"></div></button>`
+    `<button type="button" class="size-btn ${s===state.laserSize?'active':''}" data-kind="laser" data-size="${s}"><div class="dot" style="width:${Math.max(4,s)}px;height:${Math.max(4,s)}px"></div><span style="font-size:9.5px">${s}</span></button>`
   ).join('')}</div></div>
-  <div class="sub-section"><div class="sub-label">مدة الظهور</div><div class="size-grid">${lives.map(o =>
+  <div class="sub-section"><div class="sub-label">المدة</div><div class="size-grid">${lives.map(o =>
     `<button type="button" class="size-btn ${o.ms===state.laserLifeMs?'active':''}" data-kind="laserLife" data-size="${o.ms}">${o.l}</button>`
   ).join('')}</div></div>`;
 }
 
 function renderEraserSubmenu() {
-  const sizes = [10,20,36];
+  const sizes = [12,24,40];
   return `
   <div class="sub-section"><div class="sub-label">الحجم</div><div class="size-grid">${sizes.map(s =>
-    `<button type="button" class="size-btn ${s===state.eraserSize?'active':''}" data-kind="eraser" data-size="${s}"><div class="dot" style="width:${Math.max(3,s/2)}px;height:${Math.max(3,s/2)}px"></div></button>`
+    `<button type="button" class="size-btn ${s===state.eraserSize?'active':''}" data-kind="eraser" data-size="${s}"><div class="dot" style="width:${Math.max(4,s/2)}px;height:${Math.max(4,s/2)}px"></div><span style="font-size:9.5px">${s}</span></button>`
   ).join('')}</div></div>
-  <div class="sub-section"><div class="color-input-row"><label><input type="checkbox" id="subEraseShapes" ${state.eraserErasesShapes?'checked':''}> امسح الأشكال</label></div></div>`;
+  <div class="sub-section"><div class="color-input-row"><label style="font-size:11px;cursor:pointer"><input type="checkbox" id="subEraseShapes" ${state.eraserErasesShapes?'checked':''}> مسح الأشكال</label></div></div>`;
 }
 
 function renderShapeSubmenu() {
@@ -351,6 +354,12 @@ function bindSubmenuHandlers() {
 
 if (submenu) {
   submenu.addEventListener('input', e => {
+    if (e.target.id === 'subPenCustomColor') {
+      state.penColor = e.target.value;
+      updateToolbarIndicators();
+      updateCursorForTool();
+      document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
+    }
     if (e.target.id === 'subShapeStroke') state.shapeStroke = e.target.value;
     if (e.target.id === 'subShapeFill') state.shapeFill = e.target.value;
     if (e.target.id === 'subNoFill') {
@@ -360,13 +369,14 @@ if (submenu) {
     }
     if (e.target.id === 'subEraseShapes') state.eraserErasesShapes = e.target.checked;
     if (e.target.id === 'subTextFont') state.textFamily = e.target.value;
+    document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
   });
 }
 
 /* ============================================================
    §3. TOOLBAR
    ============================================================ */
-function updateToolbarIndicators() {
+export function updateToolbarIndicators() {
   if (!toolbar) return;
   const p = toolbar.querySelector('button[data-tool="pen"]');
   const hh = toolbar.querySelector('button[data-tool="highlighter"]');
@@ -402,9 +412,25 @@ function bindToolbar() {
       if (tool === 'equation') { setTool('equation'); openEquationEditor(null); return; }
 
       const hasSub = btn.dataset.submenu;
+      if (state.tool === tool && hasSub && submenu && submenu.classList.contains('show')) {
+        closeSubmenu();
+        return;
+      }
       setTool(tool);
       if (hasSub) openSubmenu(btn, tool);
     });
+  });
+
+  document.addEventListener('pointerdown', e => {
+    if (!submenu || !submenu.classList.contains('show')) return;
+    if (e.target.closest('#submenu') || e.target.closest('#toolbar')) return;
+    closeSubmenu();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && submenu && submenu.classList.contains('show')) {
+      closeSubmenu();
+    }
   });
 }
 
