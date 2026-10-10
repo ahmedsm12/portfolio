@@ -11,25 +11,6 @@
 
 export const APP_VERSION = '0.5.1';
 
-import { toast, state } from './core.js';
-import * as shapes from './shapes.js';
-
-function safeToast(msg, type) {
-  try {
-    if (typeof toast === 'function') {
-      toast(msg, type);
-    } else {
-      const el = document.createElement('div');
-      el.className = 'toast' + (type ? ' ' + type : '');
-      el.textContent = msg;
-      document.body.appendChild(el);
-      setTimeout(() => el.remove(), 2400);
-    }
-  } catch (_) {
-    console.log(msg);
-  }
-}
-
 /* ============================================================
    §1. VERSION
    ============================================================ */
@@ -121,8 +102,6 @@ function initBottomPanel() {
    §5. LAYERS PANEL
    ============================================================ */
 function getLayerIcon(type) {
-  if (type === 'pdf-page') return '📄';
-  if (type === 'slide-bg') return '🎨';
   if (type === 'image') return '🖼';
   if (type === 'text') return 'T';
   if (type === 'equation') return '∑';
@@ -218,33 +197,6 @@ export function refreshLayersPanel() {
     });
   }
 
-  // ★ اعتبار صفحة PDF / خلفية الشريحة عبارة عن layer أساسية
-  const pdfCanvas = document.getElementById('pdfCanvas');
-  const hasProject = document.body.classList.contains('has-project');
-  if (pdfCanvas && hasProject) {
-    let isPdf = false;
-    let pageNum = 1;
-    try {
-      if (window.__CORE__ && window.__CORE__.state) {
-        const s = window.__CORE__.state;
-        const sl = s.slides && s.slides[s.currentPage - 1];
-        isPdf = !!(s.pdfDoc || (sl && sl.bg && sl.bg.type === 'pdf'));
-        pageNum = (sl && sl.bg && sl.bg.page) || s.currentPage || 1;
-      }
-    } catch (_) {}
-    const isVisible = pdfCanvas.style.visibility !== 'hidden' && pdfCanvas.style.display !== 'none';
-    items.push({
-      el: pdfCanvas,
-      kind: 'canvas',
-      type: isPdf ? 'pdf-page' : 'slide-bg',
-      name: isPdf ? `صفحة PDF (${pageNum})` : 'خلفية الشريحة',
-      z: -9999,
-      id: 'pdf-page-canvas-layer',
-      isBaseLayer: true,
-      visible: isVisible,
-    });
-  }
-
   items.sort((a, b) => a.z - b.z);
   const displayItems = items.slice().reverse();
 
@@ -260,22 +212,14 @@ export function refreshLayersPanel() {
   displayItems.forEach((item, displayIdx) => {
     const row = document.createElement('div');
     row.className = 'layer-row';
+    row.draggable = true;
     row.dataset.zidx = String(item.z);
     row.dataset.id = item.id || '';
 
     const dragHandle = document.createElement('span');
     dragHandle.className = 'ly-drag-handle';
-    if (item.isBaseLayer) {
-      row.draggable = false;
-      dragHandle.textContent = '🔒';
-      dragHandle.title = 'الطبقة الأساسية (مقفل)';
-      dragHandle.style.cursor = 'default';
-      dragHandle.style.opacity = '0.7';
-    } else {
-      row.draggable = true;
-      dragHandle.textContent = '⋮⋮';
-      dragHandle.title = 'اسحب لإعادة الترتيب';
-    }
+    dragHandle.textContent = '⋮⋮';
+    dragHandle.title = 'اسحب لإعادة الترتيب';
 
     const iconSpan = document.createElement('span');
     iconSpan.className = 'ly-icon';
@@ -286,7 +230,7 @@ export function refreshLayersPanel() {
     nameSpan.textContent = item.name;
 
     const visSpan = document.createElement('span');
-    visSpan.className = 'ly-toggle ' + (item.visible !== false ? 'on' : '');
+    visSpan.className = 'ly-toggle on';
     visSpan.dataset.act = 'vis';
     visSpan.title = 'إظهار / إخفاء';
     visSpan.textContent = '👁';
@@ -299,22 +243,14 @@ export function refreshLayersPanel() {
     row.addEventListener('click', (e) => {
       if (e.target.dataset.act === 'vis') {
         const visible = e.target.classList.toggle('on');
-        if (item.isBaseLayer) {
-          item.el.style.visibility = visible ? 'visible' : 'hidden';
-        } else {
-          item.el.style.display = visible ? '' : 'none';
-        }
+        item.el.style.display = visible ? '' : 'none';
         return;
       }
       list.querySelectorAll('.layer-row').forEach(r => r.classList.remove('active'));
       row.classList.add('active');
-      if (item.isBaseLayer) {
-        showDocumentDimsPanel();
-      } else {
-        document.dispatchEvent(new CustomEvent('ipb:selectLayer', {
-          detail: { el: item.el, kind: item.kind },
-        }));
-      }
+      document.dispatchEvent(new CustomEvent('ipb:selectLayer', {
+        detail: { el: item.el, kind: item.kind },
+      }));
     });
 
     row.addEventListener('dragstart', (e) => {
@@ -1878,95 +1814,6 @@ function initElementDesignProps() {
         const curStroke = inner.getAttribute('stroke') || '#000000';
         const curFill = inner.getAttribute('fill') || 'none';
         const curSW = inner.getAttribute('stroke-width') || '3';
-        const tag = inner.tagName ? inner.tagName.toLowerCase() : '';
-        const shapeType = inner.dataset.type || tag;
-
-        let extraPropsHtml = '';
-
-        if (tag === 'rect') {
-          const curRx = parseFloat(inner.getAttribute('rx') || '0');
-          extraPropsHtml += `
-            <div class="prop-section">
-              <div class="prop-title">📐 استدارة الزوايا (Corner Radius)</div>
-              <div class="prop-row" style="grid-template-columns:1fr auto;gap:8px;align-items:center">
-                <input type="range" class="prop-input" id="shapeRadiusSlider" min="0" max="80" value="${curRx}" style="accent-color:var(--sh-accent);cursor:pointer"/>
-                <input type="number" class="prop-input" id="shapeRadiusInput" min="0" max="150" value="${curRx}" style="width:50px;text-align:center"/>
-              </div>
-              <div class="prop-row" style="grid-template-columns:repeat(4,1fr);gap:4px;margin-top:6px">
-                <button type="button" class="prop-input preset-radius-btn" data-r="0">حاد 0</button>
-                <button type="button" class="prop-input preset-radius-btn" data-r="12">خفيف 12</button>
-                <button type="button" class="prop-input preset-radius-btn" data-r="24">متوسط 24</button>
-                <button type="button" class="prop-input preset-radius-btn" data-r="50">كبسولة 50</button>
-              </div>
-            </div>
-          `;
-        } else if (shapeType === 'curve') {
-          extraPropsHtml += `
-            <div class="prop-section">
-              <div class="prop-title">〰️ التحكم في المنحنى (Curve)</div>
-              <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
-                <button type="button" class="prop-input" id="curveFlipBtn">🔄 عكس الانحناء</button>
-                <button type="button" class="prop-input" id="curveStraightenBtn">━ تسوية الخط</button>
-              </div>
-            </div>
-          `;
-        } else if (shapeType === 'cartesian') {
-          const curRange = inner.dataset.range || '5';
-          const curGrid = inner.dataset.showGrid !== 'false';
-          const curNums = inner.dataset.showNumbers !== 'false';
-          const curLang = inner.dataset.lang || 'ar';
-          extraPropsHtml += `
-            <div class="prop-section">
-              <div class="prop-title">📈 خصائص المستوى الديكارتي</div>
-              <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:6px">
-                <div class="prop-field">
-                  <label>نطاق المحاور</label>
-                  <select class="prop-input" id="cartesianRangeSelect">
-                    <option value="3" ${curRange === '3' ? 'selected' : ''}>-3 إلى 3</option>
-                    <option value="5" ${curRange === '5' ? 'selected' : ''}>-5 إلى 5</option>
-                    <option value="8" ${curRange === '8' ? 'selected' : ''}>-8 إلى 8</option>
-                    <option value="10" ${curRange === '10' ? 'selected' : ''}>-10 إلى 10</option>
-                  </select>
-                </div>
-                <div class="prop-field">
-                  <label>لغة المحاور</label>
-                  <select class="prop-input" id="cartesianLangSelect">
-                    <option value="ar" ${curLang === 'ar' ? 'selected' : ''}>عربي (س / ص)</option>
-                    <option value="en" ${curLang === 'en' ? 'selected' : ''}>إنجليزي (X / Y)</option>
-                  </select>
-                </div>
-              </div>
-              <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px;margin-top:6px">
-                <button type="button" class="prop-input ${curGrid ? 'active' : ''}" id="cartesianToggleGridBtn">⊞ ${curGrid ? 'إخفاء الشبكة' : 'إظهار الشبكة'}</button>
-                <button type="button" class="prop-input ${curNums ? 'active' : ''}" id="cartesianToggleNumsBtn">🔢 ${curNums ? 'إخفاء الأرقام' : 'إظهار الأرقام'}</button>
-              </div>
-            </div>
-          `;
-        } else if (shapeType === 'cylinder') {
-          const b = shapes.getUniversalShapeBounds(inner) || { width: 100, height: 100 };
-          const curCap = parseFloat(inner.dataset.capH || '24');
-          const capPct = Math.round((curCap / (b.height || 1)) * 100);
-          extraPropsHtml += `
-            <div class="prop-section">
-              <div class="prop-title">🛢️ عمق الأسطوانة (3D Depth)</div>
-              <div class="prop-row" style="grid-template-columns:1fr auto;gap:8px;align-items:center">
-                <input type="range" class="prop-input" id="cylinderDepthSlider" min="10" max="45" value="${capPct}" style="accent-color:var(--sh-accent);cursor:pointer"/>
-                <span id="cylinderDepthVal" style="font-size:11px;min-width:32px">${capPct}%</span>
-              </div>
-            </div>
-          `;
-        } else if (shapeType.startsWith('circuit-')) {
-          const compDef = shapes.SHAPE_DEFS[shapeType];
-          extraPropsHtml += `
-            <div class="prop-section">
-              <div class="prop-title">⚡ عنصر دارة كهربائية</div>
-              <div style="font-size:11.5px;color:var(--sh-accent);background:rgba(74,126,255,0.08);padding:6px 10px;border-radius:6px;display:flex;align-items:center;gap:6px">
-                <span style="font-size:16px">${compDef ? compDef.icon : '⚡'}</span>
-                <span>${compDef ? compDef.label : 'عنصر دارة كهربائية'}</span>
-              </div>
-            </div>
-          `;
-        }
 
         specHost.innerHTML = `
           <div class="prop-section">
@@ -1991,7 +1838,6 @@ function initElementDesignProps() {
               </div>
             </div>
           </div>
-          ${extraPropsHtml}
         `;
 
         const sStr = document.getElementById('shapeStrokeColor');
@@ -2015,106 +1861,6 @@ function initElementDesignProps() {
           inner.setAttribute('stroke-width', sSW.value);
           core.commitChange();
         });
-
-        // ── Round Corners Handlers ──
-        const rSlider = document.getElementById('shapeRadiusSlider');
-        const rInput = document.getElementById('shapeRadiusInput');
-        function applyRadius(val) {
-          inner.setAttribute('rx', val);
-          inner.setAttribute('ry', val);
-          if (rSlider) rSlider.value = val;
-          if (rInput) rInput.value = val;
-          inter.drawSelectionOverlay();
-          core.commitChange();
-        }
-        if (rSlider) rSlider.addEventListener('input', () => applyRadius(parseFloat(rSlider.value) || 0));
-        if (rInput) rInput.addEventListener('change', () => applyRadius(parseFloat(rInput.value) || 0));
-        specHost.querySelectorAll('.preset-radius-btn').forEach(btn => {
-          btn.addEventListener('click', () => applyRadius(parseFloat(btn.dataset.r) || 0));
-        });
-
-        // ── Curve Handlers ──
-        const cFlip = document.getElementById('curveFlipBtn');
-        const cStraight = document.getElementById('curveStraightenBtn');
-        if (cFlip) {
-          cFlip.addEventListener('click', () => {
-            const x0 = parseFloat(inner.dataset.x0) || 0, y0 = parseFloat(inner.dataset.y0) || 0;
-            const x1 = parseFloat(inner.dataset.x1) || 0, y1 = parseFloat(inner.dataset.y1) || 0;
-            const cx = parseFloat(inner.dataset.cx) || ((x0 + x1) / 2);
-            const cy = parseFloat(inner.dataset.cy) || ((y0 + y1) / 2);
-            const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
-            const newCx = mx - (cx - mx);
-            const newCy = my - (cy - my);
-            inner.setAttribute('d', `M ${x0} ${y0} Q ${newCx} ${newCy} ${x1} ${y1}`);
-            inner.dataset.cx = newCx; inner.dataset.cy = newCy;
-            inter.drawSelectionOverlay();
-            core.commitChange();
-          });
-        }
-        if (cStraight) {
-          cStraight.addEventListener('click', () => {
-            const x0 = parseFloat(inner.dataset.x0) || 0, y0 = parseFloat(inner.dataset.y0) || 0;
-            const x1 = parseFloat(inner.dataset.x1) || 0, y1 = parseFloat(inner.dataset.y1) || 0;
-            const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
-            inner.setAttribute('d', `M ${x0} ${y0} Q ${mx} ${my} ${x1} ${y1}`);
-            inner.dataset.cx = mx; inner.dataset.cy = my;
-            inter.drawSelectionOverlay();
-            core.commitChange();
-          });
-        }
-
-        // ── Cartesian Handlers ──
-        const cartRange = document.getElementById('cartesianRangeSelect');
-        const cartLang = document.getElementById('cartesianLangSelect');
-        const cartGrid = document.getElementById('cartesianToggleGridBtn');
-        const cartNums = document.getElementById('cartesianToggleNumsBtn');
-
-        function updateCartesian() {
-          const b = shapes.getUniversalShapeBounds(inner);
-          if (!b) return;
-          shapes.renderCartesianPlane(inner, b.x, b.y, b.width, b.height, {
-            range: cartRange ? cartRange.value : inner.dataset.range,
-            lang: cartLang ? cartLang.value : inner.dataset.lang,
-            showGrid: inner.dataset.showGrid !== 'false',
-            showNumbers: inner.dataset.showNumbers !== 'false',
-          });
-          inter.drawSelectionOverlay();
-          core.commitChange();
-        }
-        if (cartRange) cartRange.addEventListener('change', updateCartesian);
-        if (cartLang) cartLang.addEventListener('change', updateCartesian);
-        if (cartGrid) {
-          cartGrid.addEventListener('click', () => {
-            const cur = inner.dataset.showGrid !== 'false';
-            inner.dataset.showGrid = String(!cur);
-            cartGrid.classList.toggle('active', !cur);
-            cartGrid.textContent = (!cur ? '⊞ إخفاء الشبكة' : '⊞ إظهار الشبكة');
-            updateCartesian();
-          });
-        }
-        if (cartNums) {
-          cartNums.addEventListener('click', () => {
-            const cur = inner.dataset.showNumbers !== 'false';
-            inner.dataset.showNumbers = String(!cur);
-            cartNums.classList.toggle('active', !cur);
-            cartNums.textContent = (!cur ? '🔢 إخفاء الأرقام' : '🔢 إظهار الأرقام');
-            updateCartesian();
-          });
-        }
-
-        // ── Cylinder Handlers ──
-        const cylDepth = document.getElementById('cylinderDepthSlider');
-        const cylVal = document.getElementById('cylinderDepthVal');
-        if (cylDepth) {
-          cylDepth.addEventListener('input', () => {
-            const pct = parseInt(cylDepth.value, 10);
-            if (cylVal) cylVal.textContent = pct + '%';
-            const b = shapes.getUniversalShapeBounds(inner);
-            if (!b) return;
-            shapes.renderCylinder(inner, b.x, b.y, b.width, b.height, pct / 100);
-            core.commitChange();
-          });
-        }
       }
     }
 
@@ -2179,19 +1925,10 @@ function initElementDesignProps() {
           inner.setAttribute('x2', newX + newW);
           inner.setAttribute('y2', newY + newH);
         } else {
-          const shapeK = inner.dataset.type || tag;
-          if (shapeK === 'cylinder') {
-            shapes.renderCylinder(inner, newX, newY, newW, newH);
-          } else if (shapeK && shapeK.startsWith('circuit-')) {
-            shapes.renderCircuitComponent(inner, shapeK, newX, newY, newW, newH);
-          } else if (shapeK === 'cartesian') {
-            shapes.renderCartesianPlane(inner, newX, newY, newW, newH);
-          } else {
-            const curB = shapes.getUniversalShapeBounds(inner);
-            if (curB) {
-              shapes.resizeUniversalShape(inner, 'se', curB, { x: curB.x + curB.width, y: curB.y + curB.height }, { x: newX + newW, y: newY + newH });
-            }
-          }
+          try {
+            const curB = inner.getBBox();
+            inner.setAttribute('transform', `translate(${newX - curB.x}, ${newY - curB.y})`);
+          } catch (_) {}
         }
       } else {
         sel.el.style.left = (newX / (core.state.pdfW || 2000) * 100) + '%';
@@ -2669,39 +2406,16 @@ function buildFallbackPalette(host) {
 }
 
 /* ============================================================
-   §11. PRESENT MODE (وضع العرض التفاعلي الاحترافي)
+   §11. PRESENT MODE
    ============================================================ */
 const presentState = {
   active: false,
-  tool: 'select', // 'select' | 'hand' | 'pen' | 'highlighter' | 'laser' | 'eraser'
-  penColor: '#ef4444',
-  penSize: 4,
-  highlighterColor: '#fef08a',
-  highlighterSize: 18,
-  laserColor: '#ff1744',
-  laserSize: 8,
-  laserMode: 'trail', // 'trail' | 'dot'
-  strokes: [], // ink strokes on current slide
-  redoStrokes: [],
-  laserStrokes: [],
-  isDrawing: false,
-  currentStroke: null,
-  lastLaserPoint: null,
-  laserRAF: null,
+  tool: 'select',
+  undoStack: [],
+  redoStack: [],
   timerStart: 0,
   timerInterval: null,
   keyListener: null,
-  drawingBound: false,
-  // Video recording
-  recorder: null,
-  recordStream: null,
-  recordedChunks: [],
-  recordStartTime: 0,
-  recordTimerInterval: null,
-  isRecording: false,
-  isRecordingPaused: false,
-  recordedVideoBlob: null,
-  recordedVideoUrl: null,
 };
 
 async function openPresentMode() {
@@ -2713,31 +2427,19 @@ async function openPresentMode() {
   overlay.classList.add('active');
   document.body.classList.add('present-active');
 
-  // Reset per-session presentation drawings
-  presentState.strokes = [];
-  presentState.redoStrokes = [];
-  presentState.laserStrokes = [];
-  presentState.isDrawing = false;
-  presentState.currentStroke = null;
-  presentState.lastLaserPoint = null;
-
-  copyStageToPresent();
-  bindPresentDrawing();
-  bindPresentToolbar();
-  bindPresentKeys();
-  updatePresentIndicators();
   setPresentTool('select');
   updatePresentUndoRedo();
   resetPresentTimer();
   startPresentTimer();
   updatePresentPageNum();
+  copyStageToPresent();
+  bindPresentKeys();
+  bindPresentToolbar();
 
   const bar = document.getElementById('presentToolbar');
   if (bar) {
     bar.classList.add('show');
-    setTimeout(() => {
-      if (presentState.active && bar) bar.classList.remove('show');
-    }, 2800);
+    setTimeout(() => bar.classList.remove('show'), 2500);
   }
 
   document.addEventListener('ipb:pageChanged', onPresentPageChanged);
@@ -2746,44 +2448,20 @@ async function openPresentMode() {
 function closePresentMode() {
   if (!presentState.active) return;
   presentState.active = false;
-
-  // Stop video recording if in progress
-  if (presentState.isRecording) {
-    stopPresentRecording(false);
-  }
-
-  // Stop laser animation
-  stopPresentLaserLoop();
-
-  // Save presentation ink annotations to current slide
-  savePresentStrokesToSlide();
-
   const overlay = document.getElementById('presentOverlay');
   if (overlay) overlay.classList.remove('active');
   document.body.classList.remove('present-active');
-
-  const optionsBar = document.getElementById('presentToolOptionsBar');
-  if (optionsBar) optionsBar.style.display = 'none';
-
   stopPresentTimer();
   unbindPresentKeys();
   document.removeEventListener('ipb:pageChanged', onPresentPageChanged);
-
-  presentState.strokes = [];
-  presentState.redoStrokes = [];
-  presentState.laserStrokes = [];
+  presentState.undoStack = [];
+  presentState.redoStack = [];
   updatePresentUndoRedo();
 }
 
 function onPresentPageChanged() {
-  // Save current slide present strokes before switching
-  savePresentStrokesToSlide();
-  presentState.strokes = [];
-  presentState.redoStrokes = [];
-  presentState.laserStrokes = [];
   copyStageToPresent();
   updatePresentPageNum();
-  updatePresentUndoRedo();
 }
 
 function copyStageToPresent() {
@@ -2792,65 +2470,37 @@ function copyStageToPresent() {
   const presentCanvas = document.getElementById('presentCanvas');
   const pdfCanvas = document.getElementById('pdfCanvas');
   const presentLayerHost = document.getElementById('presentLayerHost');
-  const presentDrawCanvas = document.getElementById('presentDrawCanvas');
-  const presentLaser = document.getElementById('presentLaser');
+  const svgLayer = document.getElementById('svgLayer');
   if (!stage || !presentStage || !pdfCanvas || !presentCanvas) return;
 
-  // Calculate true un-distorted aspect ratio
-  let aspect = 16 / 9;
-  if (pdfCanvas.width && pdfCanvas.height) {
-    aspect = pdfCanvas.width / pdfCanvas.height;
-  } else {
-    const stageRect = stage.getBoundingClientRect();
-    if (stageRect.width && stageRect.height) aspect = stageRect.width / stageRect.height;
-  }
-
-  const vw = window.innerWidth * 0.94;
-  const vh = window.innerHeight * 0.94;
+  const stageRect = stage.getBoundingClientRect();
+  const vw = window.innerWidth * 0.9;
+  const vh = window.innerHeight * 0.9;
+  const aspect = stageRect.width / stageRect.height;
   let w = vw;
   let h = w / aspect;
   if (h > vh) { h = vh; w = h * aspect; }
-  presentStage.style.width = Math.round(w) + 'px';
-  presentStage.style.height = Math.round(h) + 'px';
+  presentStage.style.width = w + 'px';
+  presentStage.style.height = h + 'px';
 
-  // Background Canvas
   presentCanvas.width = pdfCanvas.width;
   presentCanvas.height = pdfCanvas.height;
-  const ctx = presentCanvas.getContext('2d');
-  ctx.drawImage(pdfCanvas, 0, 0);
+  presentCanvas.getContext('2d').drawImage(pdfCanvas, 0, 0);
 
-  // Drawing Canvas (Ink & Highlighter)
-  if (presentDrawCanvas) {
-    presentDrawCanvas.width = pdfCanvas.width;
-    presentDrawCanvas.height = pdfCanvas.height;
-    redrawPresentStrokes();
+  if (presentLayerHost && svgLayer) {
+    presentLayerHost.innerHTML = '';
+    const clone = svgLayer.cloneNode(true);
+    clone.setAttribute('width', '100%');
+    clone.setAttribute('height', '100%');
+    clone.style.width = '100%';
+    clone.style.height = '100%';
+    presentLayerHost.appendChild(clone);
   }
 
-  // Laser Canvas
+  const presentLaser = document.getElementById('presentLaser');
   if (presentLaser) {
     presentLaser.width = pdfCanvas.width;
     presentLaser.height = pdfCanvas.height;
-    const lctx = presentLaser.getContext('2d');
-    lctx.clearRect(0, 0, presentLaser.width, presentLaser.height);
-  }
-
-  // Clone slide content layers (SVG annotations, text, media, embeds, buttons)
-  if (presentLayerHost) {
-    presentLayerHost.innerHTML = '';
-    const layersToClone = ['svgLayer', 'textLayer', 'videoLayer', 'embedLayer', 'interactiveLayer'];
-    layersToClone.forEach(id => {
-      const srcEl = document.getElementById(id);
-      if (srcEl && srcEl.childNodes.length > 0) {
-        const clone = srcEl.cloneNode(true);
-        clone.id = 'present_' + id;
-        clone.style.position = 'absolute';
-        clone.style.inset = '0';
-        clone.style.width = '100%';
-        clone.style.height = '100%';
-        clone.style.pointerEvents = 'auto';
-        presentLayerHost.appendChild(clone);
-      }
-    });
   }
 }
 
@@ -2860,1061 +2510,93 @@ function updatePresentPageNum() {
   if (el && indicator) el.textContent = indicator.textContent || '— / —';
 }
 
-function updatePresentIndicators() {
-  const pPen = document.getElementById('pPenIndicator');
-  if (pPen) pPen.style.background = presentState.penColor;
-  const pHigh = document.getElementById('pHighlighterIndicator');
-  if (pHigh) pHigh.style.background = presentState.highlighterColor;
-  const pLaser = document.getElementById('pLaserIndicator');
-  if (pLaser) pLaser.style.background = presentState.laserColor;
-}
-
 function setPresentTool(tool) {
   presentState.tool = tool;
   const bar = document.getElementById('presentToolbar');
-  if (bar) {
-    bar.querySelectorAll('[data-ptool]').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.ptool === tool);
-    });
-  }
-
-  const drawCanvas = document.getElementById('presentDrawCanvas');
-  if (drawCanvas) {
-    if (tool === 'select' || tool === 'hand') {
-      drawCanvas.style.pointerEvents = 'none';
-      drawCanvas.style.cursor = 'default';
-    } else if (tool === 'eraser') {
-      drawCanvas.style.pointerEvents = 'auto';
-      drawCanvas.style.cursor = 'cell';
-    } else if (tool === 'laser') {
-      drawCanvas.style.pointerEvents = 'auto';
-      drawCanvas.style.cursor = 'none';
-      startPresentLaserLoop();
-    } else {
-      drawCanvas.style.pointerEvents = 'auto';
-      drawCanvas.style.cursor = 'crosshair';
-    }
-  }
-
-  if (tool === 'pen' || tool === 'highlighter' || tool === 'laser') {
-    renderPresentToolOptions(tool);
-  } else {
-    const optionsBar = document.getElementById('presentToolOptionsBar');
-    if (optionsBar) optionsBar.style.display = 'none';
-  }
-
+  if (!bar) return;
+  bar.querySelectorAll('[data-ptool]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.ptool === tool);
+  });
   document.dispatchEvent(new CustomEvent('ipb:presentToolChanged', {
-    detail: { tool },
+    detail: { tool: tool },
   }));
 }
 
-/* ─── Floating Tool Options Sub-Bar (Colors, Sizes, Laser) ─── */
-function renderPresentToolOptions(tool = presentState.tool) {
-  const optionsBar = document.getElementById('presentToolOptionsBar');
-  if (!optionsBar) return;
-
-  if (tool !== 'pen' && tool !== 'highlighter' && tool !== 'laser') {
-    optionsBar.style.display = 'none';
-    return;
-  }
-
-  optionsBar.style.display = 'flex';
-  optionsBar.innerHTML = '';
-
-  if (tool === 'pen') {
-    const colors = [
-      { c: '#ef4444', name: 'أحمر' },
-      { c: '#3b82f6', name: 'أزرق' },
-      { c: '#10b981', name: 'أخضر' },
-      { c: '#eab308', name: 'أصفر' },
-      { c: '#f97316', name: 'برتقالي' },
-      { c: '#a855f7', name: 'بنفسجي' },
-      { c: '#0f172a', name: 'أسود' },
-      { c: '#ffffff', name: 'أبيض' },
-    ];
-    const sizes = [
-      { s: 2, label: 'رفيع' },
-      { s: 4, label: 'متوسط' },
-      { s: 8, label: 'عريض' },
-      { s: 16, label: 'سميك' },
-    ];
-
-    const cGroup = document.createElement('div');
-    cGroup.className = 'popt-group';
-    const cLabel = document.createElement('span');
-    cLabel.className = 'popt-label';
-    cLabel.textContent = 'اللون:';
-    cGroup.appendChild(cLabel);
-
-    colors.forEach(item => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'popt-swatch' + (presentState.penColor === item.c ? ' active' : '');
-      btn.style.background = item.c;
-      btn.title = item.name;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.penColor = item.c;
-        updatePresentIndicators();
-        renderPresentToolOptions('pen');
-      });
-      cGroup.appendChild(btn);
-    });
-
-    const customColor = document.createElement('input');
-    customColor.type = 'color';
-    customColor.className = 'popt-color-input';
-    customColor.value = presentState.penColor.length === 7 ? presentState.penColor : '#ef4444';
-    customColor.title = 'لون مخصص';
-    customColor.addEventListener('input', (e) => {
-      presentState.penColor = e.target.value;
-      updatePresentIndicators();
-    });
-    customColor.addEventListener('change', () => {
-      renderPresentToolOptions('pen');
-    });
-    cGroup.appendChild(customColor);
-    optionsBar.appendChild(cGroup);
-
-    const sep = document.createElement('div');
-    sep.className = 'popt-sep';
-    optionsBar.appendChild(sep);
-
-    const sGroup = document.createElement('div');
-    sGroup.className = 'popt-group';
-    const sLabel = document.createElement('span');
-    sLabel.className = 'popt-label';
-    sLabel.textContent = 'الحجم:';
-    sGroup.appendChild(sLabel);
-
-    sizes.forEach(item => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'popt-size-btn' + (presentState.penSize === item.s ? ' active' : '');
-      btn.innerHTML = `<span class="popt-size-dot" style="width:${Math.max(4, item.s)}px;height:${Math.max(4, item.s)}px;"></span> ${item.label}`;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.penSize = item.s;
-        renderPresentToolOptions('pen');
-      });
-      sGroup.appendChild(btn);
-    });
-    optionsBar.appendChild(sGroup);
-
-  } else if (tool === 'highlighter') {
-    const colors = [
-      { c: '#fef08a', name: 'أصفر فاقع' },
-      { c: '#86efac', name: 'أخضر نيون' },
-      { c: '#7dd3fc', name: 'أزرق سماوي' },
-      { c: '#f472b6', name: 'وردي' },
-      { c: '#fdba74', name: 'برتقالي' },
-    ];
-    const sizes = [
-      { s: 12, label: '12px' },
-      { s: 18, label: '18px' },
-      { s: 28, label: '28px' },
-    ];
-
-    const cGroup = document.createElement('div');
-    cGroup.className = 'popt-group';
-    const cLabel = document.createElement('span');
-    cLabel.className = 'popt-label';
-    cLabel.textContent = 'لون التحديد:';
-    cGroup.appendChild(cLabel);
-
-    colors.forEach(item => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'popt-swatch' + (presentState.highlighterColor === item.c ? ' active' : '');
-      btn.style.background = item.c;
-      btn.title = item.name;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.highlighterColor = item.c;
-        updatePresentIndicators();
-        renderPresentToolOptions('highlighter');
-      });
-      cGroup.appendChild(btn);
-    });
-    optionsBar.appendChild(cGroup);
-
-    const sep = document.createElement('div');
-    sep.className = 'popt-sep';
-    optionsBar.appendChild(sep);
-
-    const sGroup = document.createElement('div');
-    sGroup.className = 'popt-group';
-    const sLabel = document.createElement('span');
-    sLabel.className = 'popt-label';
-    sLabel.textContent = 'العرض:';
-    sGroup.appendChild(sLabel);
-
-    sizes.forEach(item => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'popt-size-btn' + (presentState.highlighterSize === item.s ? ' active' : '');
-      btn.textContent = item.label;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.highlighterSize = item.s;
-        renderPresentToolOptions('highlighter');
-      });
-      sGroup.appendChild(btn);
-    });
-    optionsBar.appendChild(sGroup);
-
-  } else if (tool === 'laser') {
-    const colors = [
-      { c: '#ff1744', name: 'أحمر نيون' },
-      { c: '#00e676', name: 'أخضر ليزر' },
-      { c: '#00e5ff', name: 'أزرق سماوي' },
-      { c: '#ffd600', name: 'أصفر متوهج' },
-      { c: '#d500f9', name: 'بنفسجي متوهج' },
-    ];
-    const sizes = [
-      { s: 5, label: 'صغير' },
-      { s: 8, label: 'متوسط' },
-      { s: 14, label: 'كبير' },
-    ];
-
-    const cGroup = document.createElement('div');
-    cGroup.className = 'popt-group';
-    const cLabel = document.createElement('span');
-    cLabel.className = 'popt-label';
-    cLabel.textContent = 'لون الليزر:';
-    cGroup.appendChild(cLabel);
-
-    colors.forEach(item => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'popt-swatch' + (presentState.laserColor === item.c ? ' active' : '');
-      btn.style.background = item.c;
-      btn.style.boxShadow = `0 0 6px ${item.c}`;
-      btn.title = item.name;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.laserColor = item.c;
-        updatePresentIndicators();
-        renderPresentToolOptions('laser');
-      });
-      cGroup.appendChild(btn);
-    });
-    optionsBar.appendChild(cGroup);
-
-    const sep = document.createElement('div');
-    sep.className = 'popt-sep';
-    optionsBar.appendChild(sep);
-
-    const sGroup = document.createElement('div');
-    sGroup.className = 'popt-group';
-    const sLabel = document.createElement('span');
-    sLabel.className = 'popt-label';
-    sLabel.textContent = 'الحجم:';
-    sGroup.appendChild(sLabel);
-
-    sizes.forEach(item => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'popt-size-btn' + (presentState.laserSize === item.s ? ' active' : '');
-      btn.textContent = item.label;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.laserSize = item.s;
-        renderPresentToolOptions('laser');
-      });
-      sGroup.appendChild(btn);
-    });
-    optionsBar.appendChild(sGroup);
-
-    const sep2 = document.createElement('div');
-    sep2.className = 'popt-sep';
-    optionsBar.appendChild(sep2);
-
-    const mGroup = document.createElement('div');
-    mGroup.className = 'popt-group';
-    const modeBtn = document.createElement('button');
-    modeBtn.type = 'button';
-    modeBtn.className = 'popt-size-btn active';
-    modeBtn.innerHTML = presentState.laserMode === 'trail' ? '✨ شعاع متوهج' : '🎯 نقطة فقط';
-    modeBtn.title = 'تبديل وضع الليزر';
-    modeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      presentState.laserMode = presentState.laserMode === 'trail' ? 'dot' : 'trail';
-      renderPresentToolOptions('laser');
-    });
-    mGroup.appendChild(modeBtn);
-    optionsBar.appendChild(mGroup);
-  }
-}
-
-/* ─── Interactive Drawing & Laser Engine ─── */
-function getPresentCanvasPoint(e) {
-  const canvas = document.getElementById('presentDrawCanvas');
-  if (!canvas) return { x: 0, y: 0 };
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  return {
-    x: (e.clientX - rect.left) * scaleX,
-    y: (e.clientY - rect.top) * scaleY,
-  };
-}
-
-function bindPresentDrawing() {
-  if (presentState.drawingBound) return;
-  const canvas = document.getElementById('presentDrawCanvas');
-  if (!canvas) return;
-  presentState.drawingBound = true;
-
-  canvas.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;
-    const pt = getPresentCanvasPoint(e);
-
-    if (presentState.tool === 'pen' || presentState.tool === 'highlighter') {
-      presentState.isDrawing = true;
-      presentState.currentStroke = {
-        tool: presentState.tool,
-        color: presentState.tool === 'pen' ? presentState.penColor : presentState.highlighterColor,
-        size: presentState.tool === 'pen' ? presentState.penSize : presentState.highlighterSize,
-        points: [pt],
-      };
-      // Draw initial touch point
-      const ctx = canvas.getContext('2d');
-      drawSinglePresentStroke(ctx, presentState.currentStroke);
-      e.preventDefault();
-
-    } else if (presentState.tool === 'laser') {
-      presentState.isDrawing = true;
-      presentState.lastLaserPoint = pt;
-      if (presentState.laserMode === 'trail') {
-        presentState.laserStrokes.push({
-          points: [pt],
-          color: presentState.laserColor,
-          size: presentState.laserSize,
-          time: performance.now(),
-        });
-      }
-      startPresentLaserLoop();
-      e.preventDefault();
-
-    } else if (presentState.tool === 'eraser') {
-      presentState.isDrawing = true;
-      erasePresentStrokesAt(pt, 24);
-      e.preventDefault();
-    }
-  });
-
-  window.addEventListener('pointermove', (e) => {
-    if (!presentState.active) return;
-    const drawCanvas = document.getElementById('presentDrawCanvas');
-    if (!drawCanvas) return;
-    const pt = getPresentCanvasPoint(e);
-
-    // Track laser pointer dot even when not dragging
-    if (presentState.tool === 'laser') {
-      presentState.lastLaserPoint = pt;
-      if (presentState.isDrawing && presentState.laserMode === 'trail') {
-        const currentTrail = presentState.laserStrokes[presentState.laserStrokes.length - 1];
-        if (currentTrail) {
-          currentTrail.points.push(pt);
-          currentTrail.time = performance.now();
-        }
-      }
-      startPresentLaserLoop();
-      return;
-    }
-
-    if (!presentState.isDrawing) return;
-
-    if (presentState.tool === 'pen' || presentState.tool === 'highlighter') {
-      if (presentState.currentStroke) {
-        presentState.currentStroke.points.push(pt);
-        const ctx = drawCanvas.getContext('2d');
-        const pts = presentState.currentStroke.points;
-        if (pts.length >= 2) {
-          ctx.save();
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          if (presentState.currentStroke.tool === 'highlighter') {
-            ctx.globalAlpha = 0.42;
-            ctx.strokeStyle = presentState.currentStroke.color;
-            ctx.lineWidth = presentState.currentStroke.size;
-          } else {
-            ctx.globalAlpha = 1;
-            ctx.strokeStyle = presentState.currentStroke.color;
-            ctx.lineWidth = presentState.currentStroke.size;
-          }
-          ctx.beginPath();
-          const prev = pts[pts.length - 2];
-          const curr = pts[pts.length - 1];
-          ctx.moveTo(prev.x, prev.y);
-          ctx.lineTo(curr.x, curr.y);
-          ctx.stroke();
-          ctx.restore();
-        }
-      }
-
-    } else if (presentState.tool === 'eraser') {
-      erasePresentStrokesAt(pt, 24);
-    }
-  });
-
-  window.addEventListener('pointerup', () => {
-    if (!presentState.active || !presentState.isDrawing) return;
-    presentState.isDrawing = false;
-
-    if (presentState.currentStroke && (presentState.tool === 'pen' || presentState.tool === 'highlighter')) {
-      presentState.strokes.push(presentState.currentStroke);
-      presentState.currentStroke = null;
-      presentState.redoStrokes = [];
-      redrawPresentStrokes();
-      updatePresentUndoRedo();
-    }
-  });
-
-  canvas.addEventListener('pointerleave', () => {
-    if (presentState.tool === 'laser' && !presentState.isDrawing) {
-      presentState.lastLaserPoint = null;
-    }
-  });
-}
-
-function redrawPresentStrokes() {
-  const canvas = document.getElementById('presentDrawCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  presentState.strokes.forEach(s => drawSinglePresentStroke(ctx, s));
-}
-
-function drawSinglePresentStroke(ctx, stroke) {
-  if (!stroke.points || stroke.points.length === 0) return;
-  ctx.save();
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  if (stroke.tool === 'highlighter') {
-    ctx.globalAlpha = 0.42;
-    ctx.strokeStyle = stroke.color;
-    ctx.lineWidth = stroke.size;
-  } else {
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = stroke.color;
-    ctx.lineWidth = stroke.size;
-  }
-
-  ctx.beginPath();
-  const pts = stroke.points;
-  ctx.moveTo(pts[0].x, pts[0].y);
-  if (pts.length === 1) {
-    ctx.arc(pts[0].x, pts[0].y, stroke.size / 2, 0, Math.PI * 2);
-    ctx.fillStyle = stroke.color;
-    ctx.fill();
-  } else {
-    for (let i = 1; i < pts.length; i++) {
-      const xc = (pts[i - 1].x + pts[i].x) / 2;
-      const yc = (pts[i - 1].y + pts[i].y) / 2;
-      ctx.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, xc, yc);
-    }
-    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function erasePresentStrokesAt(pt, radius) {
-  const initialCount = presentState.strokes.length;
-  presentState.strokes = presentState.strokes.filter(stroke => {
-    return !stroke.points.some(p => {
-      const dx = p.x - pt.x;
-      const dy = p.y - pt.y;
-      return (dx * dx + dy * dy) < (radius + stroke.size / 2) * (radius + stroke.size / 2);
-    });
-  });
-
-  if (presentState.strokes.length !== initialCount) {
-    redrawPresentStrokes();
-    updatePresentUndoRedo();
-  }
-}
-
-/* ─── Laser Animation Loop ─── */
-function startPresentLaserLoop() {
-  if (presentState.laserRAF) return;
-  presentState.laserRAF = requestAnimationFrame(presentLaserTick);
-}
-
-function stopPresentLaserLoop() {
-  if (presentState.laserRAF) {
-    cancelAnimationFrame(presentState.laserRAF);
-    presentState.laserRAF = null;
-  }
-  const canvas = document.getElementById('presentLaser');
-  if (canvas) {
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  }
-}
-
-function presentLaserTick() {
-  const canvas = document.getElementById('presentLaser');
-  if (!canvas || !presentState.active) {
-    presentState.laserRAF = null;
-    return;
-  }
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const now = performance.now();
-  let hasActiveElements = false;
-
-  // 1) Laser Light Trails
-  if (presentState.laserMode === 'trail') {
-    const lifeMs = 900;
-    presentState.laserStrokes = presentState.laserStrokes.filter(s => (now - s.time) < lifeMs);
-    if (presentState.laserStrokes.length > 0) hasActiveElements = true;
-
-    presentState.laserStrokes.forEach(s => {
-      const age = now - s.time;
-      const alpha = Math.max(0, 1 - age / lifeMs);
-      if (alpha <= 0 || s.points.length < 1) return;
-
-      ctx.save();
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.globalAlpha = alpha;
-
-      // Glowing outer envelope
-      ctx.shadowColor = s.color;
-      ctx.shadowBlur = s.size * 3.5;
-      ctx.strokeStyle = s.color;
-      ctx.lineWidth = s.size;
-      ctx.beginPath();
-      ctx.moveTo(s.points[0].x, s.points[0].y);
-      for (let i = 1; i < s.points.length; i++) {
-        ctx.lineTo(s.points[i].x, s.points[i].y);
-      }
-      ctx.stroke();
-
-      // White core
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = Math.max(1, s.size * 0.4);
-      ctx.beginPath();
-      ctx.moveTo(s.points[0].x, s.points[0].y);
-      for (let i = 1; i < s.points.length; i++) {
-        ctx.lineTo(s.points[i].x, s.points[i].y);
-      }
-      ctx.stroke();
-      ctx.restore();
-    });
-  }
-
-  // 2) Glowing Laser Pointer Dot
-  if (presentState.tool === 'laser' && presentState.lastLaserPoint) {
-    hasActiveElements = true;
-    const pt = presentState.lastLaserPoint;
-    const color = presentState.laserColor;
-    const size = presentState.laserSize;
-
-    ctx.save();
-    const pulse = 1 + 0.18 * Math.sin(now / 100);
-
-    // Outer glow
-    ctx.shadowColor = color;
-    ctx.shadowBlur = size * 4 * pulse;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(pt.x, pt.y, (size / 1.8) * pulse, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Inner bright core
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(pt.x, pt.y, Math.max(2, size * 0.32), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  if (hasActiveElements || presentState.tool === 'laser') {
-    presentState.laserRAF = requestAnimationFrame(presentLaserTick);
-  } else {
-    presentState.laserRAF = null;
-  }
-}
-
-/* ─── Undo / Redo / Clear ─── */
-function presentUndo() {
-  if (!presentState.strokes.length) return;
-  const item = presentState.strokes.pop();
-  presentState.redoStrokes.push(item);
-  redrawPresentStrokes();
-  updatePresentUndoRedo();
-}
-
-function presentRedo() {
-  if (!presentState.redoStrokes.length) return;
-  const item = presentState.redoStrokes.pop();
-  presentState.strokes.push(item);
-  redrawPresentStrokes();
-  updatePresentUndoRedo();
-}
-
-function presentClearAll() {
-  presentState.strokes = [];
-  presentState.redoStrokes = [];
-  redrawPresentStrokes();
-  updatePresentUndoRedo();
-}
-
-function updatePresentUndoRedo() {
-  const u = document.getElementById('presentUndo');
-  const r = document.getElementById('presentRedo');
-  if (u) u.disabled = presentState.strokes.length === 0;
-  if (r) r.disabled = presentState.redoStrokes.length === 0;
-}
-
-/* ─── Save Present Strokes to Slide Annotations on Exit ─── */
-async function savePresentStrokesToSlide() {
-  if (!presentState.strokes.length) return;
-  try {
-    const core = await import('./core.js');
-    const SVG_NS = 'http://www.w3.org/2000/svg';
-    const svgLayer = document.getElementById('svgLayer');
-    const pdfCanvas = document.getElementById('pdfCanvas');
-    if (!svgLayer || !pdfCanvas) return;
-
-    const scaleX = (core.state.pdfW || 1000) / pdfCanvas.width;
-    const scaleY = (core.state.pdfH || 1414) / pdfCanvas.height;
-
-    const pre = core.snapshot ? core.snapshot() : null;
-
-    presentState.strokes.forEach(stroke => {
-      if (!stroke.points || stroke.points.length < 2) return;
-      let d = `M ${(stroke.points[0].x * scaleX).toFixed(1)} ${(stroke.points[0].y * scaleY).toFixed(1)}`;
-      for (let i = 1; i < stroke.points.length; i++) {
-        const xc = ((stroke.points[i - 1].x + stroke.points[i].x) / 2 * scaleX).toFixed(1);
-        const yc = ((stroke.points[i - 1].y + stroke.points[i].y) / 2 * scaleY).toFixed(1);
-        d += ` Q ${(stroke.points[i - 1].x * scaleX).toFixed(1)} ${(stroke.points[i - 1].y * scaleY).toFixed(1)} ${xc} ${yc}`;
-      }
-      const last = stroke.points[stroke.points.length - 1];
-      d += ` L ${(last.x * scaleX).toFixed(1)} ${(last.y * scaleY).toFixed(1)}`;
-
-      const path = document.createElementNS(SVG_NS, 'path');
-      path.setAttribute('d', d);
-      path.setAttribute('stroke', stroke.color);
-      path.setAttribute('stroke-width', String(Math.round(stroke.size * scaleX)));
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke-linecap', 'round');
-      path.setAttribute('stroke-linejoin', 'round');
-
-      if (stroke.tool === 'highlighter') {
-        path.setAttribute('stroke-opacity', '0.45');
-        path.style.mixBlendMode = 'multiply';
-        path.dataset.type = 'highlighter';
-      } else {
-        path.dataset.type = 'path';
-      }
-
-      if (core.addAnnotation) core.addAnnotation(path);
-      else {
-        const wrap = document.createElement('div');
-        wrap.className = 'annot-wrapper';
-        const svg = document.createElementNS(SVG_NS, 'svg');
-        svg.appendChild(path);
-        wrap.appendChild(svg);
-        svgLayer.appendChild(wrap);
-      }
-    });
-
-    if (pre && core.commitChange) core.commitChange(pre);
-  } catch (err) {
-    console.warn('savePresentStrokesToSlide failed:', err);
-  }
-}
-
-/* ════════════════════════════════════════════════════════════
-   ★ VIDEO RECORDING FEATURE (تسجيل العرض فيديو)
-   ════════════════════════════════════════════════════════════ */
-async function togglePresentRecording() {
-  if (presentState.isRecording) {
-    stopPresentRecording(true);
-  } else {
-    startPresentRecording();
-  }
-}
-
-async function startPresentRecording() {
-  if (presentState.isRecording) return;
-  presentState.recordedChunks = [];
-
-  let stream = null;
-
-  // 1) Try tab/screen capture first if permitted
-  try {
-    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          displaySurface: 'browser',
-          frameRate: { ideal: 30, max: 60 },
-        },
-        audio: true,
-      });
-    }
-  } catch (err) {
-    console.warn('getDisplayMedia not available or canceled, using composite canvas capture:', err);
-  }
-
-  // 2) Reliable Fallback: Live Stage Composite Stream (slide + live pen/highlighter + laser)
-  if (!stream) {
-    try {
-      const pCanvas = document.getElementById('presentCanvas') || document.getElementById('pdfCanvas');
-      const dCanvas = document.getElementById('presentDrawCanvas');
-      const lCanvas = document.getElementById('presentLaser');
-
-      if (pCanvas) {
-        const cW = pCanvas.width || 1280;
-        const cH = pCanvas.height || 720;
-        const compCanvas = document.createElement('canvas');
-        compCanvas.width = cW;
-        compCanvas.height = cH;
-        const compCtx = compCanvas.getContext('2d', { alpha: false });
-
-        const renderComposite = () => {
-          if (!presentState.isRecording) return;
-          try {
-            compCtx.fillStyle = '#ffffff';
-            compCtx.fillRect(0, 0, cW, cH);
-            if (pCanvas && pCanvas.width) compCtx.drawImage(pCanvas, 0, 0);
-            if (dCanvas && dCanvas.width) compCtx.drawImage(dCanvas, 0, 0);
-            if (lCanvas && lCanvas.width) compCtx.drawImage(lCanvas, 0, 0);
-          } catch (_) {}
-          presentState.recAnimId = requestAnimationFrame(renderComposite);
-        };
-
-        renderComposite();
-        if (compCanvas.captureStream) {
-          stream = compCanvas.captureStream(30);
-        }
-      }
-    } catch (e) {
-      console.warn('Composite canvas stream failed:', e);
-    }
-  }
-
-  if (!stream) {
-    safeToast('تعذّر بدء تسجيل الشاشة في متصفحك.', 'error');
-    return;
-  }
-
-  // 3) Try to combine microphone audio track so presenter voice is recorded
-  try {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (AudioContextClass) {
-        const audioCtx = new AudioContextClass();
-        const dest = audioCtx.createMediaStreamDestination();
-
-        if (stream.getAudioTracks().length > 0) {
-          const displayAudioSrc = audioCtx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
-          displayAudioSrc.connect(dest);
-        }
-
-        const micSrc = audioCtx.createMediaStreamSource(micStream);
-        micSrc.connect(dest);
-
-        stream = new MediaStream([
-          ...stream.getVideoTracks(),
-          ...dest.stream.getAudioTracks(),
-        ]);
-      }
-    }
-  } catch (_) {
-    // Microphone is optional
-  }
-
-  // 4) Setup MediaRecorder with best supported mimeType
-  let mimeType = '';
-  const testTypes = [
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
-    'video/webm;codecs=h264',
-    'video/webm',
-    'video/mp4',
-  ];
-  if (typeof MediaRecorder !== 'undefined') {
-    for (const t of testTypes) {
-      if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
-        mimeType = t;
-        break;
-      }
-    }
-  }
-
-  try {
-    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-    presentState.recorder = recorder;
-    presentState.recordStream = stream;
-
-    recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) {
-        presentState.recordedChunks.push(e.data);
-      }
-    };
-
-    recorder.onstop = () => {
-      handleRecordingStopped();
-    };
-
-    // If user stops sharing from browser bar
-    const videoTrack = stream.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.addEventListener('ended', () => {
-        if (presentState.isRecording) stopPresentRecording(true);
-      });
-    }
-
-    recorder.start(1000);
-    presentState.isRecording = true;
-    presentState.isRecordingPaused = false;
-    presentState.recordStartTime = Date.now();
-
-    // UI Updates
-    const recBtn = document.getElementById('presentRecordBtn');
-    const recPill = document.getElementById('presentRecPill');
-    if (recBtn) recBtn.style.display = 'none';
-    if (recPill) recPill.style.display = 'flex';
-
-    startRecordingTimer();
-    safeToast('بدأ تسجيل العرض 🔴', 'ok');
-
-  } catch (err) {
-    console.error('Failed to start MediaRecorder:', err);
-    safeToast('تعذّر بدء تسجيل الفيديو: ' + err.message, 'error');
-  }
-}
-
-function pauseOrResumeRecording() {
-  if (!presentState.recorder || !presentState.isRecording) return;
-  const pauseBtn = document.getElementById('presentRecPauseBtn');
-
-  if (!presentState.isRecordingPaused) {
-    presentState.recorder.pause();
-    presentState.isRecordingPaused = true;
-    if (pauseBtn) { pauseBtn.textContent = '▶️'; pauseBtn.title = 'استئناف التسجيل'; }
-    safeToast('تم إيقاف التسجيل مؤقتاً ⏸️', 'info');
-  } else {
-    presentState.recorder.resume();
-    presentState.isRecordingPaused = false;
-    if (pauseBtn) { pauseBtn.textContent = '⏸️'; pauseBtn.title = 'إيقاف مؤقت'; }
-    safeToast('تم استئناف التسجيل ▶️', 'info');
-  }
-}
-
-function stopPresentRecording(showModal = true) {
-  if (!presentState.isRecording) return;
-  presentState.isRecording = false;
-
-  if (presentState.recAnimId) {
-    cancelAnimationFrame(presentState.recAnimId);
-    presentState.recAnimId = null;
-  }
-
-  stopRecordingTimer();
-
-  if (presentState.recorder && presentState.recorder.state !== 'inactive') {
-    presentState.recorder.stop();
-  }
-
-  if (presentState.recordStream) {
-    presentState.recordStream.getTracks().forEach(t => t.stop());
-    presentState.recordStream = null;
-  }
-
-  // Restore Toolbar buttons
-  const recBtn = document.getElementById('presentRecordBtn');
-  const recPill = document.getElementById('presentRecPill');
-  if (recBtn) recBtn.style.display = '';
-  if (recPill) recPill.style.display = 'none';
-
-  if (!showModal) {
-    presentState.recordedChunks = [];
-  }
-}
-
-function startRecordingTimer() {
-  stopRecordingTimer();
-  updateRecordingTimerDisplay();
-  presentState.recordTimerInterval = setInterval(updateRecordingTimerDisplay, 1000);
-}
-
-function stopRecordingTimer() {
-  if (presentState.recordTimerInterval) {
-    clearInterval(presentState.recordTimerInterval);
-    presentState.recordTimerInterval = null;
-  }
-}
-
-function updateRecordingTimerDisplay() {
-  const el = document.getElementById('presentRecTimer');
-  if (!el) return;
-  const elapsed = Math.floor((Date.now() - presentState.recordStartTime) / 1000);
-  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
-  const ss = String(elapsed % 60).padStart(2, '0');
-  el.textContent = mm + ':' + ss;
-}
-
-function handleRecordingStopped() {
-  if (!presentState.recordedChunks.length) return;
-
-  const blob = new Blob(presentState.recordedChunks, { type: 'video/webm' });
-  presentState.recordedVideoBlob = blob;
-  const url = URL.createObjectURL(blob);
-  presentState.recordedVideoUrl = url;
-
-  const modal = document.getElementById('presentVideoModal');
-  const preview = document.getElementById('presentVideoPreview');
-  const durEl = document.getElementById('presentVideoDuration');
-  const sizeEl = document.getElementById('presentVideoSize');
-
-  if (preview) preview.src = url;
-
-  const elapsed = Math.floor((Date.now() - presentState.recordStartTime) / 1000);
-  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
-  const ss = String(elapsed % 60).padStart(2, '0');
-  if (durEl) durEl.textContent = `⏱️ المدة: ${mm}:${ss}`;
-
-  const sizeMb = (blob.size / (1024 * 1024)).toFixed(2);
-  if (sizeEl) sizeEl.textContent = `💾 الحجم: ${sizeMb} MB`;
-
-  if (modal) modal.style.display = 'flex';
-  safeToast('تم حفظ تسجيل العرض بنجاح 🎬', 'ok');
-}
-
-function downloadRecordedVideo() {
-  if (!presentState.recordedVideoBlob) return;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(presentState.recordedVideoBlob);
-  const dateStr = new Date().toISOString().slice(0, 10);
-  a.download = `presentation-recording-${dateStr}.webm`;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => a.remove(), 100);
-  safeToast('جارٍ تنزيل ملف الفيديو ⬇️', 'ok');
-}
-
-function dismissVideoModal() {
-  const modal = document.getElementById('presentVideoModal');
-  const preview = document.getElementById('presentVideoPreview');
-  if (preview) { preview.pause(); preview.src = ''; }
-  if (modal) modal.style.display = 'none';
-  if (presentState.recordedVideoUrl) {
-    URL.revokeObjectURL(presentState.recordedVideoUrl);
-    presentState.recordedVideoUrl = null;
-  }
-}
-
-/* ─── Present Mode Toolbar & Keys Binding ─── */
 function bindPresentToolbar() {
   const bar = document.getElementById('presentToolbar');
   if (!bar) return;
-
   bar.querySelectorAll('[data-ptool]').forEach(btn => {
-    btn.onclick = () => setPresentTool(btn.dataset.ptool);
+    btn.addEventListener('click', () => setPresentTool(btn.dataset.ptool));
   });
-
-  const optToggle = document.getElementById('presentOptionsToggleBtn');
-  if (optToggle) {
-    optToggle.onclick = () => {
-      const optionsBar = document.getElementById('presentToolOptionsBar');
-      if (optionsBar) {
-        if (optionsBar.style.display === 'none') {
-          const t = (presentState.tool === 'pen' || presentState.tool === 'highlighter' || presentState.tool === 'laser')
-            ? presentState.tool : 'pen';
-          setPresentTool(t);
-        } else {
-          optionsBar.style.display = 'none';
-        }
-      }
-    };
-  }
-
   const u = document.getElementById('presentUndo');
   const r = document.getElementById('presentRedo');
   const clr = document.getElementById('presentClear');
   const prev = document.getElementById('presentPrev');
   const next = document.getElementById('presentNext');
   const exit = document.getElementById('presentExit');
-
-  if (u) u.onclick = presentUndo;
-  if (r) r.onclick = presentRedo;
-  if (clr) clr.onclick = presentClearAll;
-  if (prev) prev.onclick = presentPrevPage;
-  if (next) next.onclick = presentNextPage;
-  if (exit) exit.onclick = closePresentMode;
-
-  // Video Recording Controls
-  const recBtn = document.getElementById('presentRecordBtn');
-  const recPause = document.getElementById('presentRecPauseBtn');
-  const recStop = document.getElementById('presentRecStopBtn');
-
-  if (recBtn) recBtn.onclick = togglePresentRecording;
-  if (recPause) recPause.onclick = pauseOrResumeRecording;
-  if (recStop) recStop.onclick = () => stopPresentRecording(true);
-
-  // Video Modal Controls
-  const vidClose = document.getElementById('presentVideoCloseBtn');
-  const vidDismiss = document.getElementById('presentVideoDismissBtn');
-  const vidDown = document.getElementById('presentVideoDownloadBtn');
-
-  if (vidClose) vidClose.onclick = dismissVideoModal;
-  if (vidDismiss) vidDismiss.onclick = dismissVideoModal;
-  if (vidDown) vidDown.onclick = downloadRecordedVideo;
+  if (u) u.addEventListener('click', presentUndo);
+  if (r) r.addEventListener('click', presentRedo);
+  if (clr) clr.addEventListener('click', presentClearAll);
+  if (prev) prev.addEventListener('click', presentPrevPage);
+  if (next) next.addEventListener('click', presentNextPage);
+  if (exit) exit.addEventListener('click', closePresentMode);
 }
 
 async function presentPrevPage() {
   try {
     const pdf = await import('./pdf.js');
     const state = (await import('./core.js')).state;
-    const total = state.totalPages || (state.slides ? state.slides.length : 1);
-    if (state.currentPage > 1) {
-      await pdf.goToPage(state.currentPage - 1);
-      onPresentPageChanged();
-    }
-  } catch (e) { console.warn('presentPrevPage error:', e); }
+    if (state.currentPage > 1) await pdf.goToPage(state.currentPage - 1);
+  } catch (e) { console.warn(e); }
 }
-
 async function presentNextPage() {
   try {
     const pdf = await import('./pdf.js');
     const state = (await import('./core.js')).state;
-    const total = state.totalPages || (state.slides ? state.slides.length : 1);
-    if (state.currentPage < total) {
-      await pdf.goToPage(state.currentPage + 1);
-      onPresentPageChanged();
-    }
-  } catch (e) { console.warn('presentNextPage error:', e); }
+    if (state.currentPage < state.totalPages) await pdf.goToPage(state.currentPage + 1);
+  } catch (e) { console.warn(e); }
 }
-
+function presentUndo() {
+  if (!presentState.undoStack.length) return;
+  const item = presentState.undoStack.pop();
+  presentState.redoStack.push(item);
+  if (item.el && item.el.parentNode) item.el.style.display = 'none';
+  updatePresentUndoRedo();
+}
+function presentRedo() {
+  if (!presentState.redoStack.length) return;
+  const item = presentState.redoStack.pop();
+  presentState.undoStack.push(item);
+  if (item.el && item.el.parentNode) item.el.style.display = '';
+  updatePresentUndoRedo();
+}
+function presentClearAll() {
+  const host = document.getElementById('presentLayerHost');
+  if (host) host.querySelectorAll('[data-present-annot]').forEach(el => el.remove());
+  presentState.undoStack = [];
+  presentState.redoStack = [];
+  updatePresentUndoRedo();
+}
+function updatePresentUndoRedo() {
+  const u = document.getElementById('presentUndo');
+  const r = document.getElementById('presentRedo');
+  if (u) u.disabled = presentState.undoStack.length === 0;
+  if (r) r.disabled = presentState.redoStack.length === 0;
+}
 function resetPresentTimer() {
   presentState.timerStart = Date.now();
   updatePresentTimerDisplay();
 }
-
 function startPresentTimer() {
   stopPresentTimer();
   presentState.timerInterval = setInterval(updatePresentTimerDisplay, 1000);
 }
-
 function stopPresentTimer() {
   if (presentState.timerInterval) {
     clearInterval(presentState.timerInterval);
     presentState.timerInterval = null;
   }
 }
-
 function updatePresentTimerDisplay() {
   const el = document.getElementById('presentTimer');
   if (!el) return;
@@ -3923,18 +2605,13 @@ function updatePresentTimerDisplay() {
   const ss = String(elapsed % 60).padStart(2, '0');
   el.textContent = mm + ':' + ss;
 }
-
 function bindPresentKeys() {
   presentState.keyListener = (e) => {
     if (!presentState.active) return;
     if (e.key === 'Escape') { closePresentMode(); return; }
     if (e.key === 'ArrowRight') { presentNextPage(); return; }
     if (e.key === 'ArrowLeft') { presentPrevPage(); return; }
-    if (e.key === 'p' || e.key === 'P') {
-      if (e.shiftKey) setPresentTool('highlighter');
-      else setPresentTool('pen');
-      return;
-    }
+    if (e.key === 'p' || e.key === 'P') { setPresentTool('pen'); return; }
     if (e.key === 'h' || e.key === 'H') { setPresentTool('hand'); return; }
     if (e.key === 'l' || e.key === 'L') { setPresentTool('laser'); return; }
     if (e.key === 'e' || e.key === 'E') { setPresentTool('eraser'); return; }
@@ -3944,14 +2621,9 @@ function bindPresentKeys() {
       if (e.shiftKey) presentRedo();
       else presentUndo();
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-      e.preventDefault();
-      presentRedo();
-    }
   };
   document.addEventListener('keydown', presentState.keyListener);
 }
-
 function unbindPresentKeys() {
   if (presentState.keyListener) {
     document.removeEventListener('keydown', presentState.keyListener);

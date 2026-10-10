@@ -356,8 +356,6 @@ export const state = {
   equationColor: '#000000', equationSize: 20,
 
   shapeKind: 'rect',
-  shapeCategory: 'basic',
-  shapeCornerRadius: 0,
   shapeStroke: '#000000', shapeFill: '#ffffff',
   shapeFillNone: true, shapeSize: 3,
   shapeLineStart: 'none', shapeLineEnd: 'arrow', shapeLineCap: 'round',
@@ -382,29 +380,12 @@ export function serializeSvgElement(el) {
     if (['class', 'data-annot', 'data-id', 'selected'].includes(a.name)) continue;
     attrs[a.name] = a.value;
   }
-  const spec = { kind: 'svg', tag, attrs, dataId: el.dataset.id || uid(), shapeType: el.dataset.type || tag };
-  if (tag === 'g') {
-    spec.innerHTML = el.innerHTML;
-  }
-  if (el.dataset) {
-    const ds = {};
-    Object.keys(el.dataset).forEach(k => {
-      if (k !== 'annot' && k !== 'id') ds[k] = el.dataset[k];
-    });
-    spec.dataset = ds;
-  }
-  return spec;
+  return { kind: 'svg', tag, attrs, dataId: el.dataset.id || uid(), shapeType: el.dataset.type || tag };
 }
 
 export function deserializeSvgElement(spec) {
   const el = document.createElementNS(SVG_NS, spec.tag);
   Object.keys(spec.attrs || {}).forEach(k => el.setAttribute(k, spec.attrs[k]));
-  if (spec.innerHTML) el.innerHTML = spec.innerHTML;
-  if (spec.dataset) {
-    Object.keys(spec.dataset).forEach(k => {
-      el.dataset[k] = spec.dataset[k];
-    });
-  }
   el.dataset.annot = '1';
   el.dataset.id = spec.dataId;
   if (spec.shapeType) el.dataset.type = spec.shapeType;
@@ -473,6 +454,7 @@ export function snapshot() {
   const annotations = [];
   if (svgLayer) {
     svgLayer.querySelectorAll(':scope > .annot-wrapper > [data-annot]').forEach(el => {
+      if (el.tagName.toLowerCase() === 'g') return;
       if (el.classList.contains('handle') || el.classList.contains('selection-outline')) return;
       annotations.push(serializeSvgElement(el));
     });

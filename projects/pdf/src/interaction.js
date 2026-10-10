@@ -26,16 +26,6 @@ import {
   applyButtonStyles, BUTTON_DEFAULTS,
 } from './elements.js';
 
-import {
-  createShapeElement as createShapeElementFromShapes,
-  updateShapeDuringDraw,
-  resizeUniversalShape,
-  getUniversalShapeBounds,
-  renderCylinder,
-  renderCircuitComponent,
-  renderCartesianPlane,
-} from './shapes.js';
-
 /* ============================================================
    §1. UI HOOKS
    ============================================================ */
@@ -177,32 +167,12 @@ export function captureSvgGeom(el) {
     const v = el.getAttribute(a);
     if (v !== null) g[a] = parseFloat(v);
   });
-  if (el.dataset) {
-    ['x','y','w','h','x0','y0','cx','cy','x1','y1','capH','radius'].forEach(a => {
-      if (el.dataset[a] !== undefined) g[a] = parseFloat(el.dataset[a]);
-    });
-  }
-  if (el.tagName && el.tagName.toLowerCase() === 'polygon' && el.getAttribute('points')) {
-    g.origPoints = el.getAttribute('points').trim().split(/\s+/).map(p => {
-      const [px, py] = p.split(',').map(Number);
-      return { x: px, y: py };
-    });
-  }
-  const b = getUniversalShapeBounds(el);
-  if (b) {
-    g.bounds = b;
-    if (g.x === undefined) g.x = b.x;
-    if (g.y === undefined) g.y = b.y;
-    if (g.width === undefined) g.width = b.width;
-    if (g.height === undefined) g.height = b.height;
-  }
   const t = el.getAttribute('transform');
   if (t) {
     const m = t.match(/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)/);
     if (m) { g.tx = parseFloat(m[1]); g.ty = parseFloat(m[2]); }
   }
-  g._tag = el.tagName ? el.tagName.toLowerCase() : '';
-  g._type = el.dataset.type || g._tag;
+  g._tag = el.tagName;
   return g;
 }
 
@@ -213,102 +183,37 @@ export function applySvgGeom(el, orig, dx, dy) {
   else if (t === 'line') {
     el.setAttribute('x1', orig.x1 + dx); el.setAttribute('y1', orig.y1 + dy);
     el.setAttribute('x2', orig.x2 + dx); el.setAttribute('y2', orig.y2 + dy);
-  } else if (t === 'polygon') {
-    if (orig.origPoints) {
-      const moved = orig.origPoints.map(p => `${p.x + dx},${p.y + dy}`).join(' ');
-      el.setAttribute('points', moved);
-    }
-  } else if (orig._type === 'curve') {
-    const x0 = (orig.x0 != null ? orig.x0 : orig.x) + dx;
-    const y0 = (orig.y0 != null ? orig.y0 : orig.y) + dy;
-    const cx = (orig.cx != null ? orig.cx : (orig.x + orig.width / 2)) + dx;
-    const cy = (orig.cy != null ? orig.cy : (orig.y + orig.height / 2)) + dy;
-    const x1 = (orig.x1 != null ? orig.x1 : (orig.x + orig.width)) + dx;
-    const y1 = (orig.y1 != null ? orig.y1 : (orig.y + orig.height)) + dy;
-    el.setAttribute('d', `M ${x0} ${y0} Q ${cx} ${cy} ${x1} ${y1}`);
-    el.dataset.x0 = x0; el.dataset.y0 = y0;
-    el.dataset.cx = cx; el.dataset.cy = cy;
-    el.dataset.x1 = x1; el.dataset.y1 = y1;
-  } else if (t === 'g') {
-    const b = orig.bounds || { x: orig.x || 0, y: orig.y || 0, width: orig.width || 50, height: orig.height || 50 };
-    const newX = b.x + dx, newY = b.y + dy;
-    if (orig._type === 'cylinder') {
-      renderCylinder(el, newX, newY, b.width, b.height);
-    } else if (orig._type && orig._type.startsWith('circuit-')) {
-      renderCircuitComponent(el, orig._type, newX, newY, b.width, b.height);
-    } else if (orig._type === 'cartesian') {
-      renderCartesianPlane(el, newX, newY, b.width, b.height);
-    } else {
-      el.setAttribute('transform', `translate(${(orig.tx || 0) + dx}, ${(orig.ty || 0) + dy})`);
-    }
   } else if (t === 'path') {
-    el.setAttribute('transform', `translate(${(orig.tx || 0) + dx}, ${(orig.ty || 0) + dy})`);
+    el.setAttribute('transform', `translate(${(orig.tx||0)+dx}, ${(orig.ty||0)+dy})`);
   }
 }
 
 export function resizeSvg(el, handle, startPt, orig, p) {
-  if (handle === 'radius') {
-    const origR = parseFloat(el.getAttribute('rx') || '0');
-    const b = orig.bounds || getUniversalShapeBounds(el);
-    const maxR = Math.min(b.width, b.height) / 2;
-    const dx = p.x - startPt.x;
-    const newR = Math.max(0, Math.min(maxR, origR + dx));
-    el.setAttribute('rx', newR);
-    el.setAttribute('ry', newR);
+  const tag = el.tagName;
+  const dx = p.x - startPt.x, dy = p.y - startPt.y;
+  const g = orig;
+  if (tag === 'line') {
+    if (handle === 'start') { el.setAttribute('x1', g.x1+dx); el.setAttribute('y1', g.y1+dy); }
+    else if (handle === 'end') { el.setAttribute('x2', g.x2+dx); el.setAttribute('y2', g.y2+dy); }
+    else if (handle === 'se') { el.setAttribute('x2', g.x2+dx); el.setAttribute('y2', g.y2+dy); }
+    else if (handle === 'nw') { el.setAttribute('x1', g.x1+dx); el.setAttribute('y1', g.y1+dy); }
     return;
   }
-  if (handle === 'curve-start') {
-    const dx = p.x - startPt.x, dy = p.y - startPt.y;
-    const x0 = (orig.x0 != null ? orig.x0 : parseFloat(el.dataset.x0)) + dx;
-    const y0 = (orig.y0 != null ? orig.y0 : parseFloat(el.dataset.y0)) + dy;
-    const cx = parseFloat(el.dataset.cx);
-    const cy = parseFloat(el.dataset.cy);
-    const x1 = parseFloat(el.dataset.x1);
-    const y1 = parseFloat(el.dataset.y1);
-    el.setAttribute('d', `M ${x0} ${y0} Q ${cx} ${cy} ${x1} ${y1}`);
-    el.dataset.x0 = x0; el.dataset.y0 = y0;
-    return;
+  if (tag === 'rect') {
+    if (handle === 'se') { el.setAttribute('width', Math.max(5, g.width+dx)); el.setAttribute('height', Math.max(5, g.height+dy)); }
+    else if (handle === 'nw') { el.setAttribute('x', g.x+dx); el.setAttribute('y', g.y+dy); el.setAttribute('width', Math.max(5, g.width-dx)); el.setAttribute('height', Math.max(5, g.height-dy)); }
+    else if (handle === 'ne') { el.setAttribute('y', g.y+dy); el.setAttribute('width', Math.max(5, g.width+dx)); el.setAttribute('height', Math.max(5, g.height-dy)); }
+    else if (handle === 'sw') { el.setAttribute('x', g.x+dx); el.setAttribute('width', Math.max(5, g.width-dx)); el.setAttribute('height', Math.max(5, g.height+dy)); }
+  } else if (tag === 'ellipse') {
+    if (handle === 'se') { el.setAttribute('rx', Math.max(3, g.rx+dx/2)); el.setAttribute('ry', Math.max(3, g.ry+dy/2)); el.setAttribute('cx', g.cx+dx/2); el.setAttribute('cy', g.cy+dy/2); }
+    else if (handle === 'nw') { el.setAttribute('rx', Math.max(3, g.rx-dx/2)); el.setAttribute('ry', Math.max(3, g.ry-dy/2)); el.setAttribute('cx', g.cx+dx/2); el.setAttribute('cy', g.cy+dy/2); }
+    else if (handle === 'ne') { el.setAttribute('rx', Math.max(3, g.rx+dx/2)); el.setAttribute('ry', Math.max(3, g.ry-dy/2)); el.setAttribute('cx', g.cx+dx/2); el.setAttribute('cy', g.cy+dy/2); }
+    else if (handle === 'sw') { el.setAttribute('rx', Math.max(3, g.rx-dx/2)); el.setAttribute('ry', Math.max(3, g.ry+dy/2)); el.setAttribute('cx', g.cx+dx/2); el.setAttribute('cy', g.cy+dy/2); }
   }
-  if (handle === 'curve-end') {
-    const dx = p.x - startPt.x, dy = p.y - startPt.y;
-    const x1 = (orig.x1 != null ? orig.x1 : parseFloat(el.dataset.x1)) + dx;
-    const y1 = (orig.y1 != null ? orig.y1 : parseFloat(el.dataset.y1)) + dy;
-    const x0 = parseFloat(el.dataset.x0);
-    const y0 = parseFloat(el.dataset.y0);
-    const cx = parseFloat(el.dataset.cx);
-    const cy = parseFloat(el.dataset.cy);
-    el.setAttribute('d', `M ${x0} ${y0} Q ${cx} ${cy} ${x1} ${y1}`);
-    el.dataset.x1 = x1; el.dataset.y1 = y1;
-    return;
-  }
-  if (handle === 'curve-ctrl') {
-    const dx = p.x - startPt.x, dy = p.y - startPt.y;
-    const cx = (orig.cx != null ? orig.cx : parseFloat(el.dataset.cx)) + dx;
-    const cy = (orig.cy != null ? orig.cy : parseFloat(el.dataset.cy)) + dy;
-    const x0 = parseFloat(el.dataset.x0);
-    const y0 = parseFloat(el.dataset.y0);
-    const x1 = parseFloat(el.dataset.x1);
-    const y1 = parseFloat(el.dataset.y1);
-    el.setAttribute('d', `M ${x0} ${y0} Q ${cx} ${cy} ${x1} ${y1}`);
-    el.dataset.cx = cx; el.dataset.cy = cy;
-    return;
-  }
-
-  const origBox = orig.bounds || {
-    x: orig.x || 0,
-    y: orig.y || 0,
-    width: orig.width || 50,
-    height: orig.height || 50,
-    origPoints: orig.origPoints,
-    x0: orig.x0, y0: orig.y0, cx: orig.cx, cy: orig.cy, x1: orig.x1, y1: orig.y1,
-    x1Line: orig.x1, y1Line: orig.y1, x2Line: orig.x2, y2Line: orig.y2,
-  };
-
-  resizeUniversalShape(el, handle, origBox, startPt, p);
 }
 
 export function isPointNearShape(p, el, tol) {
-  const tag = el.tagName ? el.tagName.toLowerCase() : '';
+  const tag = el.tagName;
   if (tag === 'line') {
     return distToSegment(p.x, p.y,
       +el.getAttribute('x1'), +el.getAttribute('y1'),
@@ -326,11 +231,6 @@ export function isPointNearShape(p, el, tol) {
     const cx = +el.getAttribute('cx'), cy = +el.getAttribute('cy');
     const rx = +el.getAttribute('rx'), ry = +el.getAttribute('ry');
     return distToEllipse(p.x, p.y, cx, cy, rx, ry) <= tol;
-  }
-  const b = getUniversalShapeBounds(el);
-  if (b) {
-    return p.x >= b.x - tol && p.x <= b.x + b.width + tol &&
-           p.y >= b.y - tol && p.y <= b.y + b.height + tol;
   }
   if (tag === 'path') {
     const d = el.getAttribute('d');
@@ -445,11 +345,7 @@ function buildPathFromPoints(points, kind) {
   return path;
 }
 
-export function createShapeElement(kind, customState, p) {
-  return createShapeElementFromShapes(kind, customState || state, p || { x: 0, y: 0 });
-}
-
-function _legacyCreateShape(kind) {
+export function createShapeElement(kind) {
   const tag = kind === 'circle' ? 'ellipse' : (kind === 'arrow' ? 'line' : kind);
   const el = document.createElementNS(SVG_NS, tag);
   el.setAttribute('stroke', state.shapeStroke);
@@ -912,7 +808,7 @@ export function getAllSelectableElements() {
   const list = [];
   if (svgLayer) {
     svgLayer.querySelectorAll('[data-annot]').forEach(inner => {
-      if (!inner.classList.contains('handle')) {
+      if (inner.tagName.toLowerCase() !== 'g' && !inner.classList.contains('handle')) {
         list.push({ kind: 'svg', el: inner });
       }
     });
@@ -958,7 +854,6 @@ export function drawSelectionOverlay(target) {
   g.setAttribute('class', 'selection-overlay');
   const hs = Math.max(6, (state.pdfW || 2000) / 140);
 
-  // إذا كان خطاً مستقيماً واحداً
   if (selectedItems.length === 1 && selectedItems[0].kind === 'svg' && selectedItems[0].el.tagName === 'line') {
     const el = selectedItems[0].el;
     const x1 = +el.getAttribute('x1'), y1 = +el.getAttribute('y1');
@@ -980,65 +875,10 @@ export function drawSelectionOverlay(target) {
     return;
   }
 
-  // إذا كان منحنى واحداً (Curve) — إظهار نقاط البداية والنهاية ونقطة التحكم بالانحناء
-  if (selectedItems.length === 1 && selectedItems[0].kind === 'svg' && selectedItems[0].el.dataset.type === 'curve') {
-    const el = selectedItems[0].el;
-    const x0 = parseFloat(el.dataset.x0) || 0;
-    const y0 = parseFloat(el.dataset.y0) || 0;
-    const cx = parseFloat(el.dataset.cx) || ((x0 + parseFloat(el.dataset.x1 || x0 + 100)) / 2);
-    const cy = parseFloat(el.dataset.cy) || ((y0 + parseFloat(el.dataset.y1 || y0)) / 2 - 40);
-    const x1 = parseFloat(el.dataset.x1) || (x0 + 100);
-    const y1 = parseFloat(el.dataset.y1) || y0;
-
-    // خطوط إرشادية منقطة إلى نقطة الانحناء
-    const gLine1 = document.createElementNS(SVG_NS, 'line');
-    gLine1.setAttribute('x1', x0); gLine1.setAttribute('y1', y0);
-    gLine1.setAttribute('x2', cx); gLine1.setAttribute('y2', cy);
-    gLine1.setAttribute('stroke', '#f59e0b');
-    gLine1.setAttribute('stroke-width', '1.5');
-    gLine1.setAttribute('stroke-dasharray', '3 3');
-    g.appendChild(gLine1);
-
-    const gLine2 = document.createElementNS(SVG_NS, 'line');
-    gLine2.setAttribute('x1', x1); gLine2.setAttribute('y1', y1);
-    gLine2.setAttribute('x2', cx); gLine2.setAttribute('y2', cy);
-    gLine2.setAttribute('stroke', '#f59e0b');
-    gLine2.setAttribute('stroke-width', '1.5');
-    gLine2.setAttribute('stroke-dasharray', '3 3');
-    g.appendChild(gLine2);
-
-    // مقبض نقطة البداية
-    const cStart = document.createElementNS(SVG_NS, 'circle');
-    cStart.setAttribute('cx', x0); cStart.setAttribute('cy', y0);
-    cStart.setAttribute('r', hs);
-    cStart.setAttribute('class', 'handle curve-point');
-    cStart.dataset.handle = 'curve-start';
-    cStart.setAttribute('style', 'fill:#3b82f6;stroke:#fff;stroke-width:2');
-    g.appendChild(cStart);
-
-    // مقبض نقطة النهاية
-    const cEnd = document.createElementNS(SVG_NS, 'circle');
-    cEnd.setAttribute('cx', x1); cEnd.setAttribute('cy', y1);
-    cEnd.setAttribute('r', hs);
-    cEnd.setAttribute('class', 'handle curve-point');
-    cEnd.dataset.handle = 'curve-end';
-    cEnd.setAttribute('style', 'fill:#3b82f6;stroke:#fff;stroke-width:2');
-    g.appendChild(cEnd);
-
-    // مقبض نقطة التحكم بالانحناء (بلون ذهبي برتقالي)
-    const cCtrl = document.createElementNS(SVG_NS, 'circle');
-    cCtrl.setAttribute('cx', cx); cCtrl.setAttribute('cy', cy);
-    cCtrl.setAttribute('r', hs * 1.25);
-    cCtrl.setAttribute('class', 'handle curve-ctrl');
-    cCtrl.dataset.handle = 'curve-ctrl';
-    cCtrl.setAttribute('style', 'fill:#f59e0b;stroke:#fff;stroke-width:2.5');
-    g.appendChild(cCtrl);
-  }
-
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
   selectedItems.forEach(item => {
-    const b = getUniversalShapeBounds(item.el) || getElementBBoxInStage(item.el);
+    const b = getElementBBoxInStage(item.el);
     if (!b) return;
     minX = Math.min(minX, b.x);
     minY = Math.min(minY, b.y);
@@ -1072,32 +912,11 @@ export function drawSelectionOverlay(target) {
   rect.setAttribute('class', 'selection-outline');
   g.appendChild(rect);
 
-  // إذا كان مستطيلاً واحداً — إضافة مقبض استدارة الزوايا (Radius Handle)
-  if (selectedItems.length === 1 && selectedItems[0].kind === 'svg' && selectedItems[0].el.tagName && selectedItems[0].el.tagName.toLowerCase() === 'rect') {
-    const curRx = parseFloat(selectedItems[0].el.getAttribute('rx') || '0');
-    const radHandleX = Math.min(minX + width / 2, minX + Math.max(14, curRx));
-    const radHandleY = minY + Math.min(20, height / 2);
-
-    const radHandle = document.createElementNS(SVG_NS, 'circle');
-    radHandle.setAttribute('cx', radHandleX);
-    radHandle.setAttribute('cy', radHandleY);
-    radHandle.setAttribute('r', hs * 0.9);
-    radHandle.setAttribute('class', 'handle radius');
-    radHandle.dataset.handle = 'radius';
-    radHandle.setAttribute('style', 'fill:#f59e0b;stroke:#fff;stroke-width:2;cursor:ew-resize');
-    g.appendChild(radHandle);
-  }
-
-  // 8 مقَابض كاملة للتكبير والتصغير من الزوايا الأربع وجميع الأطراف
   const pts = {
     nw: [minX, minY],
     ne: [minX + width, minY],
     se: [minX + width, minY + height],
     sw: [minX, minY + height],
-    n:  [minX + width / 2, minY],
-    s:  [minX + width / 2, minY + height],
-    w:  [minX, minY + height / 2],
-    e:  [minX + width, minY + height / 2],
   };
   Object.keys(pts).forEach(k => {
     const c = document.createElementNS(SVG_NS, 'circle');
@@ -1108,26 +927,6 @@ export function drawSelectionOverlay(target) {
     c.dataset.handle = k;
     g.appendChild(c);
   });
-
-  // مقبض الدوران الدائري بالأعلى مع خط توصيل أنيق (PowerPoint / Figma Rotate Handle)
-  const rotDist = Math.max(22, hs * 2.8);
-  const rotLine = document.createElementNS(SVG_NS, 'line');
-  rotLine.setAttribute('x1', minX + width / 2);
-  rotLine.setAttribute('y1', minY);
-  rotLine.setAttribute('x2', minX + width / 2);
-  rotLine.setAttribute('y2', minY - rotDist);
-  rotLine.setAttribute('stroke', '#4a7eff');
-  rotLine.setAttribute('stroke-width', '1.5');
-  g.appendChild(rotLine);
-
-  const rotHandle = document.createElementNS(SVG_NS, 'circle');
-  rotHandle.setAttribute('cx', minX + width / 2);
-  rotHandle.setAttribute('cy', minY - rotDist);
-  rotHandle.setAttribute('r', hs * 1.05);
-  rotHandle.setAttribute('class', 'handle rot');
-  rotHandle.dataset.handle = 'rot';
-  rotHandle.setAttribute('style', 'fill:#3b82f6;stroke:#fff;stroke-width:2.5;cursor:grab');
-  g.appendChild(rotHandle);
 
   selectionSvg.appendChild(g);
 }
@@ -2046,12 +1845,6 @@ function showShapeContextToolbar(el) {
   }
 
   html += `<div class="ctx-sep-v"></div>`;
-  html += `<button type="button" class="ctx-btn" data-act="copy" title="نسخ (Ctrl+C)">📋</button>`;
-  html += `<button type="button" class="ctx-btn" data-act="rotL" title="تدوير 90° لليسار">↶</button>`;
-  html += `<button type="button" class="ctx-btn" data-act="rotR" title="تدوير 90° لليمين">↷</button>`;
-  html += `<button type="button" class="ctx-btn" data-act="flipH" title="عكس أفقي">↔</button>`;
-  html += `<button type="button" class="ctx-btn" data-act="flipV" title="عكس رأسي">↕</button>`;
-  html += `<div class="ctx-sep-v"></div>`;
   html += `<button type="button" class="ctx-btn danger" data-act="delete" title="حذف">🗑️</button>`;
 
   shapeContextToolbar.innerHTML = html;
@@ -2107,42 +1900,6 @@ function bindShapeContextToolbarEvents(el) {
     if (act === 'lineCap')     { ctrl.addEventListener('change', () => applyShapeChange(el, 'lineCap', ctrl.value)); return; }
 
     ctrl.addEventListener('click', () => {
-      if (act === 'copy') {
-        copyElement(el);
-        return;
-      }
-      if (act === 'rotL') {
-        const pre = snapshot();
-        rotateElement(el, -90);
-        commitChange(pre);
-        drawSelectionOverlay();
-        document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
-        return;
-      }
-      if (act === 'rotR') {
-        const pre = snapshot();
-        rotateElement(el, 90);
-        commitChange(pre);
-        drawSelectionOverlay();
-        document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
-        return;
-      }
-      if (act === 'flipH') {
-        const pre = snapshot();
-        flipElementHorizontal(el);
-        commitChange(pre);
-        drawSelectionOverlay();
-        document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
-        return;
-      }
-      if (act === 'flipV') {
-        const pre = snapshot();
-        flipElementVertical(el);
-        commitChange(pre);
-        drawSelectionOverlay();
-        document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
-        return;
-      }
       if (act === 'delete') {
         const pre = snapshot();
         const wrap = el.closest('.annot-wrapper');
@@ -2504,89 +2261,21 @@ function offsetPct(p, delta) {
   return (n + delta) + '%';
 }
 
-export function applyElementTransform(el, options = {}) {
-  if (!el) return;
-  const target = el.dataset && el.dataset.annot ? el : ((el.querySelector && el.querySelector('[data-annot]')) || el);
-
-  let curRot = options.rotation !== undefined ? options.rotation : (parseFloat(target.dataset.rotation) || 0);
-  let curFlipH = options.flipH !== undefined ? options.flipH : (target.dataset.flipH === 'true');
-  let curFlipV = options.flipV !== undefined ? options.flipV : (target.dataset.flipV === 'true');
-
-  curRot = ((Math.round(curRot) % 360) + 360) % 360;
-
-  target.dataset.rotation = String(curRot);
-  target.dataset.flipH = String(curFlipH);
-  target.dataset.flipV = String(curFlipV);
-
-  const scaleX = curFlipH ? -1 : 1;
-  const scaleY = curFlipV ? -1 : 1;
-
-  let tf = '';
-  if (curRot !== 0) tf += `rotate(${curRot}deg) `;
-  if (curFlipH || curFlipV) tf += `scale(${scaleX}, ${scaleY}) `;
-
-  if (target.dataset && target.dataset.annot) {
-    target.style.transformBox = 'fill-box';
-    target.style.transformOrigin = 'center center';
-    target.style.transform = tf.trim();
-  } else {
-    target.style.transformOrigin = 'center center';
-    target.style.transform = tf.trim();
-  }
-}
-
-export function rotateElement(el, deltaDeg) {
-  if (!el) return;
-  const target = el.dataset && el.dataset.annot ? el : ((el.querySelector && el.querySelector('[data-annot]')) || el);
-  const cur = parseFloat(target.dataset.rotation) || 0;
-  applyElementTransform(target, { rotation: cur + deltaDeg });
-}
-
-export function setElementRotation(el, deg) {
-  if (!el) return;
-  const target = el.dataset && el.dataset.annot ? el : ((el.querySelector && el.querySelector('[data-annot]')) || el);
-  applyElementTransform(target, { rotation: deg });
-}
-
-export function flipElementHorizontal(el) {
-  if (!el) return;
-  const target = el.dataset && el.dataset.annot ? el : ((el.querySelector && el.querySelector('[data-annot]')) || el);
-  const cur = target.dataset.flipH === 'true';
-  applyElementTransform(target, { flipH: !cur });
-}
-
-export function flipElementVertical(el) {
-  if (!el) return;
-  const target = el.dataset && el.dataset.annot ? el : ((el.querySelector && el.querySelector('[data-annot]')) || el);
-  const cur = target.dataset.flipV === 'true';
-  applyElementTransform(target, { flipV: !cur });
-}
-
-export function resetElementTransform(el) {
-  if (!el) return;
-  const target = el.dataset && el.dataset.annot ? el : ((el.querySelector && el.querySelector('[data-annot]')) || el);
-  applyElementTransform(target, { rotation: 0, flipH: false, flipV: false });
-}
-
 export function copyElement(el) {
-  if (!el) return;
   let data;
   if (el.classList.contains('pdf-text-box')) data = serializeText(el);
   else if (el.classList.contains('pdf-interactive-btn')) data = serializeButton(el);
   else if (el.classList.contains('media-obj')) data = serializeMedia(el);
   else if (el.classList.contains('embed')) data = serializeEmbed(el);
-  else {
-    const annot = el.dataset && el.dataset.annot ? el : ((el.querySelector && el.querySelector('[data-annot]')) || el.closest('[data-annot]'));
-    if (annot) data = serializeSvgElement(annot);
-  }
+  else if (el.tagName && el.tagName.toLowerCase() !== 'g' && el.dataset.annot) data = serializeSvgElement(el);
   if (!data) return;
   clipboard.element = { data };
   updatePasteBtnState();
-  toast('تم نسخ العنصر 📋', 'ok');
+  toast('تم النسخ', 'ok');
 }
 
 export function pasteElement() {
-  if (!clipboard.element) { toast('لا يوجد شيء في الحافظة للصق', 'warn'); return; }
+  if (!clipboard.element) { toast('لا يوجد شيء ملصق', 'warn'); return; }
   const data = clipboard.element.data;
   const pre = snapshot();
   let newEl = null;
@@ -2606,16 +2295,8 @@ export function pasteElement() {
     } else if (data.tag === 'ellipse') {
       inner.setAttribute('cx', +inner.getAttribute('cx') + 30);
       inner.setAttribute('cy', +inner.getAttribute('cy') + 30);
-    } else {
-      const curT = inner.getAttribute('transform') || '';
-      inner.setAttribute('transform', (curT ? curT + ' ' : '') + 'translate(30, 30)');
-    }
-    if (data.dataset && (data.dataset.rotation || data.dataset.flipH || data.dataset.flipV)) {
-      applyElementTransform(inner, {
-        rotation: parseFloat(data.dataset.rotation) || 0,
-        flipH: data.dataset.flipH === 'true',
-        flipV: data.dataset.flipV === 'true',
-      });
+    } else if (data.tag === 'path') {
+      inner.setAttribute('transform', 'translate(30, 30)');
     }
     const wrap = createAnnotWrapper(inner);
     if (svgLayer) svgLayer.appendChild(wrap);
@@ -2636,7 +2317,7 @@ export function pasteElement() {
     else if (data.kind === 'media') selectMedia(newEl);
     else if (data.kind === 'embed') selectEmbed(newEl);
   }
-  toast('تم لصق العنصر 📄', 'ok');
+  toast('تم اللصق', 'ok');
 }
 
 /* ============================================================
@@ -2755,41 +2436,19 @@ export function initPointerEvents() {
 
     if (tool === 'select') {
       const handle = e.target.closest && e.target.closest('#selectionSvg .handle');
-      if (handle && (state.selected || (state.selectedList && state.selectedList.length > 0))) {
-        const selItem = (state.selectedList && state.selectedList.length > 0) ? state.selectedList[0] : state.selected;
-        const handleName = handle.dataset.handle;
-        if (handleName === 'rot') {
-          const b = getUniversalShapeBounds(selItem.el) || getElementBBoxInStage(selItem.el) || { x: p.x, y: p.y, width: 0, height: 0 };
-          const cx = b.x + b.width / 2;
-          const cy = b.y + b.height / 2;
-          const targetInner = selItem.kind === 'svg' ? (selItem.el.querySelector('[data-annot]') || selItem.el) : selItem.el;
-          const curRot = parseFloat(targetInner.dataset.rotation) || 0;
-          interaction = {
-            type: 'rotate',
-            el: targetInner,
-            center: { x: cx, y: cy },
-            initialRot: curRot,
-            startAngle: Math.atan2(p.y - cy, p.x - cx) * 180 / Math.PI,
-            pre: snapshot(),
-          };
-          try { stage.setPointerCapture(e.pointerId); } catch (_) {}
-          e.preventDefault();
-          return;
-        }
-        if (selItem.kind === 'svg') {
-          interaction = {
-            type: 'resizeSvg', el: selItem.el,
-            handle: handleName, start: p,
-            orig: captureSvgGeom(selItem.el),
-            pre: snapshot(),
-          };
-          try { stage.setPointerCapture(e.pointerId); } catch (_) {}
-          e.preventDefault();
-          return;
-        }
+      if (handle && state.selected && state.selected.kind === 'svg') {
+        interaction = {
+          type: 'resizeSvg', el: state.selected.el,
+          handle: handle.dataset.handle, start: p,
+          orig: captureSvgGeom(state.selected.el),
+          pre: snapshot(),
+        };
+        try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+        e.preventDefault();
+        return;
       }
       const annot = e.target.closest && e.target.closest('#svgLayer [data-annot]');
-      if (annot && !annot.classList.contains('handle')) {
+      if (annot && annot.tagName.toLowerCase() !== 'g' && !annot.classList.contains('handle')) {
         const isAlreadySelected = (state.selectedList || []).some(it => it.el === annot);
         if (e.shiftKey) {
           selectAnnotation(annot, true);
@@ -2865,7 +2524,17 @@ export function initPointerEvents() {
 
     if (tool === 'shape') {
       const pre = snapshot();
-      const el = createShapeElement(state.shapeKind, state, p);
+      const el = createShapeElement(state.shapeKind);
+      if (state.shapeKind === 'rect') {
+        el.setAttribute('x', p.x); el.setAttribute('y', p.y);
+        el.setAttribute('width', 0); el.setAttribute('height', 0);
+      } else if (state.shapeKind === 'circle') {
+        el.setAttribute('cx', p.x); el.setAttribute('cy', p.y);
+        el.setAttribute('rx', 0); el.setAttribute('ry', 0);
+      } else {
+        el.setAttribute('x1', p.x); el.setAttribute('y1', p.y);
+        el.setAttribute('x2', p.x); el.setAttribute('y2', p.y);
+      }
       const wrap = createAnnotWrapper(el);
       if (svgLayer) svgLayer.appendChild(wrap);
       interaction = { type: 'shapeDraw', kind: state.shapeKind, start: p, el, wrap, pre };
@@ -2896,7 +2565,21 @@ export function initPointerEvents() {
     }
     if (interaction.type === 'laser') { laserAdd(p); return; }
     if (interaction.type === 'shapeDraw') {
-      updateShapeDuringDraw(interaction.kind, interaction.el, interaction.start, p, state);
+      const el = interaction.el, s = interaction.start;
+      if (interaction.kind === 'rect') {
+        el.setAttribute('x', Math.min(s.x, p.x));
+        el.setAttribute('y', Math.min(s.y, p.y));
+        el.setAttribute('width', Math.abs(p.x - s.x));
+        el.setAttribute('height', Math.abs(p.y - s.y));
+      } else if (interaction.kind === 'circle') {
+        el.setAttribute('cx', (s.x + p.x) / 2);
+        el.setAttribute('cy', (s.y + p.y) / 2);
+        el.setAttribute('rx', Math.abs(p.x - s.x) / 2);
+        el.setAttribute('ry', Math.abs(p.y - s.y) / 2);
+      } else {
+        el.setAttribute('x2', p.x);
+        el.setAttribute('y2', p.y);
+      }
       return;
     }
     if (interaction.type === 'marquee') {
@@ -3039,9 +2722,15 @@ export function initPointerEvents() {
     if (inter.type === 'laser') { laserEnd(); return; }
     if (inter.type === 'shapeDraw') {
       const el = inter.el, kind = inter.kind;
-      const b = getUniversalShapeBounds(el);
       let tooSmall = false;
-      if (b && (b.width < 10 && b.height < 10)) tooSmall = true;
+      if (kind === 'rect') {
+        if (+el.getAttribute('width') < 15 || +el.getAttribute('height') < 15) tooSmall = true;
+      } else if (kind === 'circle') {
+        if (+el.getAttribute('rx') < 10 || +el.getAttribute('ry') < 10) tooSmall = true;
+      } else {
+        if (Math.hypot(+el.getAttribute('x2') - +el.getAttribute('x1'),
+                       +el.getAttribute('y2') - +el.getAttribute('y1')) < 20) tooSmall = true;
+      }
       if (tooSmall) {
         (inter.wrap || el).remove();
       } else {
@@ -3052,7 +2741,6 @@ export function initPointerEvents() {
           inter.wrap.dataset.annotId = el.dataset.id;
         }
         commitChange(inter.pre);
-        selectAnnotation(el);
       }
       return;
     }

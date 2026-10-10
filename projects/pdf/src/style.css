@@ -442,11 +442,6 @@ html,body{
 }
 .handle.nw,.handle.se{cursor:nwse-resize}
 .handle.ne,.handle.sw{cursor:nesw-resize}
-.handle.n,.handle.s{cursor:ns-resize}
-.handle.e,.handle.w{cursor:ew-resize}
-.handle.radius{fill:#f59e0b !important;stroke:#fff !important;cursor:ew-resize !important}
-.handle.curve-ctrl{fill:#f59e0b !important;stroke:#fff !important;cursor:move !important}
-.handle.curve-point{fill:#3b82f6 !important;stroke:#fff !important;cursor:move !important}
 
 /* ===================== ELEMENT DELETE BUTTON (إلغاء الدائرة الحمراء نهائياً) ===================== */
 .element-delete-btn{
