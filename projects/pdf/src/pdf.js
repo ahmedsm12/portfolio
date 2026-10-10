@@ -311,7 +311,10 @@ export async function renderPage(pageNum) {
     document.body.classList.add('has-project');
     document.body.classList.remove('no-project');
 
-    setTimeout(() => { captureStageThumbnail(pageNum).catch(() => {}); }, 50);
+    // ★ تحديث فوري وسريع للـ thumbnail مباشرة من كانفاس الصفحة
+    updateThumbnailFromStage(pageNum);
+
+    setTimeout(() => { captureStageThumbnail(pageNum).catch(() => {}); }, 60);
   } catch (err) {
     console.error(err);
     toast('تعذّر عرض الصفحة', 'error');
@@ -408,6 +411,76 @@ export async function preloadAllPages(token) {
    ============================================================ */
 let _html2canvasPromise = null;
 
+export function updateThumbnailFromStage(pageNum) {
+  if (!pageNum || pageNum < 1 || pageNum > state.totalPages) return;
+  if (!pdfCanvas || pdfCanvas.width === 0 || pdfCanvas.height === 0) return;
+
+  try {
+    const TW = 280;
+    const aspect = (state.pdfW && state.pdfH)
+      ? (state.pdfH / state.pdfW)
+      : (pdfCanvas.height / pdfCanvas.width || 1.414);
+    const TH = Math.max(1, Math.round(TW * aspect));
+
+    const cvs = document.createElement('canvas');
+    cvs.width = TW;
+    cvs.height = TH;
+    const ctx = cvs.getContext('2d', { alpha: false });
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, TW, TH);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(pdfCanvas, 0, 0, TW, TH);
+
+    const dataUrl = cvs.toDataURL('image/jpeg', 0.88);
+    state.thumbCache.set(pageNum, { dataUrl });
+    updateThumbnailImg(pageNum);
+  } catch (e) {
+    console.warn('updateThumbnailFromStage failed:', e);
+  }
+}
+
+export async function renderSingleThumbnail(i) {
+  if (!i || i < 1 || i > state.totalPages) return;
+  if (state.thumbCache.has(i)) {
+    updateThumbnailImg(i);
+    return;
+  }
+  const slide = state.slides && state.slides[i - 1];
+  if (!slide) return;
+
+  try {
+    if (slide.bg && slide.bg.type === 'pdf' && state.pdfDoc) {
+      const page = await state.pdfDoc.getPage(slide.bg.page);
+      const vp1 = page.getViewport({ scale: 1 });
+      const cssW = THUMB_WIDTH;
+      const cssH = Math.max(1, Math.round(cssW * vp1.height / vp1.width));
+      const cvs = document.createElement('canvas');
+      cvs.width = cssW;
+      cvs.height = cssH;
+      const c = cvs.getContext('2d', { alpha: false });
+      c.fillStyle = '#ffffff';
+      c.fillRect(0, 0, cssW, cssH);
+      const vp = page.getViewport({ scale: cssW / vp1.width });
+      await page.render({ canvasContext: c, viewport: vp }).promise;
+      state.thumbCache.set(i, { dataUrl: cvs.toDataURL('image/jpeg', 0.85) });
+      updateThumbnailImg(i);
+      page.cleanup();
+    } else if (slide.bg && slide.bg.type === 'blank') {
+      const cvs = document.createElement('canvas');
+      cvs.width = THUMB_WIDTH;
+      cvs.height = Math.round(THUMB_WIDTH * (state.pdfH / state.pdfW || 1.414));
+      const c = cvs.getContext('2d', { alpha: false });
+      c.fillStyle = slide.bg.color || (state.projectDims && state.projectDims.bg) || '#ffffff';
+      c.fillRect(0, 0, cvs.width, cvs.height);
+      state.thumbCache.set(i, { dataUrl: cvs.toDataURL('image/jpeg', 0.85) });
+      updateThumbnailImg(i);
+    }
+  } catch (e) {
+    console.warn('renderSingleThumbnail failed for page', i, e);
+  }
+}
+
 function ensureHtml2Canvas() {
   if (window.html2canvas) return Promise.resolve(window.html2canvas);
   if (_html2canvasPromise) return _html2canvasPromise;
@@ -468,6 +541,19 @@ export async function captureStageThumbnail(pageNum) {
     ).forEach(el => el.remove());
 
     clonedStage.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+
+    // ★★★ نسخ بيانات الكانفاس الحقيقي إلى النسخة المستنسخة لأن cloneNode لا ينسخ محتوى الكانفاس! ★★★
+    const origCanvases = stageEl.querySelectorAll('canvas');
+    const clonedCanvases = clonedStage.querySelectorAll('canvas');
+    origCanvases.forEach((orig, idx) => {
+      const clone = clonedCanvases[idx];
+      if (clone && orig.width > 0 && orig.height > 0) {
+        clone.width = orig.width;
+        clone.height = orig.height;
+        const ctx = clone.getContext('2d');
+        if (ctx) ctx.drawImage(orig, 0, 0);
+      }
+    });
 
     cloneHost.appendChild(clonedStage);
     document.body.appendChild(cloneHost);
@@ -819,10 +905,12 @@ export function renderThumbnails() {
     img.draggable = false;
 
     const cached = state.thumbCache.get(i) || state.pageCache.get(i);
-    if (cached) {
+    if (cached && cached.dataUrl) {
       img.src = cached.dataUrl;
       item.classList.remove('loading');
       item.classList.add('loaded');
+    } else {
+      renderSingleThumbnail(i);
     }
 
     const num = document.createElement('span');
@@ -1048,16 +1136,12 @@ export function updateThumbnailImg(p) {
   const img = item.querySelector('img');
   if (!img) return;
   const cached = state.thumbCache.get(p) || state.pageCache.get(p);
-  if (cached && img.src !== cached.dataUrl) {
-    img.src = cached.dataUrl;
-    img.onload = () => {
-      item.classList.remove('loading');
-      item.classList.add('loaded');
-    };
-    if (img.complete) {
-      item.classList.remove('loading');
-      item.classList.add('loaded');
+  if (cached && cached.dataUrl) {
+    if (img.src !== cached.dataUrl) {
+      img.src = cached.dataUrl;
     }
+    item.classList.remove('loading');
+    item.classList.add('loaded');
   }
 }
 
@@ -1093,6 +1177,11 @@ export async function goToPage(p) {
   }
   state.currentPage = p;
   await renderPage(p);
+  updateThumbnailActive(p);
+  updatePageIndicator();
+  document.dispatchEvent(new CustomEvent('ipb:pageChanged', {
+    detail: { page: p },
+  }));
   sliding = false;
 }
 

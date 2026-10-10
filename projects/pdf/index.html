@@ -35,6 +35,15 @@
 
   <div class="tb-divider"></div>
 
+  <button class="tb-btn" id="btnCopy" title="نسخ العنصر المحدد (Ctrl+C)">
+    <span class="ico">📋</span><span class="lbl">نسخ</span>
+  </button>
+  <button class="tb-btn" id="btnPaste" title="لصق العنصر (Ctrl+V)">
+    <span class="ico">📄</span><span class="lbl">لصق</span>
+  </button>
+
+  <div class="tb-divider"></div>
+
   <button class="tb-btn accent" id="btnNew" title="مشروع جديد (Ctrl+N)">
     <span class="ico">✨</span><span class="lbl">جديد</span>
   </button>
@@ -274,33 +283,79 @@
   <div id="presentStage">
     <canvas id="presentCanvas"></canvas>
     <div id="presentLayerHost"></div>
+    <canvas id="presentDrawCanvas"></canvas>
     <canvas id="presentLaser"></canvas>
   </div>
 
+  <!-- Floating Active Tool Options Bar -->
+  <div id="presentToolOptionsBar" class="present-tool-options-bar" style="display:none;"></div>
+
   <div id="presentToolbar">
-    <button data-ptool="select" class="active" title="تفاعل مع المحتوى">🖱️</button>
-    <button data-ptool="hand" title="يد — تحرك الصفحة">🖐️</button>
+    <button data-ptool="select" class="active" title="تفاعل مع المحتوى (V)">🖱️</button>
+    <button data-ptool="hand" title="يد — تحرك الصفحة (H)">🖐️</button>
     <div class="present-divider"></div>
-    <button data-ptool="pen" title="قلم">✏️</button>
-    <button data-ptool="highlighter" title="تحديد">🖍️</button>
-    <button data-ptool="laser" title="ليزر">🔴</button>
-    <button data-ptool="eraser" title="ممحاة">🧽</button>
+    <button data-ptool="pen" id="pToolPen" title="قلم (P)">
+      ✏️
+      <span class="ptool-indicator" id="pPenIndicator" style="background:#ef4444"></span>
+    </button>
+    <button data-ptool="highlighter" id="pToolHighlighter" title="تحديد (Shift+P)">
+      🖍️
+      <span class="ptool-indicator" id="pHighlighterIndicator" style="background:#fef08a"></span>
+    </button>
+    <button data-ptool="laser" id="pToolLaser" title="مؤشر ليزر (L)">
+      🔴
+      <span class="ptool-indicator" id="pLaserIndicator" style="background:#ff1744"></span>
+    </button>
+    <button data-ptool="eraser" id="pToolEraser" title="ممحاة (E)">🧽</button>
+    <button id="presentOptionsToggleBtn" title="تخصيص الألوان والحجم">🎨</button>
     <div class="present-divider"></div>
-    <button id="presentUndo" title="تراجع">↶</button>
-    <button id="presentRedo" title="إعادة" disabled>↷</button>
+    <button id="presentUndo" title="تراجع (Ctrl+Z)">↶</button>
+    <button id="presentRedo" title="إعادة (Ctrl+Y)" disabled>↷</button>
     <button id="presentClear" title="مسح كل الرسومات">🗑️</button>
+    <div class="present-divider"></div>
+    <button id="presentRecordBtn" class="present-record-btn" title="تسجيل العرض فيديو">🎥 تسجيل</button>
+    <div id="presentRecPill" class="present-rec-pill" style="display:none;">
+      <span class="present-rec-dot"></span>
+      <span id="presentRecTimer">00:00</span>
+      <button id="presentRecPauseBtn" class="present-rec-mini-btn" title="إيقاف مؤقت / استئناف">⏸️</button>
+      <button id="presentRecStopBtn" class="present-rec-mini-btn" title="إنهاء وحفظ التسجيل">⏹️</button>
+    </div>
     <div class="present-divider"></div>
     <span id="presentTimer" class="present-timer">00:00</span>
     <div class="present-divider"></div>
-    <button id="presentPrev" title="الصفحة السابقة">‹</button>
+    <button id="presentPrev" title="الصفحة السابقة (←)">‹</button>
     <span id="presentPageNum" class="present-page-num">— / —</span>
-    <button id="presentNext" title="الصفحة التالية">›</button>
+    <button id="presentNext" title="الصفحة التالية (→)">›</button>
     <div class="present-divider"></div>
     <button id="presentExit" title="خروج (Esc)">✕</button>
   </div>
 
   <div id="presentHint">
-    <kbd>Esc</kbd> للخروج • <kbd>←</kbd> <kbd>→</kbd> للتنقل • <kbd>P</kbd> قلم • <kbd>L</kbd> ليزر
+    <kbd>Esc</kbd> للخروج • <kbd>←</kbd> <kbd>→</kbd> للتنقل • <kbd>P</kbd> قلم • <kbd>L</kbd> ليزر • <kbd>E</kbd> ممحاة
+  </div>
+</div>
+
+<!-- Modal for Video Recording Complete -->
+<div id="presentVideoModal" class="present-video-modal" style="display:none;">
+  <div class="present-video-modal-card">
+    <div class="present-video-modal-header">
+      <div class="present-vmodal-title">
+        <span class="present-vmodal-icon">🎬</span>
+        <h3>تم تسجيل العرض بنجاح</h3>
+      </div>
+      <button id="presentVideoCloseBtn" class="present-vmodal-close" title="إغلاق">✕</button>
+    </div>
+    <div class="present-video-modal-body">
+      <video id="presentVideoPreview" controls playsinline></video>
+      <div class="present-video-meta">
+        <span id="presentVideoDuration">⏱️ المدة: 00:00</span>
+        <span id="presentVideoSize">💾 الحجم: 0 MB</span>
+      </div>
+    </div>
+    <div class="present-video-modal-footer">
+      <button id="presentVideoDownloadBtn" class="present-vbtn-primary">💾 تحميل ملف الفيديو (.webm)</button>
+      <button id="presentVideoDismissBtn" class="present-vbtn-secondary">إغلاق</button>
+    </div>
   </div>
 </div>
 

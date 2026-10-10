@@ -87,26 +87,48 @@ export function closeSubmenu() {
 export function repositionSubmenu() {
   if (!submenuOwner || !submenu || !submenu.classList.contains('show')) return;
   const r = submenuOwner.getBoundingClientRect();
-  let top = r.bottom + 6;
-  let left = r.left + (r.width / 2) - (submenu.offsetWidth / 2);
   const h = submenu.offsetHeight;
   const w = submenu.offsetWidth;
-  if (top + h > window.innerHeight - 8) top = r.top - h - 6;
-  if (top < 8) top = 8;
-  if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
-  if (left < 8) left = 8;
+
+  // Toolbar is fixed on the right side of the screen
+  const rightOffset = Math.max(10, (window.innerWidth - r.left) + 8);
+  let top = r.top + (r.height / 2) - (h / 2);
+
+  if (top + h > window.innerHeight - 12) top = window.innerHeight - h - 12;
+  if (top < 12) top = 12;
+
   submenu.style.top = top + 'px';
-  submenu.style.left = left + 'px';
+  submenu.style.right = rightOffset + 'px';
+  submenu.style.left = 'auto';
 }
 
 export function openSubmenu(ownerBtn, kind) {
   if (!submenu) return;
+  // Handle swapped args or missing ownerBtn
+  if (typeof ownerBtn === 'string' && (typeof kind === 'object' || !kind)) {
+    const tmp = ownerBtn;
+    ownerBtn = kind;
+    kind = tmp;
+  }
+  if (!ownerBtn && kind) {
+    ownerBtn = document.querySelector(`#toolbar button[data-submenu="${kind}"]`)
+            || document.querySelector(`#toolbar button[data-tool="${kind}"]`);
+  }
+  if (!ownerBtn) {
+    ownerBtn = document.getElementById('toolbar');
+  }
   submenuOwner = ownerBtn;
+  submenu.dataset.currentKind = kind;
+  if (kind === 'shape') {
+    submenu.classList.add('submenu-shape-mode');
+  } else {
+    submenu.classList.remove('submenu-shape-mode');
+  }
   const t = {
     pen: 'قلم', highlighter: 'قلم تحديد', eraser: 'ممحاة',
-    laser: 'ليزر', shape: 'أشكال', text: 'نص',
+    laser: 'ليزر', shape: 'أشكال هندسية ودارات', text: 'نص',
     equation: 'معادلة',
-  }[kind] || '';
+  }[kind] || 'خيارات الأداة';
   submenu.innerHTML =
     `<div class="submenu-head"><span class="sub-title">${t}</span><button type="button" class="sub-close" title="إغلاق القائمة">✕</button></div>` +
     renderSubmenuHTML(kind);
@@ -200,29 +222,108 @@ function renderEraserSubmenu() {
 }
 
 function renderShapeSubmenu() {
-  const kinds = [{k:'rect',l:'▭'},{k:'circle',l:'◯'},{k:'arrow',l:'↗'}];
-  const sizes = [2,5,10];
+  const currentCat = state.shapeCategory || 'basic';
+  const categories = [
+    { id: 'basic', label: '🔷 هندسية' },
+    { id: 'lines', label: '〰️ خطوط ومنحنيات' },
+    { id: 'circuits', label: '⚡ دارات كهربائية' },
+    { id: 'math', label: '📈 مستوى ديكارتي' },
+  ];
+
+  const shapesByCat = {
+    basic: [
+      { k: 'rect', l: '▭', t: 'مستطيل' },
+      { k: 'rounded-rect', l: '▢', t: 'مستطيل مدور' },
+      { k: 'circle', l: '◯', t: 'دائرة / بيضاوي' },
+      { k: 'triangle', l: '△', t: 'مثلث متساوي الساقين' },
+      { k: 'right-triangle', l: '⊿', t: 'مثلث قائم الزاوية' },
+      { k: 'cylinder', l: '🛢️', t: 'أسطوانة ثلاثية الأبعاد' },
+      { k: 'diamond', l: '◇', t: 'معين' },
+      { k: 'star', l: '★', t: 'نجمة خماسية' },
+      { k: 'hexagon', l: '⬡', t: 'مسدس منتظم' },
+      { k: 'block-arrow', l: '➔', t: 'سهم عريض' },
+    ],
+    lines: [
+      { k: 'arrow', l: '↗', t: 'سهم أحادي' },
+      { k: 'double-arrow', l: '⬄', t: 'سهم ثنائي' },
+      { k: 'line', l: '╱', t: 'خط مستقيم' },
+      { k: 'curve', l: '〰️', t: 'منحنى قابل لتعديل نقاط التحكم' },
+    ],
+    circuits: [
+      { k: 'circuit-battery', l: '🔋', t: 'بطارية DC' },
+      { k: 'circuit-resistor', l: '⚡', t: 'مقاومة كهربائية R' },
+      { k: 'circuit-switch', l: '⏻', t: 'مفتاح مفتوح Switch' },
+      { k: 'circuit-switch-closed', l: '━', t: 'مفتاح مغلق' },
+      { k: 'circuit-lamp', l: '💡', t: 'مصباح كهربائي' },
+      { k: 'circuit-capacitor', l: '⫽', t: 'مكثف كهربائي C' },
+      { k: 'circuit-inductor', l: '∿', t: 'ملف / محث L' },
+      { k: 'circuit-ground', l: '⏚', t: 'تأريض (أرضي)' },
+      { k: 'circuit-ammeter', l: 'Ⓐ', t: 'أمبيرمتر' },
+      { k: 'circuit-voltmeter', l: 'Ⓥ', t: 'فولتميتر' },
+      { k: 'circuit-ac', l: '〜', t: 'مصدر تيار متناوب AC' },
+      { k: 'circuit-wire', l: '⌐', t: 'سلك توصيل زاوية' },
+    ],
+    math: [
+      { k: 'cartesian', l: '📈', t: 'مستوى ديكارتي قابل للتعديل' },
+    ],
+  };
+
+  const activeShapes = shapesByCat[currentCat] || shapesByCat.basic;
+  const sizes = [2, 4, 8];
   const startMarkers = [{v:'none',l:'بدون'},{v:'arrow',l:'سهم'},{v:'arrow-hollow',l:'سهم مفرغ'}];
   const endMarkers = [{v:'none',l:'بدون'},{v:'arrow',l:'سهم'},{v:'arrow-hollow',l:'سهم مفرغ'},{v:'circle',l:'دائرة'},{v:'square',l:'مربع'}];
   const caps = [{v:'round',l:'دائري'},{v:'square',l:'مربع'},{v:'butt',l:'مسطح'}];
+
+  const catTabsHtml = `<div class="shape-cat-tabs">` +
+    categories.map(c => `<button type="button" class="shape-cat-tab ${c.id===currentCat?'active':''}" data-shapecat="${c.id}">${c.label}</button>`).join('') +
+    `</div>`;
+
+  const shapesGridHtml = `<div class="sub-section"><div class="shape-grid">` +
+    activeShapes.map(o => `<button type="button" class="shape-btn ${o.k===state.shapeKind?'active':''}" data-shape="${o.k}" title="${o.t}">${o.l}</button>`).join('') +
+    `</div></div>`;
+
+  const isLineOrCurve = ['line','arrow','double-arrow','curve'].includes(state.shapeKind);
+  const isRect = state.shapeKind === 'rect' || state.shapeKind === 'rounded-rect';
+
+  let rectCornerHtml = '';
+  if (isRect) {
+    rectCornerHtml = `
+      <div class="sub-section">
+        <div class="sub-label">استدارة الحواف</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="range" id="subShapeCornerRadius" min="0" max="60" value="${state.shapeCornerRadius || 0}" style="flex:1;accent-color:var(--sh-accent);cursor:pointer">
+          <span style="font-size:10px;min-width:26px;color:#cbd5e1">${state.shapeCornerRadius || 0}px</span>
+        </div>
+      </div>
+    `;
+  }
+
+  let lineOptionsHtml = '';
+  if (isLineOrCurve) {
+    lineOptionsHtml = `
+      <div class="sub-section"><div class="sub-label">بداية الخط</div><div class="marker-grid">${startMarkers.map(o =>
+        `<button type="button" class="marker-btn ${o.v===state.shapeLineStart?'active':''}" data-shapestart="${o.v}">${o.l}</button>`
+      ).join('')}</div></div>
+      <div class="sub-section"><div class="sub-label">نهاية الخط</div><div class="marker-grid">${endMarkers.map(o =>
+        `<button type="button" class="marker-btn ${o.v===state.shapeLineEnd?'active':''}" data-shapeend="${o.v}">${o.l}</button>`
+      ).join('')}</div></div>
+      <div class="sub-section"><div class="sub-label">شكل الطرف</div><div class="marker-grid">${caps.map(o =>
+        `<button type="button" class="marker-btn ${o.v===state.shapeLineCap?'active':''}" data-shapecap="${o.v}">${o.l}</button>`
+      ).join('')}</div></div>
+    `;
+  }
+
   return `
-  <div class="sub-section"><div class="sub-label">الشكل</div><div class="shape-grid">${kinds.map(o =>
-    `<button type="button" class="shape-btn ${o.k===state.shapeKind?'active':''}" data-shape="${o.k}">${o.l}</button>`
-  ).join('')}</div></div>
-  <div class="sub-section"><div class="sub-label">الحدود</div><div class="color-input-row"><input type="color" id="subShapeStroke" value="${state.shapeStroke}"></div></div>
-  <div class="sub-section"><div class="sub-label">التعبئة</div><div class="color-input-row"><input type="color" id="subShapeFill" value="${state.shapeFill}" ${state.shapeFillNone?'disabled':''}></div><div class="color-input-row"><label><input type="checkbox" id="subNoFill" ${state.shapeFillNone?'checked':''}> بدون تعبئة</label></div></div>
-  <div class="sub-section"><div class="sub-label">السماكة</div><div class="size-grid">${sizes.map(s =>
-    `<button type="button" class="size-btn ${s===state.shapeSize?'active':''}" data-kind="shape" data-size="${s}"><div class="dot" style="width:${Math.max(3,s)}px;height:${Math.max(3,s)}px"></div></button>`
-  ).join('')}</div></div>
-  <div class="sub-section"><div class="sub-label">بداية الخط</div><div class="marker-grid">${startMarkers.map(o =>
-    `<button type="button" class="marker-btn ${o.v===state.shapeLineStart?'active':''}" data-shapestart="${o.v}">${o.l}</button>`
-  ).join('')}</div></div>
-  <div class="sub-section"><div class="sub-label">نهاية الخط</div><div class="marker-grid">${endMarkers.map(o =>
-    `<button type="button" class="marker-btn ${o.v===state.shapeLineEnd?'active':''}" data-shapeend="${o.v}">${o.l}</button>`
-  ).join('')}</div></div>
-  <div class="sub-section"><div class="sub-label">شكل الطرف</div><div class="marker-grid">${caps.map(o =>
-    `<button type="button" class="marker-btn ${o.v===state.shapeLineCap?'active':''}" data-shapecap="${o.v}">${o.l}</button>`
-  ).join('')}</div></div>`;
+    ${catTabsHtml}
+    ${shapesGridHtml}
+    ${rectCornerHtml}
+    <div class="sub-section"><div class="sub-label">الحدود</div><div class="color-input-row"><input type="color" id="subShapeStroke" value="${state.shapeStroke}"></div></div>
+    <div class="sub-section"><div class="sub-label">التعبئة</div><div class="color-input-row"><input type="color" id="subShapeFill" value="${state.shapeFill}" ${state.shapeFillNone?'disabled':''}></div><div class="color-input-row"><label><input type="checkbox" id="subNoFill" ${state.shapeFillNone?'checked':''}> بدون تعبئة</label></div></div>
+    <div class="sub-section"><div class="sub-label">السماكة</div><div class="size-grid">${sizes.map(s =>
+      `<button type="button" class="size-btn ${s===state.shapeSize?'active':''}" data-kind="shape" data-size="${s}"><div class="dot" style="width:${Math.max(3,s)}px;height:${Math.max(3,s)}px"></div></button>`
+    ).join('')}</div></div>
+    ${lineOptionsHtml}
+  `;
 }
 
 function renderTextSubmenu() {
@@ -292,13 +393,29 @@ function bindSubmenuHandlers() {
       updateCursorForTool();
     });
   });
+  submenu.querySelectorAll('.shape-cat-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.shapeCategory = btn.dataset.shapecat;
+      openSubmenu(submenuOwner, 'shape');
+    });
+  });
   submenu.querySelectorAll('.shape-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       state.shapeKind = btn.dataset.shape;
-      submenu.querySelectorAll('.shape-btn').forEach(b =>
-        b.classList.toggle('active', b.dataset.shape === state.shapeKind));
+      if (state.shapeKind === 'rounded-rect' && !state.shapeCornerRadius) {
+        state.shapeCornerRadius = 24;
+      }
+      openSubmenu(submenuOwner, 'shape');
     });
   });
+  const subRadiusInput = submenu.querySelector('#subShapeCornerRadius');
+  if (subRadiusInput) {
+    subRadiusInput.addEventListener('input', e => {
+      state.shapeCornerRadius = parseInt(e.target.value, 10) || 0;
+      const lbl = subRadiusInput.nextElementSibling;
+      if (lbl) lbl.textContent = state.shapeCornerRadius + 'px';
+    });
+  }
   submenu.querySelectorAll('.smooth-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const lvl = parseInt(btn.dataset.smooth, 10);
