@@ -294,7 +294,7 @@ export function addButtonElement(spec, save, z) {
 
   el.addEventListener('pointerdown', e => {
     if (state.tool === 'hand') {
-      e.stopPropagation();
+      return; // Allow to bubble to stage for canvas panning
     } else if (state.tool === 'select') {
       e.preventDefault(); e.stopPropagation();
       try { el.setPointerCapture(e.pointerId); } catch (_) {}

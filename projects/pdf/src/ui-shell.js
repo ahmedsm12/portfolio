@@ -11,6 +11,25 @@
 
 export const APP_VERSION = '0.5.1';
 
+import { toast, state } from './core.js';
+import * as shapes from './shapes.js';
+
+function safeToast(msg, type) {
+  try {
+    if (typeof toast === 'function') {
+      toast(msg, type);
+    } else {
+      const el = document.createElement('div');
+      el.className = 'toast' + (type ? ' ' + type : '');
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2400);
+    }
+  } catch (_) {
+    console.log(msg);
+  }
+}
+
 /* ============================================================
    §1. VERSION
    ============================================================ */
@@ -30,9 +49,219 @@ function setSaveBadge(text, saving) {
 }
 
 /* ============================================================
-   §3. PROPS TABS
+   §3. PROPS TABS & SIDEBAR PANELS (SHAPES & EFFECTS)
    ============================================================ */
-function initPropsTabs() {
+let _activeShapeCat = 'all';
+let _shapeSearchQuery = '';
+
+const SHAPES_LIBRARY_DATA = [
+  // ── 🔷 هندسية أساسية ──
+  { id: 'rect', label: 'مستطيل', cat: 'basic', icon: '<rect x="3" y="5" width="18" height="14" rx="1" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
+  { id: 'rounded-rect', label: 'مستطيل مدور', cat: 'basic', icon: '<rect x="3" y="5" width="18" height="14" rx="5" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
+  { id: 'circle', label: 'دائرة / بيضاوي', cat: 'basic', icon: '<circle cx="12" cy="12" r="9" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
+  { id: 'triangle', label: 'مثلث متساوي', cat: 'basic', icon: '<polygon points="12,3 21,20 3,20" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
+  { id: 'right-triangle', label: 'مثلث قائم', cat: 'basic', icon: '<polygon points="4,4 4,20 20,20" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
+  { id: 'diamond', label: 'معين هندسي', cat: 'basic', icon: '<polygon points="12,3 21,12 12,21 3,12" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
+  { id: 'star', label: 'نجمة خماسية', cat: 'basic', icon: '<polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
+  { id: 'hexagon', label: 'مسدس منتظم', cat: 'basic', icon: '<polygon points="7,3 17,3 22,12 17,21 7,21 2,12" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
+  { id: 'cylinder', label: 'أسطوانة 3D', cat: 'basic', icon: '<path d="M4 6 C4 3, 20 3, 20 6 L20 18 C20 21, 4 21, 4 18 Z M4 6 C4 9, 20 9, 20 6" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
+  { id: 'block-arrow', label: 'سهم عريض', cat: 'basic', icon: '<path d="M3 9 L13 9 L13 5 L21 12 L13 19 L13 15 L3 15 Z" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
+
+  // ── 〰️ خطوط وأسهم ──
+  { id: 'line', label: 'خط مستقيم', cat: 'lines', icon: '<line x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>' },
+  { id: 'arrow', label: 'سهم أحادي', cat: 'lines', icon: '<path d="M4 20 L20 4 M12 4 L20 4 L20 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' },
+  { id: 'double-arrow', label: 'سهم مزدوج', cat: 'lines', icon: '<path d="M4 20 L20 4 M7 20 L4 20 L4 17 M17 4 L20 4 L20 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' },
+  { id: 'curve', label: 'منحنى بيزير', cat: 'lines', icon: '<path d="M3 18 Q12 2 21 18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>' },
+
+  // ── ⚡ دارات كهربائية ──
+  { id: 'circuit-battery', label: 'بطارية DC', cat: 'circuits', icon: '<path d="M2 12 L9 12 M9 6 L9 18 M15 9 L15 15 M15 12 L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
+  { id: 'circuit-resistor', label: 'مقاومة R', cat: 'circuits', icon: '<path d="M2 12 L6 12 L8 7 L11 17 L14 7 L17 17 L19 12 L22 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' },
+  { id: 'circuit-lamp', label: 'مصباح كهربائي', cat: 'circuits', icon: '<circle cx="12" cy="12" r="8" fill="currentColor" fill-opacity="0.1" stroke="currentColor" stroke-width="2"/><path d="M7 7 L17 17 M17 7 L7 17" stroke="currentColor" stroke-width="2"/>' },
+  { id: 'circuit-switch', label: 'مفتاح مفتوح', cat: 'circuits', icon: '<circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/><path d="M6 11 L16 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
+  { id: 'circuit-switch-closed', label: 'مفتاح مغلق', cat: 'circuits', icon: '<circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2"/>' },
+  { id: 'circuit-capacitor', label: 'مكثف C', cat: 'circuits', icon: '<path d="M2 12 L10 12 M10 6 L10 18 M14 6 L14 18 M14 12 L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
+  { id: 'circuit-inductor', label: 'ملف محث L', cat: 'circuits', icon: '<path d="M2 14 C4 14 5 7 8 7 C11 7 11 14 14 14 C17 14 17 7 20 7 C22 7 22 14 22 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
+  { id: 'circuit-ground', label: 'تأريض أرضي', cat: 'circuits', icon: '<path d="M12 4 L12 12 M6 12 L18 12 M8 15 L16 15 M10 18 L14 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
+
+  // ── 📈 مستوى ديكارتي ──
+  { id: 'cartesian', label: 'مستوى ديكارتي', cat: 'math', icon: '<path d="M3 12 L21 12 M12 3 L12 21 M21 12 L18 9 M21 12 L18 15 M12 3 L9 6 M12 3 L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>' },
+];
+
+export function switchPropsTab(tabName) {
+  const root = document.getElementById('propsRight');
+  if (!root) return;
+  if (tabName === 'shapes') tabName = 'design';
+
+  const tabs = root.querySelectorAll('.props-tab');
+  const panels = root.querySelectorAll('.props-panel');
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.ptab === tabName));
+  panels.forEach(p => {
+    p.style.display = p.dataset.ppanel === tabName ? 'block' : 'none';
+  });
+
+  document.body.classList.remove('props-collapsed');
+  document.body.classList.remove('props-hidden');
+  document.body.classList.add('props-mobile-open');
+
+  const btn = document.getElementById('btnToggleProps');
+  if (btn) btn.classList.remove('collapsed');
+
+  if (tabName === 'design') {
+    updateDesignTabContent();
+  }
+  if (tabName === 'effects') renderEffectsPanel();
+}
+
+export async function updateDesignTabContent() {
+  const core = await import('./core.js');
+  const shapesPanel = document.getElementById('shapesLibraryPanel');
+  const textPanel = document.getElementById('textToolDesignPanel');
+  const elemPanel = document.getElementById('selectedElementPropsPanel');
+  const docPanel = document.getElementById('documentInfoPanel');
+
+  const selList = core.state.selectedList || [];
+  const hasSelection = selList.length > 0 || !!core.state.selected;
+
+  if (hasSelection) {
+    if (shapesPanel) shapesPanel.style.display = 'none';
+    if (textPanel) textPanel.style.display = 'none';
+    if (docPanel) docPanel.style.display = 'none';
+    if (elemPanel) elemPanel.style.display = 'block';
+  } else if (core.state.tool === 'shape') {
+    if (elemPanel) elemPanel.style.display = 'none';
+    if (textPanel) textPanel.style.display = 'none';
+    if (docPanel) docPanel.style.display = 'none';
+    if (shapesPanel) {
+      shapesPanel.style.display = 'block';
+      renderShapesLibrary();
+    }
+  } else if (core.state.tool === 'text') {
+    if (elemPanel) elemPanel.style.display = 'none';
+    if (shapesPanel) shapesPanel.style.display = 'none';
+    if (docPanel) docPanel.style.display = 'none';
+    if (textPanel) {
+      textPanel.style.display = 'block';
+      renderTextToolDesignPanel();
+    }
+  } else {
+    if (shapesPanel) shapesPanel.style.display = 'none';
+    if (textPanel) textPanel.style.display = 'none';
+    if (elemPanel) elemPanel.style.display = 'none';
+    if (docPanel) docPanel.style.display = 'block';
+  }
+}
+
+export async function renderTextToolDesignPanel() {
+  const host = document.getElementById('textToolDesignPanel');
+  if (!host) return;
+  const core = await import('./core.js');
+  const inter = await import('./interaction.js');
+  const state = core.state;
+
+  const curFont = state.textFamily || 'Cairo, sans-serif';
+  const curSize = state.textSize || 24;
+  const curColor = state.textColor || '#1e3a8a';
+  const curBg = state.textBg || '';
+
+  host.innerHTML = `
+    <div class="tt-panel-container">
+      <div class="tt-header">
+        <div class="tt-title">
+          <span>✍️ إعدادات الكتابة والنصوص</span>
+        </div>
+        <div class="tt-subtitle">انقر في أي مكان داخل الشريحة للبدء في الكتابة، أو أدرج مربع نص تلقائي في المنتصف.</div>
+      </div>
+
+      <div class="prop-section">
+        <div class="prop-title">حجم ولون الخط</div>
+        <div class="prop-row">
+          <div class="prop-field">
+            <label>حجم الخط (px)</label>
+            <input type="number" class="prop-input" id="ttDefaultSize" value="${curSize}" min="10" max="180">
+          </div>
+          <div class="prop-field">
+            <label>لون الخط</label>
+            <input type="color" class="prop-input" id="ttDefaultColor" value="${curColor.startsWith('#') ? curColor : '#1e3a8a'}" style="padding:2px;height:28px">
+          </div>
+        </div>
+
+        <div class="prop-row" style="margin-top:8px">
+          <div class="prop-field" style="grid-column: 1 / -1">
+            <label>🎨 لون تعبئة خلفية مربع النص</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="color" class="prop-input" id="ttDefaultBgColor" value="${curBg && curBg.startsWith('#') ? curBg : '#ffffff'}" style="padding:2px;height:28px;flex:1">
+              <button type="button" class="prop-input ${!curBg || curBg === 'transparent' || curBg === 'none' ? 'active' : ''}" id="ttDefaultBgNone" style="cursor:pointer;font-size:11px;padding:0 12px;height:28px">شفاف</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="prop-row" style="grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:8px">
+          <button type="button" class="prop-input ${state.textBold ? 'active' : ''}" id="ttDefaultBold" style="cursor:pointer;font-weight:bold">B عريض</button>
+          <button type="button" class="prop-input ${state.textItalic ? 'active' : ''}" id="ttDefaultItalic" style="cursor:pointer;font-style:italic">I مائل</button>
+          <button type="button" class="prop-input" id="ttDefaultAlign" style="cursor:pointer">محاذاة ⇄</button>
+        </div>
+      </div>
+
+      <div class="prop-section">
+        <button type="button" class="tt-btn-primary" id="ttInsertCenterBtn">➕ إدراج مربع نص في وسط الشريحة</button>
+      </div>
+    </div>
+  `;
+
+  const sSize = document.getElementById('ttDefaultSize');
+  const sColor = document.getElementById('ttDefaultColor');
+  const sBg = document.getElementById('ttDefaultBgColor');
+  const sBgNone = document.getElementById('ttDefaultBgNone');
+  const sBold = document.getElementById('ttDefaultBold');
+  const sItalic = document.getElementById('ttDefaultItalic');
+  const sAlign = document.getElementById('ttDefaultAlign');
+  const btnInsert = document.getElementById('ttInsertCenterBtn');
+
+  if (sSize) sSize.addEventListener('change', () => { state.textSize = parseInt(sSize.value, 10) || 24; });
+  if (sColor) sColor.addEventListener('input', () => { state.textColor = sColor.value; });
+  if (sBg) sBg.addEventListener('input', () => {
+    state.textBg = sBg.value;
+    if (sBgNone) sBgNone.classList.remove('active');
+  });
+  if (sBgNone) sBgNone.addEventListener('click', () => {
+    state.textBg = '';
+    sBgNone.classList.add('active');
+  });
+  if (sBold) sBold.addEventListener('click', () => {
+    state.textBold = !state.textBold;
+    sBold.classList.toggle('active', state.textBold);
+  });
+  if (sItalic) sItalic.addEventListener('click', () => {
+    state.textItalic = !state.textItalic;
+    sItalic.classList.toggle('active', state.textItalic);
+  });
+  if (sAlign) sAlign.addEventListener('click', () => {
+    const cur = state.textAlign || 'right';
+    state.textAlign = cur === 'right' ? 'center' : (cur === 'center' ? 'left' : 'right');
+    core.toast('تم تغيير المحاذاة إلى: ' + state.textAlign, 'info');
+  });
+
+  if (btnInsert) btnInsert.addEventListener('click', () => {
+    const pre = core.snapshot();
+    const el = inter.addTextBox({
+      x: '35%', y: '40%', w: '260px', h: 'auto',
+      text: 'اكتب النص هنا...',
+      fontSize: state.textSize || 24,
+      fontFamily: state.textFamily || 'Cairo, sans-serif',
+      fontWeight: state.textBold ? 'bold' : 'normal',
+      fontStyle: state.textItalic ? 'italic' : 'normal',
+      color: state.textColor || '#1e3a8a',
+      bg: state.textBg || '',
+      align: state.textAlign || 'right',
+      dir: 'rtl',
+    }, true);
+    core.commitChange(pre);
+    inter.selectTextBox(el);
+    core.toast('تم إدراج مربع النص بنجاح ✨', 'ok');
+  });
+}
+
+export function initPropsTabs() {
   const root = document.getElementById('propsRight');
   if (!root) return;
   const tabs = root.querySelectorAll('.props-tab');
@@ -45,8 +274,741 @@ function initPropsTabs() {
       const key = tab.dataset.ptab;
       const panel = root.querySelector('.props-panel[data-ppanel="' + key + '"]');
       if (panel) panel.style.display = 'block';
+      if (key === 'design') updateDesignTabContent();
+      if (key === 'effects') renderEffectsPanel();
     });
   });
+
+  // Automatically switch to Design tab and expand panel when Shape or Text tool is picked
+  document.addEventListener('ipb:toolChanged', (e) => {
+    const tool = e.detail && e.detail.tool;
+    if (tool === 'shape' || tool === 'text') {
+      switchPropsTab('design');
+    } else {
+      updateDesignTabContent();
+    }
+  });
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════
+ *  SHAPES LIBRARY (شريط جانبي متكامل وسهل لجميع الأشكال)
+ * ═══════════════════════════════════════════════════════════
+ */
+export async function renderShapesLibrary() {
+  const panel = document.getElementById('shapesLibraryPanel');
+  if (!panel) return;
+
+  const core = await import('./core.js');
+  const state = core.state;
+
+  const categories = [
+    { id: 'all', label: 'الكل' },
+    { id: 'basic', label: '🔷 هندسية' },
+    { id: 'lines', label: '〰️ خطوط وأسهم' },
+    { id: 'circuits', label: '⚡ دارات كهربائية' },
+    { id: 'math', label: '📈 ديكارتي' },
+  ];
+
+  const filtered = SHAPES_LIBRARY_DATA.filter(sh => {
+    const matchCat = _activeShapeCat === 'all' || sh.cat === _activeShapeCat;
+    const matchQuery = !_shapeSearchQuery || sh.label.includes(_shapeSearchQuery) || sh.id.includes(_shapeSearchQuery);
+    return matchCat && matchQuery;
+  });
+
+  const curStroke = state.shapeColor || '#2563eb';
+  const curFill = state.shapeFill || 'none';
+  const curSW = state.shapeSize || 4;
+  const curRadius = state.shapeCornerRadius || 24;
+
+  panel.innerHTML = `
+    <div class="shlib-container">
+      <div class="shlib-header">
+        <div class="shlib-title">
+          <span>📐 مكتبة الأشكال والدارات</span>
+          <span class="shlib-badge">${state.shapeKind || 'rect'}</span>
+        </div>
+        <p class="shlib-subtitle">انقر على الشكل لاختياره والرسم على الكانفاس، أو اضغط زر "إدراج" لوضعه مباشرة في الشريحة.</p>
+      </div>
+
+      <!-- Search Box -->
+      <div class="shlib-search-box">
+        <input type="text" class="shlib-search-input" id="shlibSearchInput" placeholder="🔍 بحث عن شكل أو دارة..." value="${_shapeSearchQuery}">
+      </div>
+
+      <!-- Category Filter Chips -->
+      <div class="shlib-cats">
+        ${categories.map(c => `
+          <button type="button" class="shlib-cat-btn ${_activeShapeCat === c.id ? 'active' : ''}" data-cat="${c.id}">${c.label}</button>
+        `).join('')}
+      </div>
+
+      <!-- Quick Style Toolbar -->
+      <div class="shlib-style-bar">
+        <div class="shlib-style-row">
+          <div class="shlib-style-col">
+            <label>الحدود</label>
+            <input type="color" id="shlibStrokeColor" value="${curStroke.startsWith('#') ? curStroke : '#2563eb'}" class="shlib-color-pick">
+          </div>
+          <div class="shlib-style-col">
+            <label>التعبئة</label>
+            <div style="display:flex;gap:4px;align-items:center">
+              <input type="color" id="shlibFillColor" value="${curFill.startsWith('#') ? curFill : '#3b82f6'}" class="shlib-color-pick">
+              <button type="button" id="shlibFillNoneBtn" class="shlib-mini-btn ${curFill === 'none' ? 'active' : ''}" title="شفاف بدون تعبئة">شفاف</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="shlib-style-row" style="margin-top:6px">
+          <div class="shlib-style-col">
+            <label>السمك: <span id="shlibSWVal">${curSW}px</span></label>
+            <div class="shlib-sizes-row">
+              ${[1, 2, 4, 8, 12, 16].map(sz => `
+                <button type="button" class="shlib-sz-btn ${sz === curSW ? 'active' : ''}" data-sz="${sz}">${sz}</button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        ${state.shapeKind === 'rounded-rect' ? `
+          <div class="shlib-style-row" style="margin-top:6px">
+            <div class="shlib-style-col" style="width:100%">
+              <label>استدارة الزوايا: <span id="shlibRadiusVal">${curRadius}px</span></label>
+              <input type="range" id="shlibRadiusSlider" min="0" max="60" value="${curRadius}" style="width:100%;accent-color:var(--sh-accent)">
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- Shapes Cards Grid -->
+      <div class="shlib-grid">
+        ${filtered.map(item => {
+          const isActive = (state.shapeKind || 'rect') === item.id;
+          return `
+            <div class="shlib-card ${isActive ? 'active' : ''}" data-shape="${item.id}" title="${item.label}">
+              <div class="shlib-card-icon">
+                <svg viewBox="0 0 24 24" width="36" height="36">${item.icon}</svg>
+              </div>
+              <div class="shlib-card-name">${item.label}</div>
+              <button type="button" class="shlib-insert-btn" data-insert="${item.id}" title="إدراج في وسط الشريحة">➕ إدراج</button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+
+  // Bind Events
+  const searchInput = document.getElementById('shlibSearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', e => {
+      _shapeSearchQuery = e.target.value.trim();
+      renderShapesLibrary();
+    });
+  }
+
+  panel.querySelectorAll('.shlib-cat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _activeShapeCat = btn.dataset.cat;
+      renderShapesLibrary();
+    });
+  });
+
+  const strInp = document.getElementById('shlibStrokeColor');
+  if (strInp) {
+    strInp.addEventListener('input', () => {
+      state.shapeColor = strInp.value;
+      document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
+    });
+  }
+
+  const fillInp = document.getElementById('shlibFillColor');
+  const fillNone = document.getElementById('shlibFillNoneBtn');
+  if (fillInp) {
+    fillInp.addEventListener('input', () => {
+      state.shapeFill = fillInp.value;
+      if (fillNone) fillNone.classList.remove('active');
+      document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
+    });
+  }
+  if (fillNone) {
+    fillNone.addEventListener('click', () => {
+      state.shapeFill = 'none';
+      fillNone.classList.add('active');
+      document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
+    });
+  }
+
+  panel.querySelectorAll('.shlib-sz-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sz = parseInt(btn.dataset.sz, 10);
+      state.shapeSize = sz;
+      const val = document.getElementById('shlibSWVal');
+      if (val) val.textContent = sz + 'px';
+      panel.querySelectorAll('.shlib-sz-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.sz, 10) === sz));
+      document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
+    });
+  });
+
+  const rSlider = document.getElementById('shlibRadiusSlider');
+  if (rSlider) {
+    rSlider.addEventListener('input', e => {
+      state.shapeCornerRadius = parseInt(e.target.value, 10) || 0;
+      const lbl = document.getElementById('shlibRadiusVal');
+      if (lbl) lbl.textContent = state.shapeCornerRadius + 'px';
+      document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
+    });
+  }
+
+  panel.querySelectorAll('.shlib-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('.shlib-insert-btn')) return;
+      const id = card.dataset.shape;
+      state.shapeKind = id;
+      import('./main.js').then(m => m.setTool('shape'));
+      renderShapesLibrary();
+    });
+  });
+
+  panel.querySelectorAll('.shlib-insert-btn').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const id = btn.dataset.insert;
+      state.shapeKind = id;
+      await insertShapeInSlide(id);
+      renderShapesLibrary();
+    });
+  });
+}
+
+/**
+ * إدراج شكل فورياً في وسط الشريحة الحالية
+ */
+export async function insertShapeInSlide(shapeKind, options = {}) {
+  const shapes = await import('./shapes.js');
+  const inter = await import('./interaction.js');
+  const core = await import('./core.js');
+
+  const pdfW = core.state.pdfW || 2000;
+  const pdfH = core.state.pdfH || 2828;
+  const w = options.width || (shapeKind === 'cartesian' ? 650 : (shapeKind.startsWith('circuit-') ? 220 : 280));
+  const h = options.height || (shapeKind === 'cartesian' ? 650 : (shapeKind.startsWith('circuit-') ? 140 : 180));
+  const cx = pdfW / 2;
+  const cy = pdfH / 2;
+  const s = { x: cx - w / 2, y: cy - h / 2 };
+  const p = { x: cx + w / 2, y: cy + h / 2 };
+
+  const stroke = options.stroke || core.state.shapeColor || '#2563eb';
+  const fill = options.fill || (core.state.shapeFill || 'none');
+  const strokeWidth = options.strokeWidth || core.state.shapeSize || 4;
+
+  const pre = core.snapshot();
+  const el = shapes.createShapeElement(shapeKind, s, stroke, fill, strokeWidth, 'round', core.state);
+  shapes.updateShapeDuringDraw(shapeKind, el, s, p, core.state);
+
+  el.dataset.x = s.x;
+  el.dataset.y = s.y;
+  el.dataset.w = w;
+  el.dataset.h = h;
+
+  const svgLayer = document.getElementById('svgLayer');
+  if (svgLayer) {
+    const wrap = inter.createAnnotWrapper(el);
+    svgLayer.appendChild(wrap);
+    core.commitChange(pre);
+    inter.selectAnnotation(el);
+    core.savePageNow();
+    core.toast('تم إدراج الشكل في الشريحة بنجاح ✨', 'ok');
+  }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════
+ *  VISUAL EFFECTS ENGINE (تأثيرات بصرية للإنفوغرافيك قابلة للتحريك)
+ * ═══════════════════════════════════════════════════════════
+ */
+function getEffectsListFromElement(el) {
+  if (!el) return [];
+  try {
+    const raw = el.dataset.effectsList || el.dataset.effects;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+      const arr = [];
+      if (parsed.shadow && parsed.shadow.active) arr.push({ id: 'fx_' + Math.random().toString(36).slice(2, 7), type: 'shadow', name: 'ظل ساقط', active: true, ...parsed.shadow });
+      if (parsed.glow && parsed.glow.active) arr.push({ id: 'fx_' + Math.random().toString(36).slice(2, 7), type: 'glow', name: 'توهج خارجي', active: true, ...parsed.glow });
+      if (parsed.stroke && parsed.stroke.active) arr.push({ id: 'fx_' + Math.random().toString(36).slice(2, 7), type: 'stroke', name: 'إطار وحدود', active: true, ...parsed.stroke });
+      if (parsed.fill && parsed.fill.active) arr.push({ id: 'fx_' + Math.random().toString(36).slice(2, 7), type: 'fill', name: 'تعبئة وتدرج', active: true, ...parsed.fill });
+      if (parsed.blur && parsed.blur.active) arr.push({ id: 'fx_' + Math.random().toString(36).slice(2, 7), type: 'blur', name: 'تمويه زجاجي', active: true, ...parsed.blur });
+      if (parsed.tilt && parsed.tilt.active) arr.push({ id: 'fx_' + Math.random().toString(36).slice(2, 7), type: 'tilt', name: 'بعد 3D', active: true, ...parsed.tilt });
+      return arr;
+    }
+  } catch (_) {}
+  return [];
+}
+
+export async function renderEffectsPanel() {
+  const panel = document.getElementById('visualEffectsPanel');
+  if (!panel) return;
+
+  const core = await import('./core.js');
+  const inter = await import('./interaction.js');
+  const sel = (core.state.selectedList && core.state.selectedList.length > 0)
+    ? core.state.selectedList[0]
+    : core.state.selected;
+
+  if (!sel || !sel.el) {
+    panel.innerHTML = `
+      <div class="effects-empty">
+        <div class="effects-empty-icon">✨</div>
+        <div class="effects-empty-title">التأثيرات البصرية للإنفوغرافيك</div>
+        <div class="effects-empty-desc">
+          حدد عنصراً (شكلاً هندسياً، نصاً، صورة، فيديو، أو زراً) لتطبيق وتعديل التأثيرات البصرية المتطورة عليه.
+        </div>
+        <div class="effects-features-list">
+          <div class="fx-feature-item">💡 توهج نيون مشع (Outer Glow)</div>
+          <div class="fx-feature-item">☁️ ظل ساقط واقعي (Drop Shadow)</div>
+          <div class="fx-feature-item">🎨 تعبئة بتدرج لوني سلس (Gradient Fill)</div>
+          <div class="fx-feature-item">📐 ميلان وبعد ثلاثي الأبعاد (3D Tilt & Depth)</div>
+          <div class="fx-feature-item">🔍 تمويه ناعم وتأثير زجاجي (Glassmorphism)</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const el = sel.el;
+  let fxList = getEffectsListFromElement(el);
+
+  const kindLabel = {
+    svg: 'شكل SVG',
+    text: 'مربع نص',
+    media: 'وسائط',
+    button: 'زر تفاعلي',
+    embed: 'تضمين ويب',
+  }[sel.kind] || 'عنصر';
+
+  panel.innerHTML = `
+    <div class="fx-panel-container">
+      <div class="fx-top-bar">
+        <div>
+          <div class="fx-main-title">✨ التأثيرات البصرية</div>
+          <div class="fx-item-count">${kindLabel} • (${fxList.length} تأثير)</div>
+        </div>
+        <div class="fx-add-wrapper">
+          <button type="button" class="fx-add-btn" id="btnAddEffectBtn">
+            <span>➕</span><span>إضافة تأثير</span>
+          </button>
+          <div class="fx-add-menu" id="fxAddMenu" style="display:none">
+            <button type="button" class="fx-menu-item" data-add="shadow">☁️ ظل ساقط (Drop Shadow)</button>
+            <button type="button" class="fx-menu-item" data-add="glow">💡 توهج خارجي (Outer Glow)</button>
+            <button type="button" class="fx-menu-item" data-add="stroke">📐 إطار وحدود (Stroke / Border)</button>
+            <button type="button" class="fx-menu-item" data-add="fill">🎨 تعبئة وتدرج (Fill / Gradient)</button>
+            <button type="button" class="fx-menu-item" data-add="blur">🔍 تمويه زجاجي (Blur / Glass)</button>
+            <button type="button" class="fx-menu-item" data-add="tilt">📐 بعد ثلاثي الأبعاد (3D Depth)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="fx-items-stack" id="fxItemsStack">
+        ${fxList.length === 0 ? `
+          <div class="fx-empty-card">
+            <h4>لا توجد تأثيرات مضافة بعد</h4>
+            <p>اضغط على زر (+ إضافة تأثير) أعلاه لإضافة الظلال، التوهج، التدرجات أو الأبعاد الثلاثية.</p>
+          </div>
+        ` : fxList.map((item, idx) => {
+          const typeIcons = {
+            shadow: '☁️',
+            glow: '💡',
+            stroke: '📐',
+            fill: '🎨',
+            blur: '🔍',
+            tilt: '📐',
+          };
+          const icon = typeIcons[item.type] || '✨';
+          return `
+            <div class="fx-item-card ${item.active ? '' : 'disabled'}" data-fx-id="${item.id}">
+              <div class="fx-item-header">
+                <div class="fx-item-title-wrap">
+                  <span style="font-size:14px">${icon}</span>
+                  <span class="fx-item-title">${item.name || item.type} #${idx + 1}</span>
+                </div>
+                <div class="fx-actions-row">
+                  <button type="button" class="fx-icon-btn fx-btn-up" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''} title="تحريك للأعلى">▲</button>
+                  <button type="button" class="fx-icon-btn fx-btn-down" data-idx="${idx}" ${idx === fxList.length - 1 ? 'disabled' : ''} title="تحريك للأسفل">▼</button>
+                  <button type="button" class="fx-icon-btn fx-btn-eye" data-idx="${idx}" title="${item.active ? 'إخفاء التأثير' : 'إظهار التأثير'}">${item.active ? '👁️' : '🙈'}</button>
+                  <button type="button" class="fx-icon-btn danger fx-btn-del" data-idx="${idx}" title="حذف التأثير">🗑️</button>
+                </div>
+              </div>
+              <div class="fx-item-body" style="${item.active ? '' : 'display:none'}">
+                ${renderEffectControls(item, idx)}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+
+  // Toggle Add Menu
+  const btnAdd = document.getElementById('btnAddEffectBtn');
+  const addMenu = document.getElementById('fxAddMenu');
+  if (btnAdd && addMenu) {
+    btnAdd.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isShow = addMenu.style.display !== 'none';
+      addMenu.style.display = isShow ? 'none' : 'flex';
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (!addMenu.contains(e.target) && e.target !== btnAdd && !btnAdd.contains(e.target)) {
+        addMenu.style.display = 'none';
+      }
+    });
+  }
+
+  // Handle Add Item
+  panel.querySelectorAll('.fx-menu-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.dataset.add;
+      if (addMenu) addMenu.style.display = 'none';
+      addEffectOfType(type, el);
+    });
+  });
+
+  // Handle Reorder, Visibility, Delete
+  panel.querySelectorAll('.fx-btn-up').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx, 10);
+      if (i > 0) {
+        const tmp = fxList[i];
+        fxList[i] = fxList[i - 1];
+        fxList[i - 1] = tmp;
+        saveAndApplyEffects(el, fxList);
+      }
+    });
+  });
+
+  panel.querySelectorAll('.fx-btn-down').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx, 10);
+      if (i < fxList.length - 1) {
+        const tmp = fxList[i];
+        fxList[i] = fxList[i + 1];
+        fxList[i + 1] = tmp;
+        saveAndApplyEffects(el, fxList);
+      }
+    });
+  });
+
+  panel.querySelectorAll('.fx-btn-eye').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx, 10);
+      if (fxList[i]) {
+        fxList[i].active = !fxList[i].active;
+        saveAndApplyEffects(el, fxList);
+      }
+    });
+  });
+
+  panel.querySelectorAll('.fx-btn-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx, 10);
+      if (fxList[i]) {
+        fxList.splice(i, 1);
+        saveAndApplyEffects(el, fxList);
+      }
+    });
+  });
+
+  // Wire controls inside each item
+  wireEffectControls(panel, el, fxList);
+}
+
+function renderEffectControls(item, idx) {
+  if (item.type === 'shadow') {
+    return `
+      <div class="fx-field-row">
+        <label><span>لون الظل والشفافية:</span><span class="fx-val-badge">${Math.round((item.opacity != null ? item.opacity : 0.4) * 100)}%</span></label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="color" value="${item.color && item.color.startsWith('#') ? item.color : '#000000'}">
+          <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="opacity" min="0" max="1" step="0.05" value="${item.opacity != null ? item.opacity : 0.4}">
+        </div>
+      </div>
+      <div class="fx-field-row">
+        <label><span>التمويه (Blur):</span><span class="fx-val-badge">${item.blur || 24}px</span></label>
+        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="blur" min="0" max="60" value="${item.blur || 24}">
+      </div>
+      <div class="fx-field-row-2">
+        <div class="fx-field-row">
+          <label><span>إزاحة X:</span><span class="fx-val-badge">${item.x || 0}px</span></label>
+          <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="x" min="-50" max="50" value="${item.x || 0}">
+        </div>
+        <div class="fx-field-row">
+          <label><span>إزاحة Y:</span><span class="fx-val-badge">${item.y || 12}px</span></label>
+          <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="y" min="-50" max="50" value="${item.y || 12}">
+        </div>
+      </div>
+    `;
+  }
+  if (item.type === 'glow') {
+    return `
+      <div class="fx-field-row">
+        <label><span>لون التوهج:</span></label>
+        <input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="color" value="${item.color || '#3b82f6'}">
+      </div>
+      <div class="fx-field-row">
+        <label><span>نصف قطر التوهج:</span><span class="fx-val-badge">${item.blur || 20}px</span></label>
+        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="blur" min="2" max="60" value="${item.blur || 20}">
+      </div>
+      <div class="fx-field-row">
+        <label><span>شدة الإشعاع (Spread):</span><span class="fx-val-badge">${item.spread || 2}x</span></label>
+        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="spread" min="1" max="5" value="${item.spread || 2}">
+      </div>
+    `;
+  }
+  if (item.type === 'stroke') {
+    return `
+      <div class="fx-field-row">
+        <label><span>لون الإطار:</span></label>
+        <input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="color" value="${item.color || '#3b82f6'}">
+      </div>
+      <div class="fx-field-row">
+        <label><span>سمك الإطار:</span><span class="fx-val-badge">${item.width || 3}px</span></label>
+        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="width" min="1" max="30" value="${item.width || 3}">
+      </div>
+      <div class="fx-field-row">
+        <label><span>نمط الخط:</span></label>
+        <select class="prop-input fx-ctrl" data-idx="${idx}" data-field="style">
+          <option value="solid" ${item.style === 'solid' ? 'selected' : ''}>متصل (Solid)</option>
+          <option value="dashed" ${item.style === 'dashed' ? 'selected' : ''}>متقطع (Dashed)</option>
+          <option value="dotted" ${item.style === 'dotted' ? 'selected' : ''}>نقاط (Dotted)</option>
+        </select>
+      </div>
+    `;
+  }
+  if (item.type === 'fill') {
+    return `
+      <div class="fx-field-row">
+        <label><span>نوع التعبئة:</span></label>
+        <select class="prop-input fx-ctrl" data-idx="${idx}" data-field="fillType">
+          <option value="gradient" ${item.fillType !== 'solid' ? 'selected' : ''}>تدرج لوني (Gradient)</option>
+          <option value="solid" ${item.fillType === 'solid' ? 'selected' : ''}>لون خالص (Solid)</option>
+        </select>
+      </div>
+      <div class="fx-field-row-2">
+        <div class="fx-field-row">
+          <label><span>اللون الأول:</span></label>
+          <input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="c1" value="${item.c1 || '#3b82f6'}">
+        </div>
+        <div class="fx-field-row" style="${item.fillType === 'solid' ? 'display:none' : ''}">
+          <label><span>اللون الثاني:</span></label>
+          <input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="c2" value="${item.c2 || '#9333ea'}">
+        </div>
+      </div>
+      <div class="fx-field-row" style="${item.fillType === 'solid' ? 'display:none' : ''}">
+        <label><span>زاوية التدرج:</span><span class="fx-val-badge">${item.angle || 45}°</span></label>
+        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="angle" min="0" max="360" value="${item.angle || 45}">
+      </div>
+    `;
+  }
+  if (item.type === 'blur') {
+    return `
+      <div class="fx-field-row">
+        <label><span>شدة التمويه (Glass Blur):</span><span class="fx-val-badge">${item.val || 6}px</span></label>
+        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="val" min="1" max="40" value="${item.val || 6}">
+      </div>
+    `;
+  }
+  if (item.type === 'tilt') {
+    return `
+      <div class="fx-field-row">
+        <label><span>ميلان رأسي (X Tilt):</span><span class="fx-val-badge">${item.rx || 0}°</span></label>
+        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="rx" min="-45" max="45" value="${item.rx || 0}">
+      </div>
+      <div class="fx-field-row">
+        <label><span>ميلان أفقي (Y Tilt):</span><span class="fx-val-badge">${item.ry || 0}°</span></label>
+        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="ry" min="-45" max="45" value="${item.ry || 0}">
+      </div>
+    `;
+  }
+  return '';
+}
+
+function wireEffectControls(panel, el, fxList) {
+  panel.querySelectorAll('.fx-ctrl').forEach(ctrl => {
+    const idx = parseInt(ctrl.dataset.idx, 10);
+    const field = ctrl.dataset.field;
+    const it = fxList[idx];
+    if (!it) return;
+
+    const handler = () => {
+      let val = ctrl.value;
+      if (['opacity', 'blur', 'x', 'y', 'spread', 'width', 'angle', 'val', 'rx', 'ry'].includes(field)) {
+        val = parseFloat(val) || 0;
+      }
+      it[field] = val;
+      const badge = ctrl.closest('.fx-field-row')?.querySelector('.fx-val-badge');
+      if (badge) {
+        if (field === 'opacity') badge.textContent = Math.round(val * 100) + '%';
+        else if (['blur', 'x', 'y', 'width', 'val'].includes(field)) badge.textContent = val + 'px';
+        else if (field === 'spread') badge.textContent = val + 'x';
+        else if (['angle', 'rx', 'ry'].includes(field)) badge.textContent = val + '°';
+      }
+      applyVisualEffectsToElement(el, fxList);
+      el.dataset.effectsList = JSON.stringify(fxList);
+    };
+
+    ctrl.addEventListener('input', handler);
+    ctrl.addEventListener('change', async () => {
+      handler();
+      const core = await import('./core.js');
+      core.commitChange();
+    });
+  });
+}
+
+function addEffectOfType(type, el) {
+  const fxList = getEffectsListFromElement(el);
+  const uid = 'fx_' + Math.random().toString(36).slice(2, 8);
+  const defs = {
+    shadow: { id: uid, type: 'shadow', name: 'ظل ساقط', active: true, x: 0, y: 12, blur: 24, color: '#000000', opacity: 0.4 },
+    glow: { id: uid, type: 'glow', name: 'توهج خارجي', active: true, color: '#3b82f6', blur: 20, spread: 2 },
+    stroke: { id: uid, type: 'stroke', name: 'إطار وحدود', active: true, color: '#3b82f6', width: 3, style: 'solid' },
+    fill: { id: uid, type: 'fill', name: 'تعبئة وتدرج', active: true, fillType: 'gradient', c1: '#3b82f6', c2: '#9333ea', angle: 45 },
+    blur: { id: uid, type: 'blur', name: 'تمويه زجاجي', active: true, val: 8 },
+    tilt: { id: uid, type: 'tilt', name: 'بعد ثلاثي الأبعاد', active: true, rx: 15, ry: -15 },
+  };
+
+  const newFx = defs[type] || { id: uid, type, name: 'تأثير', active: true };
+  fxList.push(newFx);
+  saveAndApplyEffects(el, fxList);
+}
+
+async function saveAndApplyEffects(el, fxList) {
+  el.dataset.effectsList = JSON.stringify(fxList);
+  applyVisualEffectsToElement(el, fxList);
+  const core = await import('./core.js');
+  core.commitChange();
+  renderEffectsPanel();
+}
+
+/**
+ * تطبيق التأثيرات البصرية فعلياً على العنصر (SVG أو HTML) بترتيب الطبقات الدقيق
+ */
+export function applyVisualEffectsToElement(el, effects) {
+  if (!el || !effects) return;
+  const isSvg = el.tagName && ['rect','circle','ellipse','line','polygon','path','g'].includes(el.tagName.toLowerCase());
+
+  const fxList = Array.isArray(effects) ? effects : getEffectsListFromElement(el);
+
+  const filters = [];
+  let transformStr = '';
+  let activeStroke = null;
+  let activeFill = null;
+
+  fxList.forEach(item => {
+    if (!item.active) return;
+    if (item.type === 'shadow') {
+      const op = item.opacity != null ? item.opacity : 0.4;
+      let col = item.color || '#000000';
+      if (col.startsWith('#') && col.length === 7) {
+        const r = parseInt(col.slice(1, 3), 16);
+        const g = parseInt(col.slice(3, 5), 16);
+        const b = parseInt(col.slice(5, 7), 16);
+        col = `rgba(${r},${g},${b},${op})`;
+      }
+      filters.push(`drop-shadow(${item.x || 0}px ${item.y || 12}px ${item.blur || 24}px ${col})`);
+    } else if (item.type === 'glow') {
+      const col = item.color || '#3b82f6';
+      const b = item.blur || 20;
+      const repeat = Math.min(3, Math.max(1, item.spread || 1));
+      for (let i = 0; i < repeat; i++) {
+        filters.push(`drop-shadow(0 0 ${b}px ${col})`);
+      }
+    } else if (item.type === 'blur') {
+      if ((item.val || 0) > 0) filters.push(`blur(${item.val}px)`);
+    } else if (item.type === 'tilt') {
+      transformStr = `perspective(800px) rotateX(${item.rx || 0}deg) rotateY(${item.ry || 0}deg)`;
+    } else if (item.type === 'stroke') {
+      activeStroke = item;
+    } else if (item.type === 'fill') {
+      activeFill = item;
+    }
+  });
+
+  const filterStr = filters.join(' ');
+
+  if (isSvg) {
+    el.style.filter = filterStr;
+    const wrap = el.closest && el.closest('.annot-wrapper');
+    if (wrap) {
+      if (transformStr) {
+        wrap.style.transform = transformStr;
+        wrap.style.transformOrigin = 'center center';
+      } else {
+        wrap.style.transform = '';
+      }
+    }
+
+    if (activeStroke) {
+      el.setAttribute('stroke', activeStroke.color || '#3b82f6');
+      el.setAttribute('stroke-width', activeStroke.width || 3);
+      if (activeStroke.style === 'dashed') el.setAttribute('stroke-dasharray', '8 4');
+      else if (activeStroke.style === 'dotted') el.setAttribute('stroke-dasharray', '2 4');
+      else el.removeAttribute('stroke-dasharray');
+    }
+
+    if (activeFill) {
+      if (activeFill.fillType === 'solid') {
+        el.setAttribute('fill', activeFill.c1 || '#3b82f6');
+      } else {
+        const gradId = 'grad_' + (el.dataset.id || 'fx');
+        let defs = document.getElementById('svgDefs');
+        if (!defs) {
+          defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+          defs.id = 'svgDefs';
+          document.body.appendChild(defs);
+        }
+        let grad = defs.querySelector('#' + gradId);
+        if (!grad) {
+          grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+          grad.id = gradId;
+          defs.appendChild(grad);
+        }
+        const ang = (activeFill.angle || 45) * Math.PI / 180;
+        const x1 = Math.round(50 - Math.cos(ang) * 50) + '%';
+        const y1 = Math.round(50 - Math.sin(ang) * 50) + '%';
+        const x2 = Math.round(50 + Math.cos(ang) * 50) + '%';
+        const y2 = Math.round(50 + Math.sin(ang) * 50) + '%';
+        grad.setAttribute('x1', x1); grad.setAttribute('y1', y1);
+        grad.setAttribute('x2', x2); grad.setAttribute('y2', y2);
+        grad.innerHTML = `
+          <stop offset="0%" stop-color="${activeFill.c1 || '#3b82f6'}"/>
+          <stop offset="100%" stop-color="${activeFill.c2 || '#9333ea'}"/>
+        `;
+        el.setAttribute('fill', `url(#${gradId})`);
+      }
+    }
+  } else {
+    // HTML element (.media-obj, .pdf-text-box, .pdf-interactive-btn, .embed)
+    el.style.filter = filterStr;
+    if (transformStr) {
+      el.style.transform = transformStr;
+      el.style.transformOrigin = 'center center';
+    }
+
+    if (activeStroke) {
+      el.style.border = `${activeStroke.width || 2}px ${activeStroke.style || 'solid'} ${activeStroke.color || '#3b82f6'}`;
+    }
+
+    if (activeFill) {
+      if (activeFill.fillType === 'solid') {
+        el.style.backgroundColor = activeFill.c1 || '#3b82f6';
+      } else {
+        el.style.background = `linear-gradient(${activeFill.angle || 45}deg, ${activeFill.c1 || '#3b82f6'}, ${activeFill.c2 || '#9333ea'})`;
+      }
+    }
+  }
 }
 
 /* ============================================================
@@ -102,6 +1064,8 @@ function initBottomPanel() {
    §5. LAYERS PANEL
    ============================================================ */
 function getLayerIcon(type) {
+  if (type === 'pdf-page') return '📄';
+  if (type === 'slide-bg') return '🎨';
   if (type === 'image') return '🖼';
   if (type === 'text') return 'T';
   if (type === 'equation') return '∑';
@@ -197,6 +1161,33 @@ export function refreshLayersPanel() {
     });
   }
 
+  // ★ اعتبار صفحة PDF / خلفية الشريحة عبارة عن layer أساسية
+  const pdfCanvas = document.getElementById('pdfCanvas');
+  const hasProject = document.body.classList.contains('has-project');
+  if (pdfCanvas && hasProject) {
+    let isPdf = false;
+    let pageNum = 1;
+    try {
+      if (window.__CORE__ && window.__CORE__.state) {
+        const s = window.__CORE__.state;
+        const sl = s.slides && s.slides[s.currentPage - 1];
+        isPdf = !!(s.pdfDoc || (sl && sl.bg && sl.bg.type === 'pdf'));
+        pageNum = (sl && sl.bg && sl.bg.page) || s.currentPage || 1;
+      }
+    } catch (_) {}
+    const isVisible = pdfCanvas.style.visibility !== 'hidden' && pdfCanvas.style.display !== 'none';
+    items.push({
+      el: pdfCanvas,
+      kind: 'canvas',
+      type: isPdf ? 'pdf-page' : 'slide-bg',
+      name: isPdf ? `صفحة PDF (${pageNum})` : 'خلفية الشريحة',
+      z: -9999,
+      id: 'pdf-page-canvas-layer',
+      isBaseLayer: true,
+      visible: isVisible,
+    });
+  }
+
   items.sort((a, b) => a.z - b.z);
   const displayItems = items.slice().reverse();
 
@@ -212,14 +1203,22 @@ export function refreshLayersPanel() {
   displayItems.forEach((item, displayIdx) => {
     const row = document.createElement('div');
     row.className = 'layer-row';
-    row.draggable = true;
     row.dataset.zidx = String(item.z);
     row.dataset.id = item.id || '';
 
     const dragHandle = document.createElement('span');
     dragHandle.className = 'ly-drag-handle';
-    dragHandle.textContent = '⋮⋮';
-    dragHandle.title = 'اسحب لإعادة الترتيب';
+    if (item.isBaseLayer) {
+      row.draggable = false;
+      dragHandle.textContent = '🔒';
+      dragHandle.title = 'الطبقة الأساسية (مقفل)';
+      dragHandle.style.cursor = 'default';
+      dragHandle.style.opacity = '0.7';
+    } else {
+      row.draggable = true;
+      dragHandle.textContent = '⋮⋮';
+      dragHandle.title = 'اسحب لإعادة الترتيب';
+    }
 
     const iconSpan = document.createElement('span');
     iconSpan.className = 'ly-icon';
@@ -230,7 +1229,7 @@ export function refreshLayersPanel() {
     nameSpan.textContent = item.name;
 
     const visSpan = document.createElement('span');
-    visSpan.className = 'ly-toggle on';
+    visSpan.className = 'ly-toggle ' + (item.visible !== false ? 'on' : '');
     visSpan.dataset.act = 'vis';
     visSpan.title = 'إظهار / إخفاء';
     visSpan.textContent = '👁';
@@ -243,14 +1242,22 @@ export function refreshLayersPanel() {
     row.addEventListener('click', (e) => {
       if (e.target.dataset.act === 'vis') {
         const visible = e.target.classList.toggle('on');
-        item.el.style.display = visible ? '' : 'none';
+        if (item.isBaseLayer) {
+          item.el.style.visibility = visible ? 'visible' : 'hidden';
+        } else {
+          item.el.style.display = visible ? '' : 'none';
+        }
         return;
       }
       list.querySelectorAll('.layer-row').forEach(r => r.classList.remove('active'));
       row.classList.add('active');
-      document.dispatchEvent(new CustomEvent('ipb:selectLayer', {
-        detail: { el: item.el, kind: item.kind },
-      }));
+      if (item.isBaseLayer) {
+        showDocumentDimsPanel();
+      } else {
+        document.dispatchEvent(new CustomEvent('ipb:selectLayer', {
+          detail: { el: item.el, kind: item.kind },
+        }));
+      }
     });
 
     row.addEventListener('dragstart', (e) => {
@@ -342,6 +1349,8 @@ export function refreshLayersPanel() {
 function initTopbarActions() {
   const btnUndo = document.getElementById('btnUndo');
   const btnRedo = document.getElementById('btnRedo');
+  const btnCopy = document.getElementById('btnCopy');
+  const btnPaste = document.getElementById('btnPaste');
   const btnOpen = document.getElementById('btnOpen');
   const btnSave = document.getElementById('btnSave');
   const btnPreview = document.getElementById('btnPreview');
@@ -362,6 +1371,30 @@ function initTopbarActions() {
         const core = await import('./core.js');
         core.redo();
         setSaveBadge('تم الإعادة', false);
+      } catch (e) { console.warn(e); }
+    });
+  }
+  if (btnCopy) {
+    btnCopy.addEventListener('click', async () => {
+      try {
+        const inter = await import('./interaction.js');
+        const core = await import('./core.js');
+        const sel = core.state.selectedList && core.state.selectedList.length > 0
+          ? core.state.selectedList[0]
+          : core.state.selected;
+        if (sel && sel.el) {
+          inter.copyElement(sel.el);
+        } else {
+          safeToast('حدد عنصراً أولاً للنسخ (شكل، نص، صورة، زر)', 'info');
+        }
+      } catch (e) { console.warn(e); }
+    });
+  }
+  if (btnPaste) {
+    btnPaste.addEventListener('click', async () => {
+      try {
+        const inter = await import('./interaction.js');
+        inter.pasteElement();
       } catch (e) { console.warn(e); }
     });
   }
@@ -406,18 +1439,11 @@ function initCloseProject() {
 function showCloseDialog() {
   import('./core.js').then(core => {
     const state = core.state;
-    const hasProject = state.slides && state.slides.length > 0 &&
-                       (state.pdfDoc || state.pdfBlob || state.projectDims);
-
-    if (!hasProject) {
-      resetToEmptyState();
-      return;
-    }
 
     openConfirmDialog({
       title: 'إغلاق المشروع',
-      message: 'هل تريد حفظ المشروع قبل الإغلاق؟',
-      subtitle: state.pdfName || 'مشروع جديد',
+      message: 'هل تريد حفظ التغييرات في هذا المشروع قبل الإغلاق؟',
+      subtitle: state.pdfName || 'عرض تقديمي',
       primaryLabel: '💾 حفظ وإغلاق',
       secondaryLabel: 'عدم الحفظ',
       cancelLabel: 'إلغاء',
@@ -465,6 +1491,7 @@ function openConfirmDialog(opts) {
 
   backdrop.appendChild(dialog);
   document.body.appendChild(backdrop);
+  requestAnimationFrame(() => backdrop.classList.add('show'));
 
   function close() {
     backdrop.classList.remove('show');
@@ -676,16 +1703,46 @@ function initPropsToggle() {
     document.body.appendChild(btn);
   }
 
-  btn.addEventListener('click', () => {
-    document.body.classList.toggle('props-hidden');
+  let backdrop = document.querySelector('.props-backdrop');
+  if (!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.className = 'props-backdrop';
+    document.body.appendChild(backdrop);
+  }
+
+  const toggle = () => {
+    const isMobile = window.innerWidth <= 768 || window.matchMedia('(orientation: portrait)').matches;
+    if (isMobile) {
+      document.body.classList.toggle('props-mobile-open');
+    } else {
+      document.body.classList.toggle('props-hidden');
+    }
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
+  };
+
+  btn.addEventListener('click', toggle);
+
+  const topBtn = document.getElementById('btnTogglePropsTop');
+  if (topBtn) topBtn.addEventListener('click', toggle);
+
+  const closeMobile = document.getElementById('btnClosePropsMobile');
+  if (closeMobile) {
+    closeMobile.addEventListener('click', () => {
+      document.body.classList.remove('props-mobile-open');
+      document.body.classList.add('props-hidden');
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
+    });
+  }
+
+  backdrop.addEventListener('click', () => {
+    document.body.classList.remove('props-mobile-open');
     setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
   });
 
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === '.') {
       e.preventDefault();
-      document.body.classList.toggle('props-hidden');
-      setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
+      toggle();
     }
   });
 }
@@ -1664,6 +2721,11 @@ function initElementDesignProps() {
 
     // ═══════════ SINGLE-ELEMENT VIEW ═══════════
     const sel = primary;
+    const targetInner = sel.kind === 'svg' ? (sel.el.querySelector('[data-annot]') || sel.el) : sel.el;
+    const curRot = parseFloat(targetInner.dataset.rotation) || 0;
+    const isFlipH = targetInner.dataset.flipH === 'true';
+    const isFlipV = targetInner.dataset.flipV === 'true';
+
     const kindLabel = {
       svg: 'شكل / رسم',
       text: 'مربع نص',
@@ -1679,23 +2741,23 @@ function initElementDesignProps() {
           <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.1);padding:2px 6px;border-radius:4px">${kindLabel}</span>
         </div>
         <div class="prop-row">
-          <div class="prop-field">
-            <label>الموضع الأفقي X (px)</label>
-            <input type="number" class="prop-input" id="elemPropX" step="1" />
+          <div class="prop-field scrub-field">
+            <label class="scrub-label" id="lblPropX" data-scrub="x" title="اضغط واسحب للأعلى للزيادة وللأسفل للإنقاص"><span>الموضع الأفقي X</span> <span class="scrub-hint">⇕ سحب</span></label>
+            <input type="number" class="prop-input scrubbable" id="elemPropX" step="1" />
           </div>
-          <div class="prop-field">
-            <label>الموضع الرأسي Y (px)</label>
-            <input type="number" class="prop-input" id="elemPropY" step="1" />
+          <div class="prop-field scrub-field">
+            <label class="scrub-label" id="lblPropY" data-scrub="y" title="اضغط واسحب للأعلى للزيادة وللأسفل للإنقاص"><span>الموضع الرأسي Y</span> <span class="scrub-hint">⇕ سحب</span></label>
+            <input type="number" class="prop-input scrubbable" id="elemPropY" step="1" />
           </div>
         </div>
         <div class="prop-row">
-          <div class="prop-field">
-            <label>العرض W (px)</label>
-            <input type="number" class="prop-input" id="elemPropW" min="1" step="1" />
+          <div class="prop-field scrub-field">
+            <label class="scrub-label" id="lblPropW" data-scrub="w" title="اضغط واسحب للأعلى للزيادة وللأسفل للإنقاص"><span>العرض W</span> <span class="scrub-hint">⇕ سحب</span></label>
+            <input type="number" class="prop-input scrubbable" id="elemPropW" min="1" step="1" />
           </div>
-          <div class="prop-field">
-            <label>الارتفاع H (px)</label>
-            <input type="number" class="prop-input" id="elemPropH" min="1" step="1" />
+          <div class="prop-field scrub-field">
+            <label class="scrub-label" id="lblPropH" data-scrub="h" title="اضغط واسحب للأعلى للزيادة وللأسفل للإنقاص"><span>الارتفاع H</span> <span class="scrub-hint">⇕ سحب</span></label>
+            <input type="number" class="prop-input scrubbable" id="elemPropH" min="1" step="1" />
           </div>
         </div>
       </div>
@@ -1709,6 +2771,26 @@ function initElementDesignProps() {
           <button type="button" class="align-action-btn" data-align="top" title="محاذاة للأعلى">⫠</button>
           <button type="button" class="align-action-btn" data-align="centerV" title="توسيط رأسياً">⫰</button>
           <button type="button" class="align-action-btn" data-align="bottom" title="محاذاة للأسفل">⫡</button>
+        </div>
+      </div>
+
+      <div class="prop-section">
+        <div class="prop-title">🔄 الدوران والانعكاس (Transform & Flip)</div>
+        <div class="prop-row" style="grid-template-columns:1fr auto;gap:8px;align-items:center">
+          <input type="range" class="prop-input" id="elemRotateSlider" min="0" max="360" value="${curRot}" style="accent-color:var(--sh-accent);cursor:pointer"/>
+          <div style="display:flex;align-items:center;gap:3px">
+            <input type="number" class="prop-input" id="elemRotateInput" min="0" max="360" value="${curRot}" style="width:48px;text-align:center"/>
+            <span style="font-size:11px;color:#8a94a6">°</span>
+          </div>
+        </div>
+        <div class="prop-row" style="grid-template-columns:repeat(4,1fr);gap:4px;margin-top:6px">
+          <button type="button" class="prop-input" id="elemRotLBtn" title="تدوير 90° لليسار">↶ -90°</button>
+          <button type="button" class="prop-input" id="elemRotRBtn" title="تدوير 90° لليمين">↷ +90°</button>
+          <button type="button" class="prop-input ${isFlipH?'active':''}" id="elemFlipHBtn" title="عكس أفقي">↔ عكس</button>
+          <button type="button" class="prop-input ${isFlipV?'active':''}" id="elemFlipVBtn" title="عكس رأسي">↕ عكس</button>
+        </div>
+        <div style="margin-top:6px">
+          <button type="button" class="prop-input" id="elemResetTransformBtn" style="font-size:10.5px;cursor:pointer;width:100%">↺ إعادة ضبط الدوران والانعكاس</button>
         </div>
       </div>
 
@@ -1735,6 +2817,10 @@ function initElementDesignProps() {
       <div class="prop-section">
         <div class="prop-title">⚡ إجراءات</div>
         <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
+          <button type="button" class="prop-input" id="elemCopyBtn" style="cursor:pointer;font-size:11px;font-weight:600">📋 نسخ العنصر</button>
+          <button type="button" class="prop-input" id="elemPasteBtn" style="cursor:pointer;font-size:11px;font-weight:600">📄 لصق العنصر</button>
+        </div>
+        <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px;margin-top:4px">
           <button type="button" class="prop-input" id="elemDupBtn" style="cursor:pointer;font-size:11px;font-weight:600;background:rgba(74,126,255,.1);border-color:var(--sh-accent);color:#fff">📑 تكرار العنصر</button>
           <button type="button" class="prop-input" id="elemDelBtn" style="cursor:pointer;font-size:11px;font-weight:600;background:rgba(239,68,68,.12);border-color:#ef4444;color:#ef4444">🗑️ حذف العنصر</button>
         </div>
@@ -1751,6 +2837,8 @@ function initElementDesignProps() {
         const isBold = sel.el.dataset.fontWeight === 'bold';
         const isItalic = sel.el.dataset.fontStyle === 'italic';
 
+        const curBg = sel.el.dataset.bg || '';
+
         specHost.innerHTML = `
           <div class="prop-section">
             <div class="prop-title">✍️ خصائص النص</div>
@@ -1764,16 +2852,27 @@ function initElementDesignProps() {
                 <input type="color" class="prop-input" id="textPropColor" value="${curColor}" style="padding:2px;height:28px" />
               </div>
             </div>
+            <div class="prop-row" style="margin-top:6px;margin-bottom:6px">
+              <div class="prop-field" style="grid-column: 1 / -1">
+                <label>🎨 لون تعبئة خلفية مربع النص</label>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <input type="color" class="prop-input" id="textPropBgColor" value="${curBg && curBg.startsWith('#') ? curBg : '#ffffff'}" style="padding:2px;height:28px;flex:1" />
+                  <button type="button" class="prop-input ${!curBg || curBg === 'transparent' || curBg === 'none' ? 'active' : ''}" id="textPropBgNone" style="cursor:pointer;font-size:11px;padding:0 12px;height:28px">شفاف</button>
+                </div>
+              </div>
+            </div>
             <div class="prop-row" style="grid-template-columns:1fr 1fr 1fr;gap:4px">
               <button type="button" class="prop-input ${isBold ? 'active' : ''}" id="textBoldBtn" style="cursor:pointer;font-weight:bold">B عريض</button>
               <button type="button" class="prop-input ${isItalic ? 'active' : ''}" id="textItalicBtn" style="cursor:pointer;font-style:italic">I مائل</button>
-              <button type="button" class="prop-input" id="textAlignRBtn" style="cursor:pointer">يمين ⇥</button>
+              <button type="button" class="prop-input" id="textAlignRBtn" style="cursor:pointer">محاذاة ⇥</button>
             </div>
           </div>
         `;
 
         const tSize = document.getElementById('textPropSize');
         const tColor = document.getElementById('textPropColor');
+        const tBgColor = document.getElementById('textPropBgColor');
+        const tBgNone = document.getElementById('textPropBgNone');
         const tBold = document.getElementById('textBoldBtn');
         const tItal = document.getElementById('textItalicBtn');
         const tAlign = document.getElementById('textAlignRBtn');
@@ -1788,6 +2887,22 @@ function initElementDesignProps() {
           inter.applyTextStyles(sel.el);
           core.commitChange();
         });
+        if (tBgColor) {
+          tBgColor.addEventListener('input', () => {
+            sel.el.dataset.bg = tBgColor.value;
+            inter.applyTextStyles(sel.el);
+            if (tBgNone) tBgNone.classList.remove('active');
+            core.commitChange();
+          });
+        }
+        if (tBgNone) {
+          tBgNone.addEventListener('click', () => {
+            sel.el.dataset.bg = 'transparent';
+            inter.applyTextStyles(sel.el);
+            tBgNone.classList.add('active');
+            core.commitChange();
+          });
+        }
         if (tBold) tBold.addEventListener('click', () => {
           const nowB = sel.el.dataset.fontWeight === 'bold';
           sel.el.dataset.fontWeight = nowB ? 'normal' : 'bold';
@@ -1814,6 +2929,95 @@ function initElementDesignProps() {
         const curStroke = inner.getAttribute('stroke') || '#000000';
         const curFill = inner.getAttribute('fill') || 'none';
         const curSW = inner.getAttribute('stroke-width') || '3';
+        const tag = inner.tagName ? inner.tagName.toLowerCase() : '';
+        const shapeType = inner.dataset.type || tag;
+
+        let extraPropsHtml = '';
+
+        if (tag === 'rect') {
+          const curRx = parseFloat(inner.getAttribute('rx') || '0');
+          extraPropsHtml += `
+            <div class="prop-section">
+              <div class="prop-title">📐 استدارة الزوايا (Corner Radius)</div>
+              <div class="prop-row" style="grid-template-columns:1fr auto;gap:8px;align-items:center">
+                <input type="range" class="prop-input" id="shapeRadiusSlider" min="0" max="80" value="${curRx}" style="accent-color:var(--sh-accent);cursor:pointer"/>
+                <input type="number" class="prop-input" id="shapeRadiusInput" min="0" max="150" value="${curRx}" style="width:50px;text-align:center"/>
+              </div>
+              <div class="prop-row" style="grid-template-columns:repeat(4,1fr);gap:4px;margin-top:6px">
+                <button type="button" class="prop-input preset-radius-btn" data-r="0">حاد 0</button>
+                <button type="button" class="prop-input preset-radius-btn" data-r="12">خفيف 12</button>
+                <button type="button" class="prop-input preset-radius-btn" data-r="24">متوسط 24</button>
+                <button type="button" class="prop-input preset-radius-btn" data-r="50">كبسولة 50</button>
+              </div>
+            </div>
+          `;
+        } else if (shapeType === 'curve') {
+          extraPropsHtml += `
+            <div class="prop-section">
+              <div class="prop-title">〰️ التحكم في المنحنى (Curve)</div>
+              <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
+                <button type="button" class="prop-input" id="curveFlipBtn">🔄 عكس الانحناء</button>
+                <button type="button" class="prop-input" id="curveStraightenBtn">━ تسوية الخط</button>
+              </div>
+            </div>
+          `;
+        } else if (shapeType === 'cartesian') {
+          const curRange = inner.dataset.range || '5';
+          const curGrid = inner.dataset.showGrid !== 'false';
+          const curNums = inner.dataset.showNumbers !== 'false';
+          const curLang = inner.dataset.lang || 'ar';
+          extraPropsHtml += `
+            <div class="prop-section">
+              <div class="prop-title">📈 خصائص المستوى الديكارتي</div>
+              <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:6px">
+                <div class="prop-field">
+                  <label>نطاق المحاور</label>
+                  <select class="prop-input" id="cartesianRangeSelect">
+                    <option value="3" ${curRange === '3' ? 'selected' : ''}>-3 إلى 3</option>
+                    <option value="5" ${curRange === '5' ? 'selected' : ''}>-5 إلى 5</option>
+                    <option value="8" ${curRange === '8' ? 'selected' : ''}>-8 إلى 8</option>
+                    <option value="10" ${curRange === '10' ? 'selected' : ''}>-10 إلى 10</option>
+                  </select>
+                </div>
+                <div class="prop-field">
+                  <label>لغة المحاور</label>
+                  <select class="prop-input" id="cartesianLangSelect">
+                    <option value="ar" ${curLang === 'ar' ? 'selected' : ''}>عربي (س / ص)</option>
+                    <option value="en" ${curLang === 'en' ? 'selected' : ''}>إنجليزي (X / Y)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px;margin-top:6px">
+                <button type="button" class="prop-input ${curGrid ? 'active' : ''}" id="cartesianToggleGridBtn">⊞ ${curGrid ? 'إخفاء الشبكة' : 'إظهار الشبكة'}</button>
+                <button type="button" class="prop-input ${curNums ? 'active' : ''}" id="cartesianToggleNumsBtn">🔢 ${curNums ? 'إخفاء الأرقام' : 'إظهار الأرقام'}</button>
+              </div>
+            </div>
+          `;
+        } else if (shapeType === 'cylinder') {
+          const b = shapes.getUniversalShapeBounds(inner) || { width: 100, height: 100 };
+          const curCap = parseFloat(inner.dataset.capH || '24');
+          const capPct = Math.round((curCap / (b.height || 1)) * 100);
+          extraPropsHtml += `
+            <div class="prop-section">
+              <div class="prop-title">🛢️ عمق الأسطوانة (3D Depth)</div>
+              <div class="prop-row" style="grid-template-columns:1fr auto;gap:8px;align-items:center">
+                <input type="range" class="prop-input" id="cylinderDepthSlider" min="10" max="45" value="${capPct}" style="accent-color:var(--sh-accent);cursor:pointer"/>
+                <span id="cylinderDepthVal" style="font-size:11px;min-width:32px">${capPct}%</span>
+              </div>
+            </div>
+          `;
+        } else if (shapeType.startsWith('circuit-')) {
+          const compDef = shapes.SHAPE_DEFS[shapeType];
+          extraPropsHtml += `
+            <div class="prop-section">
+              <div class="prop-title">⚡ عنصر دارة كهربائية</div>
+              <div style="font-size:11.5px;color:var(--sh-accent);background:rgba(74,126,255,0.08);padding:6px 10px;border-radius:6px;display:flex;align-items:center;gap:6px">
+                <span style="font-size:16px">${compDef ? compDef.icon : '⚡'}</span>
+                <span>${compDef ? compDef.label : 'عنصر دارة كهربائية'}</span>
+              </div>
+            </div>
+          `;
+        }
 
         specHost.innerHTML = `
           <div class="prop-section">
@@ -1838,6 +3042,7 @@ function initElementDesignProps() {
               </div>
             </div>
           </div>
+          ${extraPropsHtml}
         `;
 
         const sStr = document.getElementById('shapeStrokeColor');
@@ -1861,6 +3066,106 @@ function initElementDesignProps() {
           inner.setAttribute('stroke-width', sSW.value);
           core.commitChange();
         });
+
+        // ── Round Corners Handlers ──
+        const rSlider = document.getElementById('shapeRadiusSlider');
+        const rInput = document.getElementById('shapeRadiusInput');
+        function applyRadius(val) {
+          inner.setAttribute('rx', val);
+          inner.setAttribute('ry', val);
+          if (rSlider) rSlider.value = val;
+          if (rInput) rInput.value = val;
+          inter.drawSelectionOverlay();
+          core.commitChange();
+        }
+        if (rSlider) rSlider.addEventListener('input', () => applyRadius(parseFloat(rSlider.value) || 0));
+        if (rInput) rInput.addEventListener('change', () => applyRadius(parseFloat(rInput.value) || 0));
+        specHost.querySelectorAll('.preset-radius-btn').forEach(btn => {
+          btn.addEventListener('click', () => applyRadius(parseFloat(btn.dataset.r) || 0));
+        });
+
+        // ── Curve Handlers ──
+        const cFlip = document.getElementById('curveFlipBtn');
+        const cStraight = document.getElementById('curveStraightenBtn');
+        if (cFlip) {
+          cFlip.addEventListener('click', () => {
+            const x0 = parseFloat(inner.dataset.x0) || 0, y0 = parseFloat(inner.dataset.y0) || 0;
+            const x1 = parseFloat(inner.dataset.x1) || 0, y1 = parseFloat(inner.dataset.y1) || 0;
+            const cx = parseFloat(inner.dataset.cx) || ((x0 + x1) / 2);
+            const cy = parseFloat(inner.dataset.cy) || ((y0 + y1) / 2);
+            const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+            const newCx = mx - (cx - mx);
+            const newCy = my - (cy - my);
+            inner.setAttribute('d', `M ${x0} ${y0} Q ${newCx} ${newCy} ${x1} ${y1}`);
+            inner.dataset.cx = newCx; inner.dataset.cy = newCy;
+            inter.drawSelectionOverlay();
+            core.commitChange();
+          });
+        }
+        if (cStraight) {
+          cStraight.addEventListener('click', () => {
+            const x0 = parseFloat(inner.dataset.x0) || 0, y0 = parseFloat(inner.dataset.y0) || 0;
+            const x1 = parseFloat(inner.dataset.x1) || 0, y1 = parseFloat(inner.dataset.y1) || 0;
+            const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+            inner.setAttribute('d', `M ${x0} ${y0} Q ${mx} ${my} ${x1} ${y1}`);
+            inner.dataset.cx = mx; inner.dataset.cy = my;
+            inter.drawSelectionOverlay();
+            core.commitChange();
+          });
+        }
+
+        // ── Cartesian Handlers ──
+        const cartRange = document.getElementById('cartesianRangeSelect');
+        const cartLang = document.getElementById('cartesianLangSelect');
+        const cartGrid = document.getElementById('cartesianToggleGridBtn');
+        const cartNums = document.getElementById('cartesianToggleNumsBtn');
+
+        function updateCartesian() {
+          const b = shapes.getUniversalShapeBounds(inner);
+          if (!b) return;
+          shapes.renderCartesianPlane(inner, b.x, b.y, b.width, b.height, {
+            range: cartRange ? cartRange.value : inner.dataset.range,
+            lang: cartLang ? cartLang.value : inner.dataset.lang,
+            showGrid: inner.dataset.showGrid !== 'false',
+            showNumbers: inner.dataset.showNumbers !== 'false',
+          });
+          inter.drawSelectionOverlay();
+          core.commitChange();
+        }
+        if (cartRange) cartRange.addEventListener('change', updateCartesian);
+        if (cartLang) cartLang.addEventListener('change', updateCartesian);
+        if (cartGrid) {
+          cartGrid.addEventListener('click', () => {
+            const cur = inner.dataset.showGrid !== 'false';
+            inner.dataset.showGrid = String(!cur);
+            cartGrid.classList.toggle('active', !cur);
+            cartGrid.textContent = (!cur ? '⊞ إخفاء الشبكة' : '⊞ إظهار الشبكة');
+            updateCartesian();
+          });
+        }
+        if (cartNums) {
+          cartNums.addEventListener('click', () => {
+            const cur = inner.dataset.showNumbers !== 'false';
+            inner.dataset.showNumbers = String(!cur);
+            cartNums.classList.toggle('active', !cur);
+            cartNums.textContent = (!cur ? '🔢 إخفاء الأرقام' : '🔢 إظهار الأرقام');
+            updateCartesian();
+          });
+        }
+
+        // ── Cylinder Handlers ──
+        const cylDepth = document.getElementById('cylinderDepthSlider');
+        const cylVal = document.getElementById('cylinderDepthVal');
+        if (cylDepth) {
+          cylDepth.addEventListener('input', () => {
+            const pct = parseInt(cylDepth.value, 10);
+            if (cylVal) cylVal.textContent = pct + '%';
+            const b = shapes.getUniversalShapeBounds(inner);
+            if (!b) return;
+            shapes.renderCylinder(inner, b.x, b.y, b.width, b.height, pct / 100);
+            core.commitChange();
+          });
+        }
       }
     }
 
@@ -1899,8 +3204,8 @@ function initElementDesignProps() {
     if (opVal) opVal.textContent = opPct + '%';
 
     // Apply geometry changes
-    async function applyGeometry() {
-      const pre = core.snapshot();
+    async function applyGeometry(recordChange = true) {
+      const pre = recordChange ? core.snapshot() : null;
       const newX = parseFloat(inpX.value) || 0;
       const newY = parseFloat(inpY.value) || 0;
       const newW = Math.max(2, parseFloat(inpW.value) || 10);
@@ -1925,10 +3230,19 @@ function initElementDesignProps() {
           inner.setAttribute('x2', newX + newW);
           inner.setAttribute('y2', newY + newH);
         } else {
-          try {
-            const curB = inner.getBBox();
-            inner.setAttribute('transform', `translate(${newX - curB.x}, ${newY - curB.y})`);
-          } catch (_) {}
+          const shapeK = inner.dataset.type || tag;
+          if (shapeK === 'cylinder') {
+            shapes.renderCylinder(inner, newX, newY, newW, newH);
+          } else if (shapeK && shapeK.startsWith('circuit-')) {
+            shapes.renderCircuitComponent(inner, shapeK, newX, newY, newW, newH);
+          } else if (shapeK === 'cartesian') {
+            shapes.renderCartesianPlane(inner, newX, newY, newW, newH);
+          } else {
+            const curB = shapes.getUniversalShapeBounds(inner);
+            if (curB) {
+              shapes.resizeUniversalShape(inner, 'se', curB, { x: curB.x + curB.width, y: curB.y + curB.height }, { x: newX + newW, y: newY + newH });
+            }
+          }
         }
       } else {
         sel.el.style.left = (newX / (core.state.pdfW || 2000) * 100) + '%';
@@ -1938,18 +3252,92 @@ function initElementDesignProps() {
       }
 
       inter.drawSelectionOverlay();
-      core.commitChange(pre);
-      document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
+      if (recordChange && pre) {
+        core.commitChange(pre);
+      }
     }
 
     [inpX, inpY, inpW, inpH].forEach(inp => {
       if (inp) {
-        inp.addEventListener('change', applyGeometry);
+        inp.addEventListener('change', () => applyGeometry(true));
         inp.addEventListener('keydown', e => {
-          if (e.key === 'Enter') { inp.blur(); applyGeometry(); }
+          if (e.key === 'Enter') { inp.blur(); applyGeometry(true); }
         });
       }
     });
+
+    // ── Scrubbing Functionality (سحب للأعلى للزيادة والأسفل للإنقاص) ──
+    function setupScrubber(inputEl, labelEl, propName) {
+      if (!inputEl) return;
+      const targets = [labelEl, inputEl].filter(Boolean);
+
+      targets.forEach(target => {
+        target.addEventListener('pointerdown', (e) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+          const startY = e.clientY;
+          const startX = e.clientX;
+          const startVal = parseFloat(inputEl.value) || 0;
+          let isDragging = false;
+          let pre = core.snapshot();
+
+          const onPointerMove = (ev) => {
+            const dy = startY - ev.clientY; // UP is positive, DOWN is negative
+            const dx = ev.clientX - startX;
+            const dist = Math.abs(dy) + Math.abs(dx);
+
+            if (!isDragging && dist > 3) {
+              isDragging = true;
+              document.body.classList.add('scrubbing-active');
+              try { target.setPointerCapture(e.pointerId); } catch (_) {}
+              if (document.activeElement === inputEl) {
+                inputEl.blur();
+              }
+            }
+
+            if (isDragging) {
+              ev.preventDefault();
+              let step = 1;
+              if (ev.shiftKey) step = 5;
+              if (ev.altKey) step = 0.2;
+
+              let newVal = Math.round(startVal + dy * step);
+              if (propName === 'w' || propName === 'h') {
+                newVal = Math.max(4, newVal);
+              }
+              inputEl.value = newVal;
+              applyGeometry(false);
+            }
+          };
+
+          const onPointerUp = (ev) => {
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+            window.removeEventListener('pointercancel', onPointerUp);
+            try { target.releasePointerCapture(e.pointerId); } catch (_) {}
+            document.body.classList.remove('scrubbing-active');
+
+            if (isDragging) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              core.commitChange(pre);
+              inter.drawSelectionOverlay();
+            } else if (target === inputEl) {
+              inputEl.focus();
+            }
+          };
+
+          window.addEventListener('pointermove', onPointerMove, { passive: false });
+          window.addEventListener('pointerup', onPointerUp);
+          window.addEventListener('pointercancel', onPointerUp);
+        });
+      });
+    }
+
+    setupScrubber(inpX, document.getElementById('lblPropX'), 'x');
+    setupScrubber(inpY, document.getElementById('lblPropY'), 'y');
+    setupScrubber(inpW, document.getElementById('lblPropW'), 'w');
+    setupScrubber(inpH, document.getElementById('lblPropH'), 'h');
 
     if (opSlider) {
       opSlider.addEventListener('input', () => {
@@ -1966,6 +3354,80 @@ function initElementDesignProps() {
       });
       opSlider.addEventListener('change', () => core.commitChange());
     }
+
+    // ── Rotate & Flip Handlers ──
+    const rotSlider = document.getElementById('elemRotateSlider');
+    const rotInput = document.getElementById('elemRotateInput');
+    const btnRotL = document.getElementById('elemRotLBtn');
+    const btnRotR = document.getElementById('elemRotRBtn');
+    const btnFlipH = document.getElementById('elemFlipHBtn');
+    const btnFlipV = document.getElementById('elemFlipVBtn');
+    const btnResetTf = document.getElementById('elemResetTransformBtn');
+
+    if (rotSlider) {
+      rotSlider.addEventListener('input', () => {
+        const val = parseFloat(rotSlider.value) || 0;
+        if (rotInput) rotInput.value = val;
+        inter.setElementRotation(sel.el, val);
+        inter.drawSelectionOverlay();
+      });
+      rotSlider.addEventListener('change', () => core.commitChange());
+    }
+    if (rotInput) {
+      rotInput.addEventListener('change', () => {
+        const val = parseFloat(rotInput.value) || 0;
+        if (rotSlider) rotSlider.value = val;
+        inter.setElementRotation(sel.el, val);
+        inter.drawSelectionOverlay();
+        core.commitChange();
+      });
+    }
+    if (btnRotL) {
+      btnRotL.addEventListener('click', () => {
+        inter.rotateElement(sel.el, -90);
+        inter.drawSelectionOverlay();
+        core.commitChange();
+        renderProps();
+      });
+    }
+    if (btnRotR) {
+      btnRotR.addEventListener('click', () => {
+        inter.rotateElement(sel.el, 90);
+        inter.drawSelectionOverlay();
+        core.commitChange();
+        renderProps();
+      });
+    }
+    if (btnFlipH) {
+      btnFlipH.addEventListener('click', () => {
+        inter.flipElementHorizontal(sel.el);
+        inter.drawSelectionOverlay();
+        core.commitChange();
+        renderProps();
+      });
+    }
+    if (btnFlipV) {
+      btnFlipV.addEventListener('click', () => {
+        inter.flipElementVertical(sel.el);
+        inter.drawSelectionOverlay();
+        core.commitChange();
+        renderProps();
+      });
+    }
+    if (btnResetTf) {
+      btnResetTf.addEventListener('click', () => {
+        inter.resetElementTransform(sel.el);
+        inter.drawSelectionOverlay();
+        core.commitChange();
+        renderProps();
+      });
+    }
+
+    // ── Copy & Paste Actions ──
+    const btnCopy = document.getElementById('elemCopyBtn');
+    const btnPaste = document.getElementById('elemPasteBtn');
+    if (btnCopy) btnCopy.addEventListener('click', () => inter.copyElement(sel.el));
+    if (btnPaste) btnPaste.addEventListener('click', () => inter.pasteElement());
 
     // Layer Ordering
     const btnFront = document.getElementById('elemFrontBtn');
@@ -1992,8 +3454,33 @@ function initElementDesignProps() {
     if (btnDel) btnDel.addEventListener('click', () => inter.deleteSelectedElements());
   }
 
+  function updateGeometryInputsValuesOnly() {
+    const inpX = document.getElementById('elemPropX');
+    const inpY = document.getElementById('elemPropY');
+    const inpW = document.getElementById('elemPropW');
+    const inpH = document.getElementById('elemPropH');
+    if (!inpX || !inpY) return;
+
+    import('./core.js').then(core => {
+      const sel = (core.state.selectedList && core.state.selectedList.length > 0)
+        ? core.state.selectedList[0]
+        : core.state.selected;
+      if (!sel || !sel.el) return;
+
+      import('./interaction.js').then(inter => {
+        const b = inter.getElementBBoxInStage(sel.el);
+        if (!b) return;
+
+        if (document.activeElement !== inpX) inpX.value = Math.round(b.x);
+        if (document.activeElement !== inpY) inpY.value = Math.round(b.y);
+        if (document.activeElement !== inpW) inpW.value = Math.round(b.width);
+        if (document.activeElement !== inpH) inpH.value = Math.round(b.height);
+      });
+    });
+  }
+
   document.addEventListener('ipb:selectionChanged', renderProps);
-  document.addEventListener('ipb:elementTransformed', renderProps);
+  document.addEventListener('ipb:elementTransformed', updateGeometryInputsValuesOnly);
   document.addEventListener('ipb:pageChanged', renderProps);
 
   renderProps();
@@ -2406,16 +3893,39 @@ function buildFallbackPalette(host) {
 }
 
 /* ============================================================
-   §11. PRESENT MODE
+   §11. PRESENT MODE (وضع العرض التفاعلي الاحترافي)
    ============================================================ */
 const presentState = {
   active: false,
-  tool: 'select',
-  undoStack: [],
-  redoStack: [],
+  tool: 'select', // 'select' | 'hand' | 'pen' | 'highlighter' | 'laser' | 'eraser'
+  penColor: '#ef4444',
+  penSize: 4,
+  highlighterColor: '#fef08a',
+  highlighterSize: 18,
+  laserColor: '#ff1744',
+  laserSize: 8,
+  laserMode: 'trail', // 'trail' | 'dot'
+  strokes: [], // ink strokes on current slide
+  redoStrokes: [],
+  laserStrokes: [],
+  isDrawing: false,
+  currentStroke: null,
+  lastLaserPoint: null,
+  laserRAF: null,
   timerStart: 0,
   timerInterval: null,
   keyListener: null,
+  drawingBound: false,
+  // Video recording
+  recorder: null,
+  recordStream: null,
+  recordedChunks: [],
+  recordStartTime: 0,
+  recordTimerInterval: null,
+  isRecording: false,
+  isRecordingPaused: false,
+  recordedVideoBlob: null,
+  recordedVideoUrl: null,
 };
 
 async function openPresentMode() {
@@ -2427,19 +3937,31 @@ async function openPresentMode() {
   overlay.classList.add('active');
   document.body.classList.add('present-active');
 
+  // Reset per-session presentation drawings
+  presentState.strokes = [];
+  presentState.redoStrokes = [];
+  presentState.laserStrokes = [];
+  presentState.isDrawing = false;
+  presentState.currentStroke = null;
+  presentState.lastLaserPoint = null;
+
+  copyStageToPresent();
+  bindPresentDrawing();
+  bindPresentToolbar();
+  bindPresentKeys();
+  updatePresentIndicators();
   setPresentTool('select');
   updatePresentUndoRedo();
   resetPresentTimer();
   startPresentTimer();
   updatePresentPageNum();
-  copyStageToPresent();
-  bindPresentKeys();
-  bindPresentToolbar();
 
   const bar = document.getElementById('presentToolbar');
   if (bar) {
     bar.classList.add('show');
-    setTimeout(() => bar.classList.remove('show'), 2500);
+    setTimeout(() => {
+      if (presentState.active && bar) bar.classList.remove('show');
+    }, 2800);
   }
 
   document.addEventListener('ipb:pageChanged', onPresentPageChanged);
@@ -2448,20 +3970,44 @@ async function openPresentMode() {
 function closePresentMode() {
   if (!presentState.active) return;
   presentState.active = false;
+
+  // Stop video recording if in progress
+  if (presentState.isRecording) {
+    stopPresentRecording(false);
+  }
+
+  // Stop laser animation
+  stopPresentLaserLoop();
+
+  // Save presentation ink annotations to current slide
+  savePresentStrokesToSlide();
+
   const overlay = document.getElementById('presentOverlay');
   if (overlay) overlay.classList.remove('active');
   document.body.classList.remove('present-active');
+
+  const optionsBar = document.getElementById('presentToolOptionsBar');
+  if (optionsBar) optionsBar.style.display = 'none';
+
   stopPresentTimer();
   unbindPresentKeys();
   document.removeEventListener('ipb:pageChanged', onPresentPageChanged);
-  presentState.undoStack = [];
-  presentState.redoStack = [];
+
+  presentState.strokes = [];
+  presentState.redoStrokes = [];
+  presentState.laserStrokes = [];
   updatePresentUndoRedo();
 }
 
 function onPresentPageChanged() {
+  // Save current slide present strokes before switching
+  savePresentStrokesToSlide();
+  presentState.strokes = [];
+  presentState.redoStrokes = [];
+  presentState.laserStrokes = [];
   copyStageToPresent();
   updatePresentPageNum();
+  updatePresentUndoRedo();
 }
 
 function copyStageToPresent() {
@@ -2470,37 +4016,82 @@ function copyStageToPresent() {
   const presentCanvas = document.getElementById('presentCanvas');
   const pdfCanvas = document.getElementById('pdfCanvas');
   const presentLayerHost = document.getElementById('presentLayerHost');
-  const svgLayer = document.getElementById('svgLayer');
+  const presentDrawCanvas = document.getElementById('presentDrawCanvas');
+  const presentLaser = document.getElementById('presentLaser');
   if (!stage || !presentStage || !pdfCanvas || !presentCanvas) return;
 
-  const stageRect = stage.getBoundingClientRect();
-  const vw = window.innerWidth * 0.9;
-  const vh = window.innerHeight * 0.9;
-  const aspect = stageRect.width / stageRect.height;
+  // Calculate true un-distorted aspect ratio
+  let aspect = 16 / 9;
+  if (pdfCanvas.width && pdfCanvas.height) {
+    aspect = pdfCanvas.width / pdfCanvas.height;
+  } else {
+    const stageRect = stage.getBoundingClientRect();
+    if (stageRect.width && stageRect.height) aspect = stageRect.width / stageRect.height;
+  }
+
+  const vw = window.innerWidth * 0.94;
+  const vh = window.innerHeight * 0.94;
   let w = vw;
   let h = w / aspect;
   if (h > vh) { h = vh; w = h * aspect; }
-  presentStage.style.width = w + 'px';
-  presentStage.style.height = h + 'px';
+  presentStage.style.width = Math.round(w) + 'px';
+  presentStage.style.height = Math.round(h) + 'px';
 
+  // Background Canvas
   presentCanvas.width = pdfCanvas.width;
   presentCanvas.height = pdfCanvas.height;
-  presentCanvas.getContext('2d').drawImage(pdfCanvas, 0, 0);
+  const ctx = presentCanvas.getContext('2d');
+  ctx.drawImage(pdfCanvas, 0, 0);
 
-  if (presentLayerHost && svgLayer) {
-    presentLayerHost.innerHTML = '';
-    const clone = svgLayer.cloneNode(true);
-    clone.setAttribute('width', '100%');
-    clone.setAttribute('height', '100%');
-    clone.style.width = '100%';
-    clone.style.height = '100%';
-    presentLayerHost.appendChild(clone);
+  // Drawing Canvas (Ink & Highlighter)
+  if (presentDrawCanvas) {
+    presentDrawCanvas.width = pdfCanvas.width;
+    presentDrawCanvas.height = pdfCanvas.height;
+    redrawPresentStrokes();
   }
 
-  const presentLaser = document.getElementById('presentLaser');
+  // Laser Canvas
   if (presentLaser) {
     presentLaser.width = pdfCanvas.width;
     presentLaser.height = pdfCanvas.height;
+    const lctx = presentLaser.getContext('2d');
+    lctx.clearRect(0, 0, presentLaser.width, presentLaser.height);
+  }
+
+  // Clone slide content layers (SVG annotations, text, media, embeds, buttons)
+  if (presentLayerHost) {
+    presentLayerHost.innerHTML = '';
+    const stageEl = document.getElementById('stage');
+    const sRect = stageEl ? stageEl.getBoundingClientRect() : null;
+    const layersToClone = ['svgLayer', 'textLayer', 'videoLayer', 'embedLayer', 'interactiveLayer'];
+    layersToClone.forEach(id => {
+      const srcEl = document.getElementById(id);
+      if (srcEl && srcEl.childNodes.length > 0) {
+        const clone = srcEl.cloneNode(true);
+        clone.id = 'present_' + id;
+        clone.style.position = 'absolute';
+        clone.style.inset = '0';
+        clone.style.width = '100%';
+        clone.style.height = '100%';
+        clone.style.pointerEvents = 'auto';
+
+        // Normalize any pixel-based element sizes to percentage so they scale with presentStage
+        if (sRect && sRect.width > 0) {
+          clone.querySelectorAll('.media-obj, .embed, .pdf-text-box, .pdf-interactive-btn').forEach(obj => {
+            if (obj.style.width && obj.style.width.endsWith('px')) {
+              const wVal = parseFloat(obj.style.width);
+              obj.style.width = ((wVal / sRect.width) * 100) + '%';
+            }
+            if (obj.style.height && obj.style.height.endsWith('px')) {
+              const hVal = parseFloat(obj.style.height);
+              obj.style.height = ((hVal / sRect.height) * 100) + '%';
+            }
+          });
+        }
+
+        presentLayerHost.appendChild(clone);
+      }
+    });
   }
 }
 
@@ -2508,95 +4099,1070 @@ function updatePresentPageNum() {
   const el = document.getElementById('presentPageNum');
   const indicator = document.getElementById('pageIndicator');
   if (el && indicator) el.textContent = indicator.textContent || '— / —';
+  import('./core.js').then(({ state }) => {
+    const total = state.totalPages || (state.slides ? state.slides.length : 1);
+    const prev = document.getElementById('presentPrev');
+    const next = document.getElementById('presentNext');
+    if (prev) prev.disabled = state.currentPage <= 1;
+    if (next) next.disabled = state.currentPage >= total;
+  }).catch(() => {});
+}
+
+function updatePresentIndicators() {
+  const pPen = document.getElementById('pPenIndicator');
+  if (pPen) pPen.style.background = presentState.penColor;
+  const pHigh = document.getElementById('pHighlighterIndicator');
+  if (pHigh) pHigh.style.background = presentState.highlighterColor;
+  const pLaser = document.getElementById('pLaserIndicator');
+  if (pLaser) pLaser.style.background = presentState.laserColor;
 }
 
 function setPresentTool(tool) {
   presentState.tool = tool;
   const bar = document.getElementById('presentToolbar');
-  if (!bar) return;
-  bar.querySelectorAll('[data-ptool]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.ptool === tool);
-  });
+  if (bar) {
+    bar.querySelectorAll('[data-ptool]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.ptool === tool);
+    });
+  }
+
+  const drawCanvas = document.getElementById('presentDrawCanvas');
+  if (drawCanvas) {
+    if (tool === 'select' || tool === 'hand') {
+      drawCanvas.style.pointerEvents = 'none';
+      drawCanvas.style.cursor = 'default';
+    } else if (tool === 'eraser') {
+      drawCanvas.style.pointerEvents = 'auto';
+      drawCanvas.style.cursor = 'cell';
+    } else if (tool === 'laser') {
+      drawCanvas.style.pointerEvents = 'auto';
+      drawCanvas.style.cursor = 'none';
+      startPresentLaserLoop();
+    } else {
+      drawCanvas.style.pointerEvents = 'auto';
+      drawCanvas.style.cursor = 'crosshair';
+    }
+  }
+
+  if (tool === 'pen' || tool === 'highlighter' || tool === 'laser') {
+    renderPresentToolOptions(tool);
+  } else {
+    const optionsBar = document.getElementById('presentToolOptionsBar');
+    if (optionsBar) optionsBar.style.display = 'none';
+  }
+
   document.dispatchEvent(new CustomEvent('ipb:presentToolChanged', {
-    detail: { tool: tool },
+    detail: { tool },
   }));
 }
 
+/* ─── Floating Tool Options Sub-Bar (Colors, Sizes, Laser) ─── */
+function renderPresentToolOptions(tool = presentState.tool) {
+  const optionsBar = document.getElementById('presentToolOptionsBar');
+  if (!optionsBar) return;
+
+  if (tool !== 'pen' && tool !== 'highlighter' && tool !== 'laser') {
+    optionsBar.style.display = 'none';
+    return;
+  }
+
+  optionsBar.style.display = 'flex';
+  optionsBar.innerHTML = '';
+
+  if (tool === 'pen') {
+    const colors = [
+      { c: '#ef4444', name: 'أحمر' },
+      { c: '#3b82f6', name: 'أزرق' },
+      { c: '#10b981', name: 'أخضر' },
+      { c: '#eab308', name: 'أصفر' },
+      { c: '#f97316', name: 'برتقالي' },
+      { c: '#a855f7', name: 'بنفسجي' },
+      { c: '#0f172a', name: 'أسود' },
+      { c: '#ffffff', name: 'أبيض' },
+    ];
+    const sizes = [
+      { s: 2, label: 'رفيع' },
+      { s: 4, label: 'متوسط' },
+      { s: 8, label: 'عريض' },
+      { s: 16, label: 'سميك' },
+    ];
+
+    const cGroup = document.createElement('div');
+    cGroup.className = 'popt-group';
+    const cLabel = document.createElement('span');
+    cLabel.className = 'popt-label';
+    cLabel.textContent = 'اللون:';
+    cGroup.appendChild(cLabel);
+
+    colors.forEach(item => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'popt-swatch' + (presentState.penColor === item.c ? ' active' : '');
+      btn.style.background = item.c;
+      btn.title = item.name;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        presentState.penColor = item.c;
+        updatePresentIndicators();
+        renderPresentToolOptions('pen');
+      });
+      cGroup.appendChild(btn);
+    });
+
+    const customColor = document.createElement('input');
+    customColor.type = 'color';
+    customColor.className = 'popt-color-input';
+    customColor.value = presentState.penColor.length === 7 ? presentState.penColor : '#ef4444';
+    customColor.title = 'لون مخصص';
+    customColor.addEventListener('input', (e) => {
+      presentState.penColor = e.target.value;
+      updatePresentIndicators();
+    });
+    customColor.addEventListener('change', () => {
+      renderPresentToolOptions('pen');
+    });
+    cGroup.appendChild(customColor);
+    optionsBar.appendChild(cGroup);
+
+    const sep = document.createElement('div');
+    sep.className = 'popt-sep';
+    optionsBar.appendChild(sep);
+
+    const sGroup = document.createElement('div');
+    sGroup.className = 'popt-group';
+    const sLabel = document.createElement('span');
+    sLabel.className = 'popt-label';
+    sLabel.textContent = 'الحجم:';
+    sGroup.appendChild(sLabel);
+
+    sizes.forEach(item => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'popt-size-btn' + (presentState.penSize === item.s ? ' active' : '');
+      btn.innerHTML = `<span class="popt-size-dot" style="width:${Math.max(4, item.s)}px;height:${Math.max(4, item.s)}px;"></span> ${item.label}`;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        presentState.penSize = item.s;
+        renderPresentToolOptions('pen');
+      });
+      sGroup.appendChild(btn);
+    });
+    optionsBar.appendChild(sGroup);
+
+  } else if (tool === 'highlighter') {
+    const colors = [
+      { c: '#fef08a', name: 'أصفر فاقع' },
+      { c: '#86efac', name: 'أخضر نيون' },
+      { c: '#7dd3fc', name: 'أزرق سماوي' },
+      { c: '#f472b6', name: 'وردي' },
+      { c: '#fdba74', name: 'برتقالي' },
+    ];
+    const sizes = [
+      { s: 12, label: '12px' },
+      { s: 18, label: '18px' },
+      { s: 28, label: '28px' },
+    ];
+
+    const cGroup = document.createElement('div');
+    cGroup.className = 'popt-group';
+    const cLabel = document.createElement('span');
+    cLabel.className = 'popt-label';
+    cLabel.textContent = 'لون التحديد:';
+    cGroup.appendChild(cLabel);
+
+    colors.forEach(item => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'popt-swatch' + (presentState.highlighterColor === item.c ? ' active' : '');
+      btn.style.background = item.c;
+      btn.title = item.name;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        presentState.highlighterColor = item.c;
+        updatePresentIndicators();
+        renderPresentToolOptions('highlighter');
+      });
+      cGroup.appendChild(btn);
+    });
+    optionsBar.appendChild(cGroup);
+
+    const sep = document.createElement('div');
+    sep.className = 'popt-sep';
+    optionsBar.appendChild(sep);
+
+    const sGroup = document.createElement('div');
+    sGroup.className = 'popt-group';
+    const sLabel = document.createElement('span');
+    sLabel.className = 'popt-label';
+    sLabel.textContent = 'العرض:';
+    sGroup.appendChild(sLabel);
+
+    sizes.forEach(item => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'popt-size-btn' + (presentState.highlighterSize === item.s ? ' active' : '');
+      btn.textContent = item.label;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        presentState.highlighterSize = item.s;
+        renderPresentToolOptions('highlighter');
+      });
+      sGroup.appendChild(btn);
+    });
+    optionsBar.appendChild(sGroup);
+
+  } else if (tool === 'laser') {
+    const colors = [
+      { c: '#ff1744', name: 'أحمر نيون' },
+      { c: '#00e676', name: 'أخضر ليزر' },
+      { c: '#00e5ff', name: 'أزرق سماوي' },
+      { c: '#ffd600', name: 'أصفر متوهج' },
+      { c: '#d500f9', name: 'بنفسجي متوهج' },
+    ];
+    const sizes = [
+      { s: 5, label: 'صغير' },
+      { s: 8, label: 'متوسط' },
+      { s: 14, label: 'كبير' },
+    ];
+
+    const cGroup = document.createElement('div');
+    cGroup.className = 'popt-group';
+    const cLabel = document.createElement('span');
+    cLabel.className = 'popt-label';
+    cLabel.textContent = 'لون الليزر:';
+    cGroup.appendChild(cLabel);
+
+    colors.forEach(item => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'popt-swatch' + (presentState.laserColor === item.c ? ' active' : '');
+      btn.style.background = item.c;
+      btn.style.boxShadow = `0 0 6px ${item.c}`;
+      btn.title = item.name;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        presentState.laserColor = item.c;
+        updatePresentIndicators();
+        renderPresentToolOptions('laser');
+      });
+      cGroup.appendChild(btn);
+    });
+    optionsBar.appendChild(cGroup);
+
+    const sep = document.createElement('div');
+    sep.className = 'popt-sep';
+    optionsBar.appendChild(sep);
+
+    const sGroup = document.createElement('div');
+    sGroup.className = 'popt-group';
+    const sLabel = document.createElement('span');
+    sLabel.className = 'popt-label';
+    sLabel.textContent = 'الحجم:';
+    sGroup.appendChild(sLabel);
+
+    sizes.forEach(item => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'popt-size-btn' + (presentState.laserSize === item.s ? ' active' : '');
+      btn.textContent = item.label;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        presentState.laserSize = item.s;
+        renderPresentToolOptions('laser');
+      });
+      sGroup.appendChild(btn);
+    });
+    optionsBar.appendChild(sGroup);
+
+    const sep2 = document.createElement('div');
+    sep2.className = 'popt-sep';
+    optionsBar.appendChild(sep2);
+
+    const mGroup = document.createElement('div');
+    mGroup.className = 'popt-group';
+    const modeBtn = document.createElement('button');
+    modeBtn.type = 'button';
+    modeBtn.className = 'popt-size-btn active';
+    modeBtn.innerHTML = presentState.laserMode === 'trail' ? '✨ شعاع متوهج' : '🎯 نقطة فقط';
+    modeBtn.title = 'تبديل وضع الليزر';
+    modeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      presentState.laserMode = presentState.laserMode === 'trail' ? 'dot' : 'trail';
+      renderPresentToolOptions('laser');
+    });
+    mGroup.appendChild(modeBtn);
+    optionsBar.appendChild(mGroup);
+  }
+}
+
+/* ─── Interactive Drawing & Laser Engine ─── */
+function getPresentCanvasPoint(e) {
+  const canvas = document.getElementById('presentDrawCanvas');
+  if (!canvas) return { x: 0, y: 0 };
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top) * scaleY,
+  };
+}
+
+function bindPresentDrawing() {
+  if (presentState.drawingBound) return;
+  const canvas = document.getElementById('presentDrawCanvas');
+  if (!canvas) return;
+  presentState.drawingBound = true;
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const pt = getPresentCanvasPoint(e);
+
+    if (presentState.tool === 'pen' || presentState.tool === 'highlighter') {
+      presentState.isDrawing = true;
+      presentState.currentStroke = {
+        tool: presentState.tool,
+        color: presentState.tool === 'pen' ? presentState.penColor : presentState.highlighterColor,
+        size: presentState.tool === 'pen' ? presentState.penSize : presentState.highlighterSize,
+        points: [pt],
+      };
+      // Draw initial touch point
+      const ctx = canvas.getContext('2d');
+      drawSinglePresentStroke(ctx, presentState.currentStroke);
+      e.preventDefault();
+
+    } else if (presentState.tool === 'laser') {
+      presentState.isDrawing = true;
+      presentState.lastLaserPoint = pt;
+      if (presentState.laserMode === 'trail') {
+        presentState.laserStrokes.push({
+          points: [pt],
+          color: presentState.laserColor,
+          size: presentState.laserSize,
+          time: performance.now(),
+        });
+      }
+      startPresentLaserLoop();
+      e.preventDefault();
+
+    } else if (presentState.tool === 'eraser') {
+      presentState.isDrawing = true;
+      erasePresentStrokesAt(pt, 24);
+      e.preventDefault();
+    }
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    if (!presentState.active) return;
+    const drawCanvas = document.getElementById('presentDrawCanvas');
+    if (!drawCanvas) return;
+    const pt = getPresentCanvasPoint(e);
+
+    // Track laser pointer dot even when not dragging
+    if (presentState.tool === 'laser') {
+      presentState.lastLaserPoint = pt;
+      if (presentState.isDrawing && presentState.laserMode === 'trail') {
+        const currentTrail = presentState.laserStrokes[presentState.laserStrokes.length - 1];
+        if (currentTrail) {
+          currentTrail.points.push(pt);
+          currentTrail.time = performance.now();
+        }
+      }
+      startPresentLaserLoop();
+      return;
+    }
+
+    if (!presentState.isDrawing) return;
+
+    if (presentState.tool === 'pen' || presentState.tool === 'highlighter') {
+      if (presentState.currentStroke) {
+        presentState.currentStroke.points.push(pt);
+        const ctx = drawCanvas.getContext('2d');
+        const pts = presentState.currentStroke.points;
+        if (pts.length >= 2) {
+          ctx.save();
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          if (presentState.currentStroke.tool === 'highlighter') {
+            ctx.globalAlpha = 0.42;
+            ctx.strokeStyle = presentState.currentStroke.color;
+            ctx.lineWidth = presentState.currentStroke.size;
+          } else {
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = presentState.currentStroke.color;
+            ctx.lineWidth = presentState.currentStroke.size;
+          }
+          ctx.beginPath();
+          const prev = pts[pts.length - 2];
+          const curr = pts[pts.length - 1];
+          ctx.moveTo(prev.x, prev.y);
+          ctx.lineTo(curr.x, curr.y);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+    } else if (presentState.tool === 'eraser') {
+      erasePresentStrokesAt(pt, 24);
+    }
+  });
+
+  window.addEventListener('pointerup', () => {
+    if (!presentState.active || !presentState.isDrawing) return;
+    presentState.isDrawing = false;
+
+    if (presentState.currentStroke && (presentState.tool === 'pen' || presentState.tool === 'highlighter')) {
+      presentState.strokes.push(presentState.currentStroke);
+      presentState.currentStroke = null;
+      presentState.redoStrokes = [];
+      redrawPresentStrokes();
+      updatePresentUndoRedo();
+    }
+  });
+
+  canvas.addEventListener('pointerleave', () => {
+    if (presentState.tool === 'laser' && !presentState.isDrawing) {
+      presentState.lastLaserPoint = null;
+    }
+  });
+}
+
+function redrawPresentStrokes() {
+  const canvas = document.getElementById('presentDrawCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  presentState.strokes.forEach(s => drawSinglePresentStroke(ctx, s));
+}
+
+function drawSinglePresentStroke(ctx, stroke) {
+  if (!stroke.points || stroke.points.length === 0) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (stroke.tool === 'highlighter') {
+    ctx.globalAlpha = 0.42;
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = stroke.size;
+  } else {
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = stroke.size;
+  }
+
+  ctx.beginPath();
+  const pts = stroke.points;
+  ctx.moveTo(pts[0].x, pts[0].y);
+  if (pts.length === 1) {
+    ctx.arc(pts[0].x, pts[0].y, stroke.size / 2, 0, Math.PI * 2);
+    ctx.fillStyle = stroke.color;
+    ctx.fill();
+  } else {
+    for (let i = 1; i < pts.length; i++) {
+      const xc = (pts[i - 1].x + pts[i].x) / 2;
+      const yc = (pts[i - 1].y + pts[i].y) / 2;
+      ctx.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, xc, yc);
+    }
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function erasePresentStrokesAt(pt, radius) {
+  const initialCount = presentState.strokes.length;
+  presentState.strokes = presentState.strokes.filter(stroke => {
+    return !stroke.points.some(p => {
+      const dx = p.x - pt.x;
+      const dy = p.y - pt.y;
+      return (dx * dx + dy * dy) < (radius + stroke.size / 2) * (radius + stroke.size / 2);
+    });
+  });
+
+  if (presentState.strokes.length !== initialCount) {
+    redrawPresentStrokes();
+    updatePresentUndoRedo();
+  }
+}
+
+/* ─── Laser Animation Loop ─── */
+function startPresentLaserLoop() {
+  if (presentState.laserRAF) return;
+  presentState.laserRAF = requestAnimationFrame(presentLaserTick);
+}
+
+function stopPresentLaserLoop() {
+  if (presentState.laserRAF) {
+    cancelAnimationFrame(presentState.laserRAF);
+    presentState.laserRAF = null;
+  }
+  const canvas = document.getElementById('presentLaser');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+function presentLaserTick() {
+  const canvas = document.getElementById('presentLaser');
+  if (!canvas || !presentState.active) {
+    presentState.laserRAF = null;
+    return;
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const now = performance.now();
+  let hasActiveElements = false;
+
+  // 1) Laser Light Trails
+  if (presentState.laserMode === 'trail') {
+    const lifeMs = 900;
+    presentState.laserStrokes = presentState.laserStrokes.filter(s => (now - s.time) < lifeMs);
+    if (presentState.laserStrokes.length > 0) hasActiveElements = true;
+
+    presentState.laserStrokes.forEach(s => {
+      const age = now - s.time;
+      const alpha = Math.max(0, 1 - age / lifeMs);
+      if (alpha <= 0 || s.points.length < 1) return;
+
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.globalAlpha = alpha;
+
+      // Glowing outer envelope
+      ctx.shadowColor = s.color;
+      ctx.shadowBlur = s.size * 3.5;
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = s.size;
+      ctx.beginPath();
+      ctx.moveTo(s.points[0].x, s.points[0].y);
+      for (let i = 1; i < s.points.length; i++) {
+        ctx.lineTo(s.points[i].x, s.points[i].y);
+      }
+      ctx.stroke();
+
+      // White core
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(1, s.size * 0.4);
+      ctx.beginPath();
+      ctx.moveTo(s.points[0].x, s.points[0].y);
+      for (let i = 1; i < s.points.length; i++) {
+        ctx.lineTo(s.points[i].x, s.points[i].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    });
+  }
+
+  // 2) Glowing Laser Pointer Dot
+  if (presentState.tool === 'laser' && presentState.lastLaserPoint) {
+    hasActiveElements = true;
+    const pt = presentState.lastLaserPoint;
+    const color = presentState.laserColor;
+    const size = presentState.laserSize;
+
+    ctx.save();
+    const pulse = 1 + 0.18 * Math.sin(now / 100);
+
+    // Outer glow
+    ctx.shadowColor = color;
+    ctx.shadowBlur = size * 4 * pulse;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, (size / 1.8) * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner bright core
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, Math.max(2, size * 0.32), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  if (hasActiveElements || presentState.tool === 'laser') {
+    presentState.laserRAF = requestAnimationFrame(presentLaserTick);
+  } else {
+    presentState.laserRAF = null;
+  }
+}
+
+/* ─── Undo / Redo / Clear ─── */
+function presentUndo() {
+  if (!presentState.strokes.length) return;
+  const item = presentState.strokes.pop();
+  presentState.redoStrokes.push(item);
+  redrawPresentStrokes();
+  updatePresentUndoRedo();
+}
+
+function presentRedo() {
+  if (!presentState.redoStrokes.length) return;
+  const item = presentState.redoStrokes.pop();
+  presentState.strokes.push(item);
+  redrawPresentStrokes();
+  updatePresentUndoRedo();
+}
+
+function presentClearAll() {
+  presentState.strokes = [];
+  presentState.redoStrokes = [];
+  redrawPresentStrokes();
+  updatePresentUndoRedo();
+}
+
+function updatePresentUndoRedo() {
+  const u = document.getElementById('presentUndo');
+  const r = document.getElementById('presentRedo');
+  if (u) u.disabled = presentState.strokes.length === 0;
+  if (r) r.disabled = presentState.redoStrokes.length === 0;
+}
+
+/* ─── Save Present Strokes to Slide Annotations on Exit ─── */
+async function savePresentStrokesToSlide() {
+  if (!presentState.strokes.length) return;
+  try {
+    const core = await import('./core.js');
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const svgLayer = document.getElementById('svgLayer');
+    const pdfCanvas = document.getElementById('pdfCanvas');
+    if (!svgLayer || !pdfCanvas) return;
+
+    const scaleX = (core.state.pdfW || 1000) / pdfCanvas.width;
+    const scaleY = (core.state.pdfH || 1414) / pdfCanvas.height;
+
+    const pre = core.snapshot ? core.snapshot() : null;
+
+    presentState.strokes.forEach(stroke => {
+      if (!stroke.points || stroke.points.length < 2) return;
+      let d = `M ${(stroke.points[0].x * scaleX).toFixed(1)} ${(stroke.points[0].y * scaleY).toFixed(1)}`;
+      for (let i = 1; i < stroke.points.length; i++) {
+        const xc = ((stroke.points[i - 1].x + stroke.points[i].x) / 2 * scaleX).toFixed(1);
+        const yc = ((stroke.points[i - 1].y + stroke.points[i].y) / 2 * scaleY).toFixed(1);
+        d += ` Q ${(stroke.points[i - 1].x * scaleX).toFixed(1)} ${(stroke.points[i - 1].y * scaleY).toFixed(1)} ${xc} ${yc}`;
+      }
+      const last = stroke.points[stroke.points.length - 1];
+      d += ` L ${(last.x * scaleX).toFixed(1)} ${(last.y * scaleY).toFixed(1)}`;
+
+      const path = document.createElementNS(SVG_NS, 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('stroke', stroke.color);
+      path.setAttribute('stroke-width', String(Math.round(stroke.size * scaleX)));
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+
+      if (stroke.tool === 'highlighter') {
+        path.setAttribute('stroke-opacity', '0.45');
+        path.style.mixBlendMode = 'multiply';
+        path.dataset.type = 'highlighter';
+      } else {
+        path.dataset.type = 'path';
+      }
+
+      if (core.addAnnotation) core.addAnnotation(path);
+      else {
+        const wrap = document.createElement('div');
+        wrap.className = 'annot-wrapper';
+        const svg = document.createElementNS(SVG_NS, 'svg');
+        svg.appendChild(path);
+        wrap.appendChild(svg);
+        svgLayer.appendChild(wrap);
+      }
+    });
+
+    if (pre && core.commitChange) core.commitChange(pre);
+  } catch (err) {
+    console.warn('savePresentStrokesToSlide failed:', err);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   ★ VIDEO RECORDING FEATURE (تسجيل العرض فيديو)
+   ════════════════════════════════════════════════════════════ */
+async function togglePresentRecording() {
+  if (presentState.isRecording) {
+    stopPresentRecording(true);
+  } else {
+    startPresentRecording();
+  }
+}
+
+async function startPresentRecording() {
+  if (presentState.isRecording) return;
+  presentState.recordedChunks = [];
+
+  let stream = null;
+
+  // 1) Try tab/screen capture first if permitted
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          displaySurface: 'browser',
+          frameRate: { ideal: 30, max: 60 },
+        },
+        audio: true,
+      });
+    }
+  } catch (err) {
+    console.warn('getDisplayMedia not available or canceled, using composite canvas capture:', err);
+  }
+
+  // 2) Reliable Fallback: Live Stage Composite Stream (slide + live pen/highlighter + laser)
+  if (!stream) {
+    try {
+      const pCanvas = document.getElementById('presentCanvas') || document.getElementById('pdfCanvas');
+      const dCanvas = document.getElementById('presentDrawCanvas');
+      const lCanvas = document.getElementById('presentLaser');
+
+      if (pCanvas) {
+        const cW = pCanvas.width || 1280;
+        const cH = pCanvas.height || 720;
+        const compCanvas = document.createElement('canvas');
+        compCanvas.width = cW;
+        compCanvas.height = cH;
+        const compCtx = compCanvas.getContext('2d', { alpha: false });
+
+        const renderComposite = () => {
+          if (!presentState.isRecording) return;
+          try {
+            compCtx.fillStyle = '#ffffff';
+            compCtx.fillRect(0, 0, cW, cH);
+            if (pCanvas && pCanvas.width) compCtx.drawImage(pCanvas, 0, 0);
+            if (dCanvas && dCanvas.width) compCtx.drawImage(dCanvas, 0, 0);
+            if (lCanvas && lCanvas.width) compCtx.drawImage(lCanvas, 0, 0);
+          } catch (_) {}
+          presentState.recAnimId = requestAnimationFrame(renderComposite);
+        };
+
+        renderComposite();
+        if (compCanvas.captureStream) {
+          stream = compCanvas.captureStream(30);
+        }
+      }
+    } catch (e) {
+      console.warn('Composite canvas stream failed:', e);
+    }
+  }
+
+  if (!stream) {
+    safeToast('تعذّر بدء تسجيل الشاشة في متصفحك.', 'error');
+    return;
+  }
+
+  // 3) Try to combine microphone audio track so presenter voice is recorded
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) {
+        const audioCtx = new AudioContextClass();
+        const dest = audioCtx.createMediaStreamDestination();
+
+        if (stream.getAudioTracks().length > 0) {
+          const displayAudioSrc = audioCtx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+          displayAudioSrc.connect(dest);
+        }
+
+        const micSrc = audioCtx.createMediaStreamSource(micStream);
+        micSrc.connect(dest);
+
+        stream = new MediaStream([
+          ...stream.getVideoTracks(),
+          ...dest.stream.getAudioTracks(),
+        ]);
+      }
+    }
+  } catch (_) {
+    // Microphone is optional
+  }
+
+  // 4) Setup MediaRecorder with best supported mimeType
+  let mimeType = '';
+  const testTypes = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=h264',
+    'video/webm',
+    'video/mp4',
+  ];
+  if (typeof MediaRecorder !== 'undefined') {
+    for (const t of testTypes) {
+      if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
+        mimeType = t;
+        break;
+      }
+    }
+  }
+
+  try {
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    presentState.recorder = recorder;
+    presentState.recordStream = stream;
+
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        presentState.recordedChunks.push(e.data);
+      }
+    };
+
+    recorder.onstop = () => {
+      handleRecordingStopped();
+    };
+
+    // If user stops sharing from browser bar
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.addEventListener('ended', () => {
+        if (presentState.isRecording) stopPresentRecording(true);
+      });
+    }
+
+    recorder.start(1000);
+    presentState.isRecording = true;
+    presentState.isRecordingPaused = false;
+    presentState.recordStartTime = Date.now();
+
+    // UI Updates
+    const recBtn = document.getElementById('presentRecordBtn');
+    const recPill = document.getElementById('presentRecPill');
+    if (recBtn) recBtn.style.display = 'none';
+    if (recPill) recPill.style.display = 'flex';
+
+    startRecordingTimer();
+    safeToast('بدأ تسجيل العرض 🔴', 'ok');
+
+  } catch (err) {
+    console.error('Failed to start MediaRecorder:', err);
+    safeToast('تعذّر بدء تسجيل الفيديو: ' + err.message, 'error');
+  }
+}
+
+function pauseOrResumeRecording() {
+  if (!presentState.recorder || !presentState.isRecording) return;
+  const pauseBtn = document.getElementById('presentRecPauseBtn');
+
+  if (!presentState.isRecordingPaused) {
+    presentState.recorder.pause();
+    presentState.isRecordingPaused = true;
+    if (pauseBtn) { pauseBtn.textContent = '▶️'; pauseBtn.title = 'استئناف التسجيل'; }
+    safeToast('تم إيقاف التسجيل مؤقتاً ⏸️', 'info');
+  } else {
+    presentState.recorder.resume();
+    presentState.isRecordingPaused = false;
+    if (pauseBtn) { pauseBtn.textContent = '⏸️'; pauseBtn.title = 'إيقاف مؤقت'; }
+    safeToast('تم استئناف التسجيل ▶️', 'info');
+  }
+}
+
+function stopPresentRecording(showModal = true) {
+  if (!presentState.isRecording) return;
+  presentState.isRecording = false;
+
+  if (presentState.recAnimId) {
+    cancelAnimationFrame(presentState.recAnimId);
+    presentState.recAnimId = null;
+  }
+
+  stopRecordingTimer();
+
+  if (presentState.recorder && presentState.recorder.state !== 'inactive') {
+    presentState.recorder.stop();
+  }
+
+  if (presentState.recordStream) {
+    presentState.recordStream.getTracks().forEach(t => t.stop());
+    presentState.recordStream = null;
+  }
+
+  // Restore Toolbar buttons
+  const recBtn = document.getElementById('presentRecordBtn');
+  const recPill = document.getElementById('presentRecPill');
+  if (recBtn) recBtn.style.display = '';
+  if (recPill) recPill.style.display = 'none';
+
+  if (!showModal) {
+    presentState.recordedChunks = [];
+  }
+}
+
+function startRecordingTimer() {
+  stopRecordingTimer();
+  updateRecordingTimerDisplay();
+  presentState.recordTimerInterval = setInterval(updateRecordingTimerDisplay, 1000);
+}
+
+function stopRecordingTimer() {
+  if (presentState.recordTimerInterval) {
+    clearInterval(presentState.recordTimerInterval);
+    presentState.recordTimerInterval = null;
+  }
+}
+
+function updateRecordingTimerDisplay() {
+  const el = document.getElementById('presentRecTimer');
+  if (!el) return;
+  const elapsed = Math.floor((Date.now() - presentState.recordStartTime) / 1000);
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(elapsed % 60).padStart(2, '0');
+  el.textContent = mm + ':' + ss;
+}
+
+function handleRecordingStopped() {
+  if (!presentState.recordedChunks.length) return;
+
+  const blob = new Blob(presentState.recordedChunks, { type: 'video/webm' });
+  presentState.recordedVideoBlob = blob;
+  const url = URL.createObjectURL(blob);
+  presentState.recordedVideoUrl = url;
+
+  const modal = document.getElementById('presentVideoModal');
+  const preview = document.getElementById('presentVideoPreview');
+  const durEl = document.getElementById('presentVideoDuration');
+  const sizeEl = document.getElementById('presentVideoSize');
+
+  if (preview) preview.src = url;
+
+  const elapsed = Math.floor((Date.now() - presentState.recordStartTime) / 1000);
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(elapsed % 60).padStart(2, '0');
+  if (durEl) durEl.textContent = `⏱️ المدة: ${mm}:${ss}`;
+
+  const sizeMb = (blob.size / (1024 * 1024)).toFixed(2);
+  if (sizeEl) sizeEl.textContent = `💾 الحجم: ${sizeMb} MB`;
+
+  if (modal) modal.style.display = 'flex';
+  safeToast('تم حفظ تسجيل العرض بنجاح 🎬', 'ok');
+}
+
+function downloadRecordedVideo() {
+  if (!presentState.recordedVideoBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(presentState.recordedVideoBlob);
+  const dateStr = new Date().toISOString().slice(0, 10);
+  a.download = `presentation-recording-${dateStr}.webm`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => a.remove(), 100);
+  safeToast('جارٍ تنزيل ملف الفيديو ⬇️', 'ok');
+}
+
+function dismissVideoModal() {
+  const modal = document.getElementById('presentVideoModal');
+  const preview = document.getElementById('presentVideoPreview');
+  if (preview) { preview.pause(); preview.src = ''; }
+  if (modal) modal.style.display = 'none';
+  if (presentState.recordedVideoUrl) {
+    URL.revokeObjectURL(presentState.recordedVideoUrl);
+    presentState.recordedVideoUrl = null;
+  }
+}
+
+/* ─── Present Mode Toolbar & Keys Binding ─── */
 function bindPresentToolbar() {
   const bar = document.getElementById('presentToolbar');
   if (!bar) return;
+
   bar.querySelectorAll('[data-ptool]').forEach(btn => {
-    btn.addEventListener('click', () => setPresentTool(btn.dataset.ptool));
+    btn.onclick = () => setPresentTool(btn.dataset.ptool);
   });
+
+  const optToggle = document.getElementById('presentOptionsToggleBtn');
+  if (optToggle) {
+    optToggle.onclick = () => {
+      const optionsBar = document.getElementById('presentToolOptionsBar');
+      if (optionsBar) {
+        if (optionsBar.style.display === 'none') {
+          const t = (presentState.tool === 'pen' || presentState.tool === 'highlighter' || presentState.tool === 'laser')
+            ? presentState.tool : 'pen';
+          setPresentTool(t);
+        } else {
+          optionsBar.style.display = 'none';
+        }
+      }
+    };
+  }
+
   const u = document.getElementById('presentUndo');
   const r = document.getElementById('presentRedo');
   const clr = document.getElementById('presentClear');
   const prev = document.getElementById('presentPrev');
   const next = document.getElementById('presentNext');
   const exit = document.getElementById('presentExit');
-  if (u) u.addEventListener('click', presentUndo);
-  if (r) r.addEventListener('click', presentRedo);
-  if (clr) clr.addEventListener('click', presentClearAll);
-  if (prev) prev.addEventListener('click', presentPrevPage);
-  if (next) next.addEventListener('click', presentNextPage);
-  if (exit) exit.addEventListener('click', closePresentMode);
+
+  if (u) u.onclick = presentUndo;
+  if (r) r.onclick = presentRedo;
+  if (clr) clr.onclick = presentClearAll;
+  if (prev) prev.onclick = presentPrevPage;
+  if (next) next.onclick = presentNextPage;
+  if (exit) exit.onclick = closePresentMode;
+
+  // Video Recording Controls
+  const recBtn = document.getElementById('presentRecordBtn');
+  const recPause = document.getElementById('presentRecPauseBtn');
+  const recStop = document.getElementById('presentRecStopBtn');
+
+  if (recBtn) recBtn.onclick = togglePresentRecording;
+  if (recPause) recPause.onclick = pauseOrResumeRecording;
+  if (recStop) recStop.onclick = () => stopPresentRecording(true);
+
+  // Video Modal Controls
+  const vidClose = document.getElementById('presentVideoCloseBtn');
+  const vidDismiss = document.getElementById('presentVideoDismissBtn');
+  const vidDown = document.getElementById('presentVideoDownloadBtn');
+
+  if (vidClose) vidClose.onclick = dismissVideoModal;
+  if (vidDismiss) vidDismiss.onclick = dismissVideoModal;
+  if (vidDown) vidDown.onclick = downloadRecordedVideo;
 }
 
 async function presentPrevPage() {
   try {
     const pdf = await import('./pdf.js');
     const state = (await import('./core.js')).state;
-    if (state.currentPage > 1) await pdf.goToPage(state.currentPage - 1);
-  } catch (e) { console.warn(e); }
+    const total = state.totalPages || (state.slides ? state.slides.length : 1);
+    if (state.currentPage > 1) {
+      await pdf.goToPage(state.currentPage - 1);
+      onPresentPageChanged();
+    }
+  } catch (e) { console.warn('presentPrevPage error:', e); }
 }
+
 async function presentNextPage() {
   try {
     const pdf = await import('./pdf.js');
     const state = (await import('./core.js')).state;
-    if (state.currentPage < state.totalPages) await pdf.goToPage(state.currentPage + 1);
-  } catch (e) { console.warn(e); }
+    const total = state.totalPages || (state.slides ? state.slides.length : 1);
+    if (state.currentPage < total) {
+      await pdf.goToPage(state.currentPage + 1);
+      onPresentPageChanged();
+    }
+  } catch (e) { console.warn('presentNextPage error:', e); }
 }
-function presentUndo() {
-  if (!presentState.undoStack.length) return;
-  const item = presentState.undoStack.pop();
-  presentState.redoStack.push(item);
-  if (item.el && item.el.parentNode) item.el.style.display = 'none';
-  updatePresentUndoRedo();
-}
-function presentRedo() {
-  if (!presentState.redoStack.length) return;
-  const item = presentState.redoStack.pop();
-  presentState.undoStack.push(item);
-  if (item.el && item.el.parentNode) item.el.style.display = '';
-  updatePresentUndoRedo();
-}
-function presentClearAll() {
-  const host = document.getElementById('presentLayerHost');
-  if (host) host.querySelectorAll('[data-present-annot]').forEach(el => el.remove());
-  presentState.undoStack = [];
-  presentState.redoStack = [];
-  updatePresentUndoRedo();
-}
-function updatePresentUndoRedo() {
-  const u = document.getElementById('presentUndo');
-  const r = document.getElementById('presentRedo');
-  if (u) u.disabled = presentState.undoStack.length === 0;
-  if (r) r.disabled = presentState.redoStack.length === 0;
-}
+
 function resetPresentTimer() {
   presentState.timerStart = Date.now();
   updatePresentTimerDisplay();
 }
+
 function startPresentTimer() {
   stopPresentTimer();
   presentState.timerInterval = setInterval(updatePresentTimerDisplay, 1000);
 }
+
 function stopPresentTimer() {
   if (presentState.timerInterval) {
     clearInterval(presentState.timerInterval);
     presentState.timerInterval = null;
   }
 }
+
 function updatePresentTimerDisplay() {
   const el = document.getElementById('presentTimer');
   if (!el) return;
@@ -2605,13 +5171,18 @@ function updatePresentTimerDisplay() {
   const ss = String(elapsed % 60).padStart(2, '0');
   el.textContent = mm + ':' + ss;
 }
+
 function bindPresentKeys() {
   presentState.keyListener = (e) => {
     if (!presentState.active) return;
     if (e.key === 'Escape') { closePresentMode(); return; }
     if (e.key === 'ArrowRight') { presentNextPage(); return; }
     if (e.key === 'ArrowLeft') { presentPrevPage(); return; }
-    if (e.key === 'p' || e.key === 'P') { setPresentTool('pen'); return; }
+    if (e.key === 'p' || e.key === 'P') {
+      if (e.shiftKey) setPresentTool('highlighter');
+      else setPresentTool('pen');
+      return;
+    }
     if (e.key === 'h' || e.key === 'H') { setPresentTool('hand'); return; }
     if (e.key === 'l' || e.key === 'L') { setPresentTool('laser'); return; }
     if (e.key === 'e' || e.key === 'E') { setPresentTool('eraser'); return; }
@@ -2621,9 +5192,14 @@ function bindPresentKeys() {
       if (e.shiftKey) presentRedo();
       else presentUndo();
     }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+      e.preventDefault();
+      presentRedo();
+    }
   };
   document.addEventListener('keydown', presentState.keyListener);
 }
+
 function unbindPresentKeys() {
   if (presentState.keyListener) {
     document.removeEventListener('keydown', presentState.keyListener);

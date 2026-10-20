@@ -11,8 +11,8 @@
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary_large_image" />
 
-<link rel="stylesheet" href="src/style.css">
-<link rel="stylesheet" href="src/shell.css">
+<link rel="stylesheet" href="/src/style.css">
+<link rel="stylesheet" href="/src/shell.css">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
 </head>
@@ -21,28 +21,39 @@
 <!-- ═══════════════════ TOPBAR ═══════════════════ -->
 <div id="topbar">
   <div class="brand">
-    <div class="brand-icon">📄</div>
-    <span class="brand-name">لوحة الشرائح التفاعلية</span>
-    <span class="brand-version" id="appVersion">v0.5.1</span>
+    <div class="brand-icon">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/><text x="12" y="14" font-size="9" font-weight="900" fill="#fff" stroke="none" text-anchor="middle">P</text></svg>
+    </div>
+    <span class="brand-name">لوحة الشرائح</span>
+    <span class="brand-version" id="appVersion">v0.5.2</span>
   </div>
 
   <button class="tb-btn" id="btnUndo" title="تراجع (Ctrl+Z)">
-    <span class="ico">↶</span><span class="lbl">تراجع</span>
+    <span class="ico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v1a5.5 5.5 0 0 1-5.5 5.5H11"/></svg></span><span class="lbl">تراجع</span>
   </button>
   <button class="tb-btn" id="btnRedo" title="إعادة (Ctrl+Y)">
-    <span class="ico">↷</span><span class="lbl">إعادة</span>
+    <span class="ico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v1A5.5 5.5 0 0 0 9.5 21H13"/></svg></span><span class="lbl">إعادة</span>
   </button>
 
   <div class="tb-divider"></div>
 
-  <button class="tb-btn accent" id="btnNew" title="مشروع جديد (Ctrl+N)">
-    <span class="ico">✨</span><span class="lbl">جديد</span>
+  <button class="tb-btn" id="btnCopy" title="نسخ العنصر المحدد (Ctrl+C)">
+    <span class="ico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span><span class="lbl">نسخ</span>
+  </button>
+  <button class="tb-btn" id="btnPaste" title="لصق العنصر (Ctrl+V)">
+    <span class="ico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span><span class="lbl">لصق</span>
+  </button>
+
+  <div class="tb-divider"></div>
+
+  <button class="tb-btn accent" id="btnNew" title="عرض جديد (Ctrl+N)">
+    <span class="ico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M12 8v6M9 11h6"/></svg></span><span class="lbl">جديد</span>
   </button>
   <button class="tb-btn" id="btnOpen" title="فتح ملف PDF أو صورة أو مشروع .actpdf">
-    <span class="ico">📂</span><span class="lbl">فتح</span>
+    <span class="ico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span><span class="lbl">فتح</span>
   </button>
   <button class="tb-btn" id="btnSave" title="حفظ المشروع (Ctrl+S)">
-    <span class="ico">💾</span><span class="lbl">حفظ</span>
+    <span class="ico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span><span class="lbl">حفظ</span>
   </button>
 
   <div class="spacer"></div>
@@ -54,50 +65,80 @@
 
   <div class="tb-divider"></div>
 
-  <button class="tb-btn" id="btnPreview" title="معاينة">
-    <span class="ico">👁</span><span class="lbl">معاينة</span>
+  <button class="tb-btn" id="btnPreview" title="معاينة الشريحة">
+    <span class="ico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="lbl">معاينة</span>
   </button>
-  <button class="tb-btn primary" id="btnPresent" title="عرض تقديمي (F5)">
-    <span class="ico">▶</span><span class="lbl">عرض</span>
+  <button class="tb-btn primary" id="btnPresent" title="عرض الشرائح (F5)">
+    <span class="ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="12" rx="1.5"/><path d="M12 15v5M8 20h8"/><polygon points="10,6.5 15,9 10,11.5" fill="currentColor" stroke="none"/></svg></span><span class="lbl">عرض الشرائح</span>
+  </button>
+
+  <button class="tb-btn" id="btnTogglePropsTop" title="لوحة التصميم والتأثيرات">
+    <span class="ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M15 3v18M9 8h3M9 16h3"/></svg></span><span class="lbl">التصميم</span>
   </button>
 
   <div class="tb-divider"></div>
 
   <button class="tb-btn danger-ghost" id="btnCloseProject" title="إغلاق المشروع الحالي">
-    <span class="ico">⏻</span><span class="lbl">إغلاق</span>
+    <span class="ico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg></span><span class="lbl">إغلاق</span>
   </button>
 </div>
 
 <!-- ═══════════════════ TOOLBAR ═══════════════════ -->
 <div id="toolbar">
   <button data-tool="select" title="تحديد (V)">
-    <svg viewBox="0 0 24 24"><path d="M5.5 3.2 L18.8 12.2 L12.4 13.1 L15.6 20.2 L13.3 21.2 L10.2 14.2 L5.5 18.4 Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="currentColor"/></svg>
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M4 3.5l5.5 16.5 3-5.5 6-1L4 3.5z" fill="currentColor"/><path d="M12.5 14.5l4.5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
   </button>
-  <button data-tool="hand" title="يد (H)">🖐️</button>
-  <button data-tool="pen" data-submenu="pen" title="قلم (P)" style="--indicator:#000000">✏️</button>
-  <button data-tool="highlighter" data-submenu="highlighter" title="تحديد (M)" style="--indicator:#eab308">🖍️</button>
-  <button data-tool="eraser" data-submenu="eraser" title="ممحاة (E)">🧽</button>
-  <button data-tool="laser" data-submenu="laser" title="ليزر (A)" style="--indicator:#ff0000">🔴</button>
-
-  <div class="tb-divider"></div>
-
-  <button data-tool="text" data-submenu="text" title="نص (T)" style="--indicator:#1e3a8a">
-    <svg viewBox="0 0 24 24"><path d="M3 4h18v3h-1.5V5.5h-6v13h2.5V20h-8v-1.5H10.5v-13h-6V7H3z"/></svg>
+  <button data-tool="hand" title="يد للتحريك (H)">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v4M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8M18 11a2 2 0 0 1 2 2v2a8 8 0 0 1-16 0v-2a2 2 0 0 1 2-2"/></svg>
   </button>
-  <button data-tool="equation" data-submenu="equation" title="معادلة" style="--indicator:#1e3a8a">∑</button>
-  <button data-tool="shape" data-submenu="shape" title="أشكال (S)">▭</button>
+  <button data-tool="pen" data-submenu="pen" title="قلم رسم (P)" style="--indicator:#000000">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M17.5 3.5a2.121 2.121 0 0 1 3 3L7.5 19.5 3 21l1.5-4.5L17.5 3.5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 6l3 3" stroke="currentColor" stroke-width="1.8"/></svg>
+  </button>
+  <button data-tool="highlighter" data-submenu="highlighter" title="قلم تمييز (M)" style="--indicator:#eab308">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M9 11l-6 6v3h3l6-6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 10l4-4 4 4-4 4-4-4z" fill="currentColor" opacity="0.3" stroke="currentColor" stroke-width="1.8"/><path d="M14 6l2-2a2 2 0 0 1 2.8 0l1.4 1.4a2 2 0 0 1 0 2.8l-2 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+  </button>
+  <button data-tool="eraser" data-submenu="eraser" title="ممحاة (E)">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M18 2l4 4-10 10H7L3 12l11-10h4z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 15l4 4" stroke="currentColor" stroke-width="1.8"/><line x1="2" y1="21" x2="22" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+  </button>
+  <button data-tool="laser" data-submenu="laser" title="مؤشر ليزر (A)" style="--indicator:#ff0000">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3" fill="#ef4444" stroke="#ef4444"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke-linecap="round"/></svg>
+  </button>
 
   <div class="tb-divider"></div>
 
-  <button data-tool="embed" title="تضمين HTML">🔗</button>
-  <button data-tool="media" title="صورة / GIF / فيديو">🖼️</button>
-  <button data-tool="button" title="زر تفاعلي">🔘</button>
+  <button data-tool="text" title="مربع نص بوربوينت (T)">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3.5 2"/><path d="M8 17l4-9.5 4 9.5M9.3 14h5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <button data-tool="equation" data-submenu="equation" title="إدراج معادلة رياضية">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2.5 8L12 4h8"/><path d="M14 14l5 5M19 14l-5 5"/></svg>
+  </button>
+  <button data-tool="shape" title="أشكال هندسية بوربوينت (S)">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none"><circle cx="16" cy="8" r="5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="10" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.8"/><polygon points="9,3 13,9 5,9" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+  </button>
 
   <div class="tb-divider"></div>
 
-  <button id="btnResetZoom" title="إعادة ضبط التكبير">🔄</button>
-  <button id="btnFullscreen" title="ملء الشاشة">⛶</button>
-  <button id="btnExport" title="تصدير PDF">⬇️</button>
+  <button data-tool="media" title="إدراج صورة أو فيديو">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="2" fill="currentColor" stroke="none"/><path d="M21 16l-5.5-5.5-8 8M15 15.5l2.5-2.5 3.5 3.5"/></svg>
+  </button>
+  <button data-tool="embed" title="تضمين ويب / صفحة">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+  </button>
+  <button data-tool="button" title="زر تفاعلي">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="7" width="18" height="10" rx="4"/><circle cx="8" cy="12" r="2" fill="currentColor"/></svg>
+  </button>
+
+  <div class="tb-divider"></div>
+
+  <button id="btnResetZoom" title="إعادة ضبط الرؤية 100%">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35M8 11h6M11 8v6"/></svg>
+  </button>
+  <button id="btnFullscreen" title="ملء الشاشة">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+  </button>
+  <button id="btnExport" title="تصدير العرض PDF">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+  </button>
 
   <div class="tb-divider"></div>
 
@@ -191,22 +232,27 @@
 
 <!-- ═══════════════════ PROPS PANEL ═══════════════════ -->
 <aside id="propsRight">
-  <div class="props-tabs">
-    <button class="props-tab active" data-ptab="design">التصميم</button>
-    <button class="props-tab" data-ptab="anim">الحركة</button>
-    <button class="props-tab" data-ptab="effects">التأثيرات</button>
+  <div class="props-header-bar">
+    <div class="props-tabs">
+      <button class="props-tab active" data-ptab="design">التصميم</button>
+      <button class="props-tab" data-ptab="effects">التأثيرات</button>
+      <button class="props-tab" data-ptab="anim">الحركة</button>
+    </div>
+    <button type="button" class="props-mobile-close" id="btnClosePropsMobile" title="إغلاق لوحة الخصائص">✕</button>
   </div>
 
   <div class="props-body">
     <div class="props-panel" data-ppanel="design">
+      <div id="shapesLibraryPanel" style="display:none"></div>
+      <div id="textToolDesignPanel" style="display:none"></div>
       <div id="selectedElementPropsPanel" style="display:none"></div>
       <div id="documentInfoPanel"></div>
     </div>
-    <div class="props-panel" data-ppanel="anim" style="display:none">
-      <div class="props-hint">الحركات ستكون متاحة عند ربط محرّك الحركة</div>
-    </div>
     <div class="props-panel" data-ppanel="effects" style="display:none">
-      <div class="props-hint">التأثيرات القابلة للتحريك ستظهر هنا</div>
+      <div id="visualEffectsPanel"></div>
+    </div>
+    <div class="props-panel" data-ppanel="anim" style="display:none">
+      <div class="props-hint">الحركات والجدول الزمني للتأثيرات والعناصر</div>
     </div>
   </div>
 </aside>
@@ -274,38 +320,84 @@
   <div id="presentStage">
     <canvas id="presentCanvas"></canvas>
     <div id="presentLayerHost"></div>
+    <canvas id="presentDrawCanvas"></canvas>
     <canvas id="presentLaser"></canvas>
   </div>
 
+  <!-- Floating Active Tool Options Bar -->
+  <div id="presentToolOptionsBar" class="present-tool-options-bar" style="display:none;"></div>
+
   <div id="presentToolbar">
-    <button data-ptool="select" class="active" title="تفاعل مع المحتوى">🖱️</button>
-    <button data-ptool="hand" title="يد — تحرك الصفحة">🖐️</button>
+    <button data-ptool="select" class="active" title="تفاعل مع المحتوى (V)">🖱️</button>
+    <button data-ptool="hand" title="يد — تحرك الصفحة (H)">🖐️</button>
     <div class="present-divider"></div>
-    <button data-ptool="pen" title="قلم">✏️</button>
-    <button data-ptool="highlighter" title="تحديد">🖍️</button>
-    <button data-ptool="laser" title="ليزر">🔴</button>
-    <button data-ptool="eraser" title="ممحاة">🧽</button>
+    <button data-ptool="pen" id="pToolPen" title="قلم (P)">
+      ✏️
+      <span class="ptool-indicator" id="pPenIndicator" style="background:#ef4444"></span>
+    </button>
+    <button data-ptool="highlighter" id="pToolHighlighter" title="تحديد (Shift+P)">
+      🖍️
+      <span class="ptool-indicator" id="pHighlighterIndicator" style="background:#fef08a"></span>
+    </button>
+    <button data-ptool="laser" id="pToolLaser" title="مؤشر ليزر (L)">
+      🔴
+      <span class="ptool-indicator" id="pLaserIndicator" style="background:#ff1744"></span>
+    </button>
+    <button data-ptool="eraser" id="pToolEraser" title="ممحاة (E)">🧽</button>
+    <button id="presentOptionsToggleBtn" title="تخصيص الألوان والحجم">🎨</button>
     <div class="present-divider"></div>
-    <button id="presentUndo" title="تراجع">↶</button>
-    <button id="presentRedo" title="إعادة" disabled>↷</button>
+    <button id="presentUndo" title="تراجع (Ctrl+Z)">↶</button>
+    <button id="presentRedo" title="إعادة (Ctrl+Y)" disabled>↷</button>
     <button id="presentClear" title="مسح كل الرسومات">🗑️</button>
+    <div class="present-divider"></div>
+    <button id="presentRecordBtn" class="present-record-btn" title="تسجيل العرض فيديو">🎥 تسجيل</button>
+    <div id="presentRecPill" class="present-rec-pill" style="display:none;">
+      <span class="present-rec-dot"></span>
+      <span id="presentRecTimer">00:00</span>
+      <button id="presentRecPauseBtn" class="present-rec-mini-btn" title="إيقاف مؤقت / استئناف">⏸️</button>
+      <button id="presentRecStopBtn" class="present-rec-mini-btn" title="إنهاء وحفظ التسجيل">⏹️</button>
+    </div>
     <div class="present-divider"></div>
     <span id="presentTimer" class="present-timer">00:00</span>
     <div class="present-divider"></div>
-    <button id="presentPrev" title="الصفحة السابقة">‹</button>
+    <button id="presentPrev" title="الصفحة السابقة (←)">‹</button>
     <span id="presentPageNum" class="present-page-num">— / —</span>
-    <button id="presentNext" title="الصفحة التالية">›</button>
+    <button id="presentNext" title="الصفحة التالية (→)">›</button>
     <div class="present-divider"></div>
     <button id="presentExit" title="خروج (Esc)">✕</button>
   </div>
 
   <div id="presentHint">
-    <kbd>Esc</kbd> للخروج • <kbd>←</kbd> <kbd>→</kbd> للتنقل • <kbd>P</kbd> قلم • <kbd>L</kbd> ليزر
+    <kbd>Esc</kbd> للخروج • <kbd>←</kbd> <kbd>→</kbd> للتنقل • <kbd>P</kbd> قلم • <kbd>L</kbd> ليزر • <kbd>E</kbd> ممحاة
+  </div>
+</div>
+
+<!-- Modal for Video Recording Complete -->
+<div id="presentVideoModal" class="present-video-modal" style="display:none;">
+  <div class="present-video-modal-card">
+    <div class="present-video-modal-header">
+      <div class="present-vmodal-title">
+        <span class="present-vmodal-icon">🎬</span>
+        <h3>تم تسجيل العرض بنجاح</h3>
+      </div>
+      <button id="presentVideoCloseBtn" class="present-vmodal-close" title="إغلاق">✕</button>
+    </div>
+    <div class="present-video-modal-body">
+      <video id="presentVideoPreview" controls playsinline></video>
+      <div class="present-video-meta">
+        <span id="presentVideoDuration">⏱️ المدة: 00:00</span>
+        <span id="presentVideoSize">💾 الحجم: 0 MB</span>
+      </div>
+    </div>
+    <div class="present-video-modal-footer">
+      <button id="presentVideoDownloadBtn" class="present-vbtn-primary">💾 تحميل ملف الفيديو (.webm)</button>
+      <button id="presentVideoDismissBtn" class="present-vbtn-secondary">إغلاق</button>
+    </div>
   </div>
 </div>
 
 <input type="file" id="fileInput" accept="application/pdf,image/*,.actpdf" style="display:none">
 
-<script type="module" src="src/main.js"></script>
+<script type="module" src="/src/main.js"></script>
 </body>
 </html>

@@ -359,17 +359,17 @@ html,body{
   pointer-events:none;
 }
 
-#selectionSvg{
-  position:absolute;
-  inset:0;
-  width:100%;
-  height:100%;
-  overflow:visible;
-  pointer-events:none;
-  z-index:8000;
+#selectionSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none !important;
+  z-index: 9999 !important;
 }
-#selectionSvg .handle{
-  pointer-events:auto;
+#selectionSvg .handle {
+  pointer-events: auto !important;
 }
 
 #videoLayer .media-obj,
@@ -442,6 +442,11 @@ html,body{
 }
 .handle.nw,.handle.se{cursor:nwse-resize}
 .handle.ne,.handle.sw{cursor:nesw-resize}
+.handle.n,.handle.s{cursor:ns-resize}
+.handle.e,.handle.w{cursor:ew-resize}
+.handle.radius{fill:#f59e0b !important;stroke:#fff !important;cursor:ew-resize !important}
+.handle.curve-ctrl{fill:#f59e0b !important;stroke:#fff !important;cursor:move !important}
+.handle.curve-point{fill:#3b82f6 !important;stroke:#fff !important;cursor:move !important}
 
 /* ===================== ELEMENT DELETE BUTTON (إلغاء الدائرة الحمراء نهائياً) ===================== */
 .element-delete-btn{
@@ -620,7 +625,10 @@ html,body{
 #stage[data-tool="select"] .embed.selected .embed-resize{display:block}
 
 /* ===================== MEDIA ===================== */
-#videoLayer .media-obj{
+#videoLayer .media-obj,
+#presentLayerHost .media-obj,
+[id^="present_"] .media-obj,
+.media-obj {
   position:absolute;pointer-events:auto;display:block;
   background:transparent !important;
   border:none !important;
@@ -643,13 +651,19 @@ html,body{
   box-shadow:0 0 0 5px rgba(74,126,255,.18) !important;
 }
 
-#videoLayer .media-obj .media-content{
+#videoLayer .media-obj .media-content,
+#presentLayerHost .media-obj .media-content,
+.media-obj .media-content {
   width:100%;height:100%;
   display:flex;align-items:center;justify-content:center;
   background:transparent !important;overflow:hidden;
 }
 #videoLayer .media-obj .media-content img,
-#videoLayer .media-obj .media-content video{
+#videoLayer .media-obj .media-content video,
+#presentLayerHost .media-obj img,
+#presentLayerHost .media-obj video,
+.media-obj img,
+.media-obj video {
   width:100%;height:100%;
   max-width:100%;max-height:100%;
   object-fit:contain;display:block;
