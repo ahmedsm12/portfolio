@@ -1745,9 +1745,6 @@ function initPropsToggle() {
       toggle();
     }
   });
-  const isShortLandscape = window.matchMedia('(orientation: landscape) and (max-height: 700px)').matches;
-if (isShortLandscape) document.body.classList.add('props-hidden');
-
 }
 
 function initSidebarToggle() {
