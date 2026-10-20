@@ -11,8 +11,9 @@
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary_large_image" />
 
-<link rel="stylesheet" href="/src/style.css">
-<link rel="stylesheet" href="/src/shell.css">
+<!-- ★ تم تصحيح المسارات: الملفات في جذر المشروع، وليس داخل /src/ -->
+<link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./shell.css">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
 </head>
@@ -170,7 +171,6 @@
       <canvas id="pdfCanvas"></canvas>
       <div id="canvasGridOverlay" class="canvas-grid-overlay" style="display:none"></div>
 
-      <!-- ★ SVG منفصل للـ defs (markers والأسهم) -->
       <svg id="svgDefs" xmlns="http://www.w3.org/2000/svg"
            style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;z-index:0;">
         <defs>
@@ -183,7 +183,6 @@
         </defs>
       </svg>
 
-      <!-- ★ حاوية الرسومات SVG (div مع wrappers) -->
       <div id="svgLayer"></div>
 
       <div id="embedLayer"></div>
@@ -194,14 +193,12 @@
       <canvas id="transientCanvas"></canvas>
       <canvas id="laserCanvas"></canvas>
 
-      <!-- ★ SVG خاص بمربع التحديد — دائماً في الأعلى -->
       <svg id="selectionSvg"
            xmlns="http://www.w3.org/2000/svg"
            style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:8000;"></svg>
     </div>
   </div>
 
-  <!-- ═══════════════════ CANVAS CONTROLS (من ui.html) ═══════════════════ -->
   <div class="canvas-controls" id="canvasControls">
     <button id="ctrlZoomOut" title="تصغير (−)">−</button>
     <span class="zoom-val" id="ctrlZoomVal">100%</span>
@@ -324,7 +321,6 @@
     <canvas id="presentLaser"></canvas>
   </div>
 
-  <!-- Floating Active Tool Options Bar -->
   <div id="presentToolOptionsBar" class="present-tool-options-bar" style="display:none;"></div>
 
   <div id="presentToolbar">
@@ -372,7 +368,6 @@
   </div>
 </div>
 
-<!-- Modal for Video Recording Complete -->
 <div id="presentVideoModal" class="present-video-modal" style="display:none;">
   <div class="present-video-modal-card">
     <div class="present-video-modal-header">
@@ -398,6 +393,7 @@
 
 <input type="file" id="fileInput" accept="application/pdf,image/*,.actpdf" style="display:none">
 
-<script type="module" src="/src/main.js"></script>
+<!-- ★ تم تصحيح مسار main.js (كان /src/main.js) -->
+<script type="module" src="./main.js"></script>
 </body>
 </html>
