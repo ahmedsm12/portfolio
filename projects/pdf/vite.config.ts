@@ -11,6 +11,15 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    // ★★★ الإضافة الحاسمة: اكتشاف مسبق للحزم المُستوردة عبر dynamic imports
+    optimizeDeps: {
+      include: [
+        'gsap',
+        'gsap/MotionPathPlugin',
+        'flubber',
+        '@google/genai',
+      ],
+    },
     server: {
       port: 3000,
       host: '0.0.0.0',
