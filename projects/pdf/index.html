@@ -416,7 +416,23 @@
 </div>
 
 <input type="file" id="fileInput" accept="application/pdf,image/*,.actpdf" style="display:none">
-
+<!-- ═══════════════════ IMPORT MAP — لحل المكتبات عبر CDN ═══════════════════ -->
+<!--
+  يخبر المتصفح كيف يحوّل "gsap" أو "@google/genai" إلى URL حقيقي.
+  يعمل حتى لو لم يعمل Vite optimizer.
+  يجب أن يكون في <head> وقبل أول <script type="module">.
+-->
+<script type="importmap">
+{
+  "imports": {
+    "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/index.js",
+    "gsap/MotionPathPlugin": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/MotionPathPlugin.js",
+    "gsap/": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/",
+    "flubber": "https://cdn.jsdelivr.net/npm/flubber@0.4.2/build/flubber.min.js",
+    "@google/genai": "https://cdn.jsdelivr.net/npm/@google/genai@2.4.0/+esm"
+  }
+}
+</script>
 <script type="module" src="src/main.js"></script>
 </body>
 </html>
