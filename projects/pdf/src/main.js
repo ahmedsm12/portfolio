@@ -713,6 +713,13 @@ function bindGlobalListeners() {
   window.addEventListener('orientationchange', () => {
     setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
   });
+    window.addEventListener('beforeunload', (e) => {
+    if (state.dirty) {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    }
+  });
 
   const pBtn = $('btnPrev');
   if (pBtn) pBtn.addEventListener('click', () => goToPage(state.currentPage - 1));
@@ -767,6 +774,10 @@ function disableBrowserZoom() {
    ============================================================ */
 async function init() {
   await loadKatex();
+    // ── كشف dirty للمكونات القديمة التي تعتمد على window.__CORE__
+  if (typeof window !== 'undefined') {
+    window.__CORE__ = { state };
+  }
   await initPdfJs();
 
   uiHooks.setTool = setTool;

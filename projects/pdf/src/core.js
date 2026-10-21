@@ -2,9 +2,7 @@
  * core.js — النواة: DOM + Utils + State + History + Serialization
  * ============================================================ */
 
-/* ============================================================
-   §1. DOM REFERENCES
-   ============================================================ */
+/* §1. DOM */
 export const $ = id => document.getElementById(id);
 
 export const stage            = $('stage');
@@ -46,9 +44,7 @@ export const laserCtx = laserCanvas ? laserCanvas.getContext('2d') : null;
 
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/* ============================================================
-   §2. CONSTANTS
-   ============================================================ */
+/* §2. CONSTANTS */
 export const PDFJS_VERSION  = '4.7.76';
 export const PDFJS_BASE     = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}`;
 export const KATEX_VERSION  = '0.16.9';
@@ -114,9 +110,7 @@ export const EQUATION_TEMPLATES = [
   ]},
 ];
 
-/* ============================================================
-   §3. UTILITIES
-   ============================================================ */
+/* §3. UTILITIES */
 export function uid() {
   return 'a' + Math.random().toString(36).slice(2, 9);
 }
@@ -278,9 +272,7 @@ export function loadStyle(href) {
   });
 }
 
-/* ============================================================
-   §4. AUDIO FEEDBACK
-   ============================================================ */
+/* §4. AUDIO */
 let _audioCtx = null;
 function getAudioCtx() {
   if (!_audioCtx) {
@@ -315,9 +307,11 @@ export function playWrongSound() {
   playTone(130.81, 0.28, 'triangle', 0.045, 0.10);
 }
 
-/* ============================================================
-   §5. STATE
-   ============================================================ */
+/* §5. STATE
+ * history: كائن موحد {past, future} عبر كامل المشروع — كل عنصر:
+ *   { pageNum: number, snapshot: object, timestamp: number }
+ * dirty: هل هناك تعديلات غير محفوظة؟
+ */
 export const state = {
   pdfDoc: null,
   pdfBlob: null,
@@ -364,16 +358,15 @@ export const state = {
 
   selected: null,
   pages: {},
-  history: {},
+  history: { past: [], future: [] },
+  dirty: false,
 };
 
 export const mediaBlobs = new Map();
 export const clipboard = { element: null };
 export const slideClipboard = { slides: null, pagesData: null };
 
-/* ============================================================
-   §6. SERIALIZATION
-   ============================================================ */
+/* §6. SERIALIZATION */
 export function serializeSvgElement(el) {
   const tag = el.tagName.toLowerCase();
   const attrs = {};
@@ -493,10 +486,7 @@ export function snapshot() {
     svgLayer.querySelectorAll(':scope > .annot-wrapper').forEach(wrap => {
       const inner = wrap.querySelector('[data-annot]');
       if (!inner) return;
-      all.push({
-        z: parseInt(wrap.style.zIndex || '0', 10),
-        id: inner.dataset.id,
-      });
+      all.push({ z: parseInt(wrap.style.zIndex || '0', 10), id: inner.dataset.id });
     });
   }
   if (videoLayer) {
@@ -523,71 +513,139 @@ export function snapshot() {
   const zOrder = all.map(x => x.id).filter(Boolean);
 
   return {
-    annotations, embeds, media, videos: media, texts, buttons,
-    zOrder,
+    annotations, embeds, media, videos: media, texts, buttons, zOrder,
   };
 }
 
-/* ============================================================
-   §7. HISTORY (per page)
-   ============================================================ */
+/* §7. HISTORY — GLOBAL ACROSS ALL SLIDES
+ * ─────────────────────────────────────────────────────────
+ * كل عنصر في past/future:
+ *   { pageNum, snapshot, timestamp }
+ * عند Undo: يُستخرج آخر عنصر، إن كان في صفحة أخرى ينتقل إليها تلقائياً.
+ * Undo/Redo يُسلسَلان عبر queue لمنع التسابق أثناء التنقل بين الصفحات.
+ * ───────────────────────────────────────────────────────── */
+
+const _EMPTY_SNAPSHOT = {
+  annotations: [], embeds: [], media: [], videos: [], texts: [], buttons: [], zOrder: [],
+};
+
+function _emptySnapshotCopy() {
+  return JSON.parse(JSON.stringify(_EMPTY_SNAPSHOT));
+}
+
 export function getHistory() {
-  return state.history[state.currentPage] || (state.history[state.currentPage] = { past: [], future: [] });
+  if (!state.history || !Array.isArray(state.history.past)) {
+    state.history = { past: [], future: [] };
+  }
+  return state.history;
 }
 
 export function savePageNow() {
   if (state.currentPage) state.pages[state.currentPage] = snapshot();
 }
 
+export function markDirty() {
+  if (!state.dirty) {
+    state.dirty = true;
+    document.dispatchEvent(new CustomEvent('ipb:dirtyChanged', { detail: { dirty: true } }));
+  }
+}
+
+export function clearDirty() {
+  if (state.dirty) {
+    state.dirty = false;
+    document.dispatchEvent(new CustomEvent('ipb:dirtyChanged', { detail: { dirty: false } }));
+  }
+}
+
 export function commitChange(pre) {
   if (!state.currentPage) return;
   const h = getHistory();
-  h.past.push(pre || { annotations: [], embeds: [], media: [], texts: [], buttons: [], zOrder: [] });
+  h.past.push({
+    pageNum: state.currentPage,
+    snapshot: pre || _emptySnapshotCopy(),
+    timestamp: Date.now(),
+  });
   if (h.past.length > UNDO_LIMIT) h.past.shift();
   h.future.length = 0;
   savePageNow();
+  markDirty();
   updateUndoButtons();
 }
 
 export function updateUndoButtons() {
-  const h = state.history[state.currentPage] || { past: [], future: [] };
+  const h = getHistory();
   if (btnUndo) btnUndo.disabled = h.past.length === 0;
   if (btnRedo) btnRedo.disabled = h.future.length === 0;
 }
 
-export function undo() {
-  if (!state.currentPage) return;
+/* queue لإعادة تطبيق اللقطات دون تسابق مع التنقل */
+let _historyOpQueue = Promise.resolve();
+
+async function _applyHistoryEntry(entry) {
+  if (entry.pageNum !== state.currentPage) {
+    savePageNow();
+    state.pages[entry.pageNum] = entry.snapshot;
+    const pdf = await import('./pdf.js');
+    await pdf.goToPage(entry.pageNum);
+  } else {
+    state.pages[entry.pageNum] = entry.snapshot;
+    applySnapshot(entry.snapshot);
+    document.dispatchEvent(new CustomEvent('ipb:snapshotApplied', {
+      detail: { pageNum: entry.pageNum },
+    }));
+  }
+}
+
+async function _doUndo() {
   const h = getHistory();
   if (!h.past.length) return;
-  h.future.push(snapshot());
-  const p = h.past.pop();
-  state.pages[state.currentPage] = p;
-  applySnapshot(p);
+  const entry = h.past.pop();
+  h.future.push({
+    pageNum: state.currentPage,
+    snapshot: snapshot(),
+    timestamp: Date.now(),
+  });
+  await _applyHistoryEntry(entry);
+  markDirty();
   updateUndoButtons();
+}
+
+async function _doRedo() {
+  const h = getHistory();
+  if (!h.future.length) return;
+  const entry = h.future.pop();
+  h.past.push({
+    pageNum: state.currentPage,
+    snapshot: snapshot(),
+    timestamp: Date.now(),
+  });
+  await _applyHistoryEntry(entry);
+  markDirty();
+  updateUndoButtons();
+}
+
+export function undo() {
+  _historyOpQueue = _historyOpQueue
+    .then(_doUndo)
+    .catch(err => console.warn('undo failed:', err));
+  return _historyOpQueue;
 }
 
 export function redo() {
-  if (!state.currentPage) return;
-  const h = getHistory();
-  if (!h.future.length) return;
-  h.past.push(snapshot());
-  const n = h.future.pop();
-  state.pages[state.currentPage] = n;
-  applySnapshot(n);
-  updateUndoButtons();
+  _historyOpQueue = _historyOpQueue
+    .then(_doRedo)
+    .catch(err => console.warn('redo failed:', err));
+  return _historyOpQueue;
 }
 
-/* ============================================================
-   §8. APPLY SNAPSHOT (يُهيَّأ من main.js)
-   ============================================================ */
+/* §8. APPLY SNAPSHOT (يُهيَّأ من interaction.js) */
 export let applySnapshot = function(s) {
   if (typeof applySnapshot._impl === 'function') applySnapshot._impl(s);
 };
 export function setApplySnapshot(fn) { applySnapshot._impl = fn; }
 
-/* ============================================================
-   §9. CURSOR & TOOLBAR SIZE
-   ============================================================ */
+/* §9. CURSOR & TOOLBAR */
 export function adjustToolbarSize() {
   const h = window.innerHeight;
   const bc = 20, dc = 4, pad = 20;
@@ -616,9 +674,7 @@ export function updateCursorForTool() {
   stage.style.cursor = cursor || '';
 }
 
-/* ============================================================
-   §10. KATEX LOADING
-   ============================================================ */
+/* §10. KATEX */
 export async function loadKatex() {
   if (typeof window.katex !== 'undefined') return;
   await loadStyle(KATEX_CSS);

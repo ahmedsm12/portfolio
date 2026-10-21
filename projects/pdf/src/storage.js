@@ -13,6 +13,7 @@ import {
   hexToRgba, roundRect, escapeXml, stripMathToPlain,
   renderTextWithMath, loadScript,
   savePageNow, applySnapshot,
+  clearDirty,
 } from './core.js';
 
 import {
@@ -143,6 +144,7 @@ export async function saveProjectAsFile() {
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     toast('تم حفظ المشروع ✅', 'ok');
     showSaveStatus('✓ تم التنزيل');
+	clearDirty();
   } catch (err) {
     console.error(err);
     toast('فشل الحفظ: ' + err.message, 'error');
@@ -228,6 +230,7 @@ export async function loadProjectFromFile(file) {
       await renderPage(state.currentPage);
       preloadAllPages(state.preloadToken);
     }
+	clearDirty();
     toast('تم فتح المشروع ✅', 'ok');
   } catch (err) {
     console.error(err);

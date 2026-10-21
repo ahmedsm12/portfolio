@@ -106,14 +106,14 @@
 
   <div class="tb-divider"></div>
 
-  <button data-tool="text" title="مربع نص بوربوينت (T)">
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3.5 2"/><path d="M8 17l4-9.5 4 9.5M9.3 14h5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <button data-tool="text" title="أداة النص (T)">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 4h16v3.5h-6V20h-4V7.5H4V4z"/></svg>
   </button>
   <button data-tool="equation" data-submenu="equation" title="إدراج معادلة رياضية">
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h2l2.5 8L12 4h8"/><path d="M14 14l5 5M19 14l-5 5"/></svg>
   </button>
-  <button data-tool="shape" title="أشكال هندسية بوربوينت (S)">
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none"><circle cx="16" cy="8" r="5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="10" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.8"/><polygon points="9,3 13,9 5,9" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+  <button data-tool="shape" title="أداة الأشكال فوتوشوب (S)">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><rect x="2" y="3" width="3" height="3" fill="currentColor"/><rect x="19" y="3" width="3" height="3" fill="currentColor"/><rect x="19" y="18" width="3" height="3" fill="currentColor"/><rect x="2" y="18" width="3" height="3" fill="currentColor"/></svg>
   </button>
 
   <div class="tb-divider"></div>
@@ -236,7 +236,8 @@
     <div class="props-tabs">
       <button class="props-tab active" data-ptab="design">التصميم</button>
       <button class="props-tab" data-ptab="effects">التأثيرات</button>
-      <button class="props-tab" data-ptab="anim">الحركة</button>
+      <button class="props-tab" data-ptab="anim">الحركة 🎬</button>
+      <button class="props-tab" data-ptab="ai">الذكاء الاصطناعي ✦</button>
     </div>
     <button type="button" class="props-mobile-close" id="btnClosePropsMobile" title="إغلاق لوحة الخصائص">✕</button>
   </div>
@@ -252,7 +253,10 @@
       <div id="visualEffectsPanel"></div>
     </div>
     <div class="props-panel" data-ppanel="anim" style="display:none">
-      <div class="props-hint">الحركات والجدول الزمني للتأثيرات والعناصر</div>
+      <div id="animationPanel"></div>
+    </div>
+    <div class="props-panel" data-ppanel="ai" style="display:none">
+      <div id="aiDesignPanel"></div>
     </div>
   </div>
 </aside>
@@ -276,7 +280,22 @@
       </div>
     </div>
     <div class="bp-content" data-bpanel="timeline">
-      <div class="bp-empty">الجدول الزمني سيتوفّر عند إضافة الحركات</div>
+      <div class="timeline-controls-bar">
+        <div class="tl-btn-group">
+          <button type="button" class="tl-btn" id="tlBtnPlay" title="تشغيل / إيقاف مؤقت">▶ تشغيل</button>
+          <button type="button" class="tl-btn" id="tlBtnRewind" title="إعادة إلى 0 ثانية">⏮ البداية</button>
+          <button type="button" class="tl-btn" id="tlBtnAddKeyframe" title="إضافة Keyframe للعنصر المحدد">+ نقطة حركة</button>
+        </div>
+        <div class="tl-time-readout">
+          <span id="tlCurrentTimeText">0.00s</span> / <span id="tlTotalDurationText">5.00s</span>
+        </div>
+        <div class="tl-slider-wrapper">
+          <input type="range" id="tlScrubber" min="0" max="5" step="0.05" value="0" class="tl-range" />
+        </div>
+      </div>
+      <div class="timeline-tracks-container" id="timelineTracksContainer">
+        <!-- Renders element animation tracks and keyframe nodes -->
+      </div>
     </div>
     <div class="bp-content" data-bpanel="notes">
       <textarea id="notesTextarea" class="notes-area" placeholder="اكتب ملاحظاتك هنا (تظهر لك فقط في وضع العرض)"></textarea>

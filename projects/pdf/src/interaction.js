@@ -16,6 +16,7 @@ import {
   state, mediaBlobs, clipboard,
   uid, toast, hexToRgba, escapeXml, renderTextWithMath,
   commitChange, snapshot, savePageNow,
+  markDirty,
   serializeSvgElement, deserializeSvgElement, serializeText,
   serializeButton, serializeMedia, serializeEmbed,
   distToSegment, distToEllipse, getTranslate,
@@ -1161,14 +1162,49 @@ export function drawSelectionOverlay(target) {
   rotLine.setAttribute('stroke-width', '1.5');
   g.appendChild(rotLine);
 
-  const rotHandle = document.createElementNS(SVG_NS, 'circle');
-  rotHandle.setAttribute('cx', minX + width / 2);
-  rotHandle.setAttribute('cy', minY - rotDist);
-  rotHandle.setAttribute('r', hs * 1.05);
-  rotHandle.setAttribute('class', 'handle rot');
-  rotHandle.dataset.handle = 'rot';
-  rotHandle.setAttribute('style', 'fill:#3b82f6;stroke:#fff;stroke-width:2.5;cursor:grab');
-  g.appendChild(rotHandle);
+  // مقبض نقطة الارتكاز (Origin Pivot Handle)
+  if (selectedItems.length === 1) {
+    const item = selectedItems[0];
+    const ox = parseFloat(item.el.dataset.originX ?? 0.5);
+    const oy = parseFloat(item.el.dataset.originY ?? 0.5);
+    const pivotX = minX + width * (isNaN(ox) ? 0.5 : ox);
+    const pivotY = minY + height * (isNaN(oy) ? 0.5 : oy);
+
+    const originG = document.createElementNS(SVG_NS, 'g');
+    originG.setAttribute('class', 'handle origin-pivot-handle');
+    originG.dataset.handle = 'origin';
+    originG.style.cursor = 'move';
+    originG.style.pointerEvents = 'auto';
+
+    const oCircle = document.createElementNS(SVG_NS, 'circle');
+    oCircle.setAttribute('cx', pivotX);
+    oCircle.setAttribute('cy', pivotY);
+    oCircle.setAttribute('r', hs * 1.15);
+    oCircle.setAttribute('fill', 'rgba(16, 185, 129, 0.35)');
+    oCircle.setAttribute('stroke', '#10b981');
+    oCircle.setAttribute('stroke-width', '2');
+    originG.appendChild(oCircle);
+
+    const lineH = document.createElementNS(SVG_NS, 'line');
+    lineH.setAttribute('x1', pivotX - hs * 1.5);
+    lineH.setAttribute('y1', pivotY);
+    lineH.setAttribute('x2', pivotX + hs * 1.5);
+    lineH.setAttribute('y2', pivotY);
+    lineH.setAttribute('stroke', '#10b981');
+    lineH.setAttribute('stroke-width', '1.6');
+    originG.appendChild(lineH);
+
+    const lineV = document.createElementNS(SVG_NS, 'line');
+    lineV.setAttribute('x1', pivotX);
+    lineV.setAttribute('y1', pivotY - hs * 1.5);
+    lineV.setAttribute('x2', pivotX);
+    lineV.setAttribute('y2', pivotY + hs * 1.5);
+    lineV.setAttribute('stroke', '#10b981');
+    lineV.setAttribute('stroke-width', '1.6');
+    originG.appendChild(lineV);
+
+    g.appendChild(originG);
+  }
 
   selectionSvg.appendChild(g);
 }
@@ -1681,6 +1717,11 @@ export function startTextDrag(el, e, mode) {
 }
 
 function startEditTextBox(el) {
+  // ── لقطة قبل التحرير — تُستخدم لاحقاً في undo ──
+  el._editPre = snapshot();
+  el._editOriginalText = el.dataset.text || '';
+  el._editOriginalHtml = el.dataset.html || '';
+
   const body = el.querySelector('.pdf-text-body');
   el.classList.add('editing');
   el.classList.remove('placeholder-empty');
@@ -1772,6 +1813,22 @@ function finishEdit(el) {
   }
   if (!raw) el.classList.add('placeholder-empty');
   savePageNow();
+
+  // ★ إدخال تعديل النص في سجل التراجع + markDirty
+  if (el._editPre) {
+    const textChanged = raw !== (el._editOriginalText || '');
+    const htmlChanged = (el.dataset.html || '') !== (el._editOriginalHtml || '');
+    if (textChanged || htmlChanged) {
+      commitChange(el._editPre);
+    } else {
+      markDirty(); // قد لا يكون تغيّر شيء، لكن امنع فقدان علامة "dirty" الصامتة
+      // في الواقع: لو لم يتغير شيء، لا حاجة لـ markDirty، لكن الاحتياط أفضل
+      // يمكن حذف markDirty هنا إذا كانت مقايضة "لا تغيير = لا dirty" مطلوبة
+    }
+    el._editPre = null;
+    el._editOriginalText = null;
+    el._editOriginalHtml = null;
+  }
   updateFloatingToolbarPosition();
 }
 
@@ -2756,14 +2813,27 @@ export function applyElementTransform(el, options = {}) {
   if (curRot !== 0) tf += `rotate(${curRot}deg) `;
   if (curFlipH || curFlipV) tf += `scale(${scaleX}, ${scaleY}) `;
 
+  const ox = parseFloat(target.dataset.originX ?? 0.5);
+  const oy = parseFloat(target.dataset.originY ?? 0.5);
+  const oxPct = (isNaN(ox) ? 50 : Math.round(ox * 100)) + '%';
+  const oyPct = (isNaN(oy) ? 50 : Math.round(oy * 100)) + '%';
+
   if (target.dataset && target.dataset.annot) {
     target.style.transformBox = 'fill-box';
-    target.style.transformOrigin = 'center center';
+    target.style.transformOrigin = `${oxPct} ${oyPct}`;
     target.style.transform = tf.trim();
   } else {
-    target.style.transformOrigin = 'center center';
+    target.style.transformOrigin = `${oxPct} ${oyPct}`;
     target.style.transform = tf.trim();
   }
+}
+
+export function setElementOrigin(el, ox, oy) {
+  if (!el) return;
+  const target = el.dataset && el.dataset.annot ? el : ((el.querySelector && el.querySelector('[data-annot]')) || el);
+  target.dataset.originX = String(ox);
+  target.dataset.originY = String(oy);
+  applyElementTransform(target);
 }
 
 export function rotateElement(el, deltaDeg) {
@@ -2985,11 +3055,26 @@ export function initPointerEvents() {
       if (handle && (state.selected || (state.selectedList && state.selectedList.length > 0))) {
         const selItem = (state.selectedList && state.selectedList.length > 0) ? state.selectedList[0] : state.selected;
         const handleName = handle.dataset.handle;
+        if (handleName === 'origin') {
+          const b = getUniversalShapeBounds(selItem.el) || getElementBBoxInStage(selItem.el) || { x: p.x, y: p.y, width: 0, height: 0 };
+          const targetInner = selItem.kind === 'svg' ? (selItem.el.querySelector('[data-annot]') || selItem.el) : selItem.el;
+          interaction = {
+            type: 'dragOrigin',
+            el: targetInner,
+            box: b,
+            pre: snapshot(),
+          };
+          try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+          e.preventDefault();
+          return;
+        }
         if (handleName === 'rot') {
           const b = getUniversalShapeBounds(selItem.el) || getElementBBoxInStage(selItem.el) || { x: p.x, y: p.y, width: 0, height: 0 };
-          const cx = b.x + b.width / 2;
-          const cy = b.y + b.height / 2;
           const targetInner = selItem.kind === 'svg' ? (selItem.el.querySelector('[data-annot]') || selItem.el) : selItem.el;
+          const ox = parseFloat(targetInner.dataset.originX ?? 0.5);
+          const oy = parseFloat(targetInner.dataset.originY ?? 0.5);
+          const cx = b.x + b.width * (isNaN(ox) ? 0.5 : ox);
+          const cy = b.y + b.height * (isNaN(oy) ? 0.5 : oy);
           const curRot = parseFloat(targetInner.dataset.rotation) || 0;
           interaction = {
             type: 'rotate',
@@ -3282,6 +3367,21 @@ export function initPointerEvents() {
       document.dispatchEvent(new CustomEvent('ipb:elementTransformed', { detail: { el: interaction.el } }));
       return;
     }
+    if (interaction.type === 'dragOrigin') {
+      const b = interaction.box;
+      if (b && b.width > 0 && b.height > 0) {
+        let ox = (p.x - b.x) / b.width;
+        let oy = (p.y - b.y) / b.height;
+        ox = Math.max(0, Math.min(1, Math.round(ox * 100) / 100));
+        oy = Math.max(0, Math.min(1, Math.round(oy * 100) / 100));
+        interaction.el.dataset.originX = String(ox);
+        interaction.el.dataset.originY = String(oy);
+        applyElementTransform(interaction.el);
+        drawSelectionOverlay();
+        document.dispatchEvent(new CustomEvent('ipb:elementTransformed', { detail: { el: interaction.el } }));
+      }
+      return;
+    }
     if (interaction.type === 'rotate') {
       const cx = interaction.center.x, cy = interaction.center.y;
       const curAngle = Math.atan2(p.y - cy, p.x - cx) * 180 / Math.PI;
@@ -3329,7 +3429,7 @@ export function initPointerEvents() {
       document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
       return;
     }
-    if (inter.type === 'resizeSvg' || inter.type === 'resizeHtml' || inter.type === 'rotate') {
+    if (inter.type === 'resizeSvg' || inter.type === 'resizeHtml' || inter.type === 'rotate' || inter.type === 'dragOrigin') {
       commitChange(inter.pre);
       drawSelectionOverlay();
       interaction = null;
@@ -3410,11 +3510,11 @@ export function registerApplySnapshot() {
    ============================================================ */
 export async function undoAction() {
   const core = await import('./core.js');
-  core.undo();
+  await core.undo();
   updateFloatingToolbarPosition();
 }
 export async function redoAction() {
   const core = await import('./core.js');
-  core.redo();
+  await core.redo();
   updateFloatingToolbarPosition();
 }

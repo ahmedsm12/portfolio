@@ -17,6 +17,7 @@ import {
   thumbnailSidebar, thumbsList, slideContextMenu,
   state, slideClipboard,
   uid, setLoading, toast,
+  clearDirty,
 } from './core.js';
 
 import {
@@ -721,6 +722,7 @@ export async function loadPdfFile(file, opts = {}) {
       await renderPage(state.currentPage || 1);
       preloadAllPages(token);
     }
+	clearDirty();
   } catch (err) {
     console.error(err);
     setLoading(false);
@@ -754,6 +756,7 @@ export async function loadImageFile(file, opts = {}) {
 
     renderThumbnails();
     if (!opts.skipRender) await renderPage(1);
+	clearDirty(); 
   } catch (err) {
     console.error(err);
     alert(err.message);
@@ -1340,7 +1343,7 @@ export async function duplicateSlide(idx) {
   const clone = JSON.parse(JSON.stringify(data));
   const insertAt = idx;
   _shiftCachesAfterInsert(idx, 1);
-  state.slides.splice(insertAt, 0, { id: uid(), bg: { ...slide.bg } });
+  state.slides.splice(insertAt, 0, { ...slide, id: uid() });
 
   const newPages = {};
   for (let i = 1; i <= idx; i++) newPages[i] = state.pages[i];

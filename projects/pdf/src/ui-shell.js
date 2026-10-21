@@ -44,8 +44,11 @@ function applyVersion() {
 function setSaveBadge(text, saving) {
   const txt = document.getElementById('saveBadgeText');
   const dot = document.querySelector('#saveBadge .save-dot');
-  if (txt) txt.textContent = text || 'محفوظ';
-  if (dot) dot.classList.toggle('saving', !!saving);
+  if (txt) txt.textContent = text || (state.dirty ? 'غير محفوظ' : 'محفوظ');
+  if (dot) {
+    dot.classList.toggle('saving', !!saving);
+    dot.classList.toggle('dirty', !saving && state.dirty);
+  }
 }
 
 /* ============================================================
@@ -110,6 +113,12 @@ export function switchPropsTab(tabName) {
     updateDesignTabContent();
   }
   if (tabName === 'effects') renderEffectsPanel();
+  if (tabName === 'anim') {
+    import('./ui-animation.js').then(m => m.renderAnimationPanel());
+  }
+  if (tabName === 'ai') {
+    import('./ui-ai-design.js').then(m => m.renderAiDesignPanel());
+  }
 }
 
 export async function updateDesignTabContent() {
@@ -276,6 +285,12 @@ export function initPropsTabs() {
       if (panel) panel.style.display = 'block';
       if (key === 'design') updateDesignTabContent();
       if (key === 'effects') renderEffectsPanel();
+      if (key === 'anim') {
+        import('./ui-animation.js').then(m => m.renderAnimationPanel());
+      }
+      if (key === 'ai') {
+        import('./ui-ai-design.js').then(m => m.renderAiDesignPanel());
+      }
     });
   });
 
@@ -1046,6 +1061,10 @@ function initBottomPanel() {
       const content = panel.querySelector('.bp-content[data-bpanel="' + key + '"]');
       if (content) content.classList.add('active');
 
+      if (key === 'timeline') {
+        import('./ui-animation.js').then(m => m.renderTimelineTracks && m.renderTimelineTracks());
+      }
+
       setExpanded(true);
     });
   });
@@ -1168,9 +1187,9 @@ export function refreshLayersPanel() {
     let isPdf = false;
     let pageNum = 1;
     try {
-      if (window.__CORE__ && window.__CORE__.state) {
-        const s = window.__CORE__.state;
-        const sl = s.slides && s.slides[s.currentPage - 1];
+      const s = state;                       // state مُستوردٌ بالفعل في أعلى الملف
+      if (s && s.slides) {
+        const sl = s.slides[s.currentPage - 1];
         isPdf = !!(s.pdfDoc || (sl && sl.bg && sl.bg.type === 'pdf'));
         pageNum = (sl && sl.bg && sl.bg.page) || s.currentPage || 1;
       }
@@ -2561,6 +2580,17 @@ function initElementDesignProps() {
   const infoPanel = document.getElementById('documentInfoPanel');
   if (!panel) return;
 
+  const PPT_ALIGN_ICONS = {
+    left: `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><line x1="2.5" y1="2" x2="2.5" y2="16" stroke="currentColor" stroke-width="2"/><rect x="2.5" y="4" width="11" height="3" rx="1" fill="currentColor" opacity="0.85"/><rect x="2.5" y="10" width="7" height="3" rx="1" fill="currentColor" opacity="0.85"/></svg>`,
+    centerH: `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><line x1="9" y1="2" x2="9" y2="16" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2 1"/><rect x="3" y="4" width="12" height="3" rx="1" fill="currentColor" opacity="0.85"/><rect x="5.5" y="10" width="7" height="3" rx="1" fill="currentColor" opacity="0.85"/></svg>`,
+    right: `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><line x1="15.5" y1="2" x2="15.5" y2="16" stroke="currentColor" stroke-width="2"/><rect x="4.5" y="4" width="11" height="3" rx="1" fill="currentColor" opacity="0.85"/><rect x="8.5" y="10" width="7" height="3" rx="1" fill="currentColor" opacity="0.85"/></svg>`,
+    top: `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><line x1="2" y1="2.5" x2="16" y2="2.5" stroke="currentColor" stroke-width="2"/><rect x="4" y="2.5" width="3" height="11" rx="1" fill="currentColor" opacity="0.85"/><rect x="10" y="2.5" width="3" height="7" rx="1" fill="currentColor" opacity="0.85"/></svg>`,
+    centerV: `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2 1"/><rect x="4" y="3" width="3" height="12" rx="1" fill="currentColor" opacity="0.85"/><rect x="10" y="5.5" width="3" height="7" rx="1" fill="currentColor" opacity="0.85"/></svg>`,
+    bottom: `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><line x1="2" y1="15.5" x2="16" y2="15.5" stroke="currentColor" stroke-width="2"/><rect x="4" y="4.5" width="3" height="11" rx="1" fill="currentColor" opacity="0.85"/><rect x="10" y="8.5" width="3" height="7" rx="1" fill="currentColor" opacity="0.85"/></svg>`,
+    distH: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="vertical-align:middle;margin-left:4px"><line x1="2" y1="1" x2="2" y2="15" stroke="currentColor" stroke-width="1.8"/><line x1="14" y1="1" x2="14" y2="15" stroke="currentColor" stroke-width="1.8"/><rect x="5.5" y="3.5" width="2" height="9" rx="0.5" fill="currentColor"/><rect x="8.5" y="3.5" width="2" height="9" rx="0.5" fill="currentColor"/></svg>`,
+    distV: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="vertical-align:middle;margin-left:4px"><line x1="1" y1="2" x2="15" y2="2" stroke="currentColor" stroke-width="1.8"/><line x1="1" y1="14" x2="15" y2="14" stroke="currentColor" stroke-width="1.8"/><rect x="3.5" y="5.5" width="9" height="2" rx="0.5" fill="currentColor"/><rect x="3.5" y="8.5" width="9" height="2" rx="0.5" fill="currentColor"/></svg>`,
+  };
+
   let currentAlignTarget = 'selection';
 
   async function getSelectionInfo() {
@@ -2610,20 +2640,20 @@ function initElementDesignProps() {
           <div style="margin-top:8px">
             <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">المحاذاة:</label>
             <div class="align-grid">
-              <button type="button" class="align-action-btn" data-align="left" title="محاذاة لليسار">⫷</button>
-              <button type="button" class="align-action-btn" data-align="centerH" title="توسيط أفقياً">⫿</button>
-              <button type="button" class="align-action-btn" data-align="right" title="محاذاة لليمين">⫸</button>
-              <button type="button" class="align-action-btn" data-align="top" title="محاذاة للأعلى">⫠</button>
-              <button type="button" class="align-action-btn" data-align="centerV" title="توسيط رأسياً">⫰</button>
-              <button type="button" class="align-action-btn" data-align="bottom" title="محاذاة للأسفل">⫡</button>
+              <button type="button" class="align-action-btn" data-align="left" title="محاذاة لليسار (PowerPoint Align Left)">${PPT_ALIGN_ICONS.left}</button>
+              <button type="button" class="align-action-btn" data-align="centerH" title="توسيط أفقياً (PowerPoint Align Center)">${PPT_ALIGN_ICONS.centerH}</button>
+              <button type="button" class="align-action-btn" data-align="right" title="محاذاة لليمين (PowerPoint Align Right)">${PPT_ALIGN_ICONS.right}</button>
+              <button type="button" class="align-action-btn" data-align="top" title="محاذاة للأعلى (PowerPoint Align Top)">${PPT_ALIGN_ICONS.top}</button>
+              <button type="button" class="align-action-btn" data-align="centerV" title="توسيط رأسياً (PowerPoint Align Middle)">${PPT_ALIGN_ICONS.centerV}</button>
+              <button type="button" class="align-action-btn" data-align="bottom" title="محاذاة للأسفل (PowerPoint Align Bottom)">${PPT_ALIGN_ICONS.bottom}</button>
             </div>
           </div>
 
           <div style="margin-top:8px">
             <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">التوزيع بالتساوي:</label>
             <div class="distribute-grid">
-              <button type="button" class="distribute-action-btn" data-dist="horizontal">⫯ توزيع أفقي</button>
-              <button type="button" class="distribute-action-btn" data-dist="vertical">⫶ توزيع رأسي</button>
+              <button type="button" class="distribute-action-btn" data-dist="horizontal">${PPT_ALIGN_ICONS.distH} توزيع أفقي</button>
+              <button type="button" class="distribute-action-btn" data-dist="vertical">${PPT_ALIGN_ICONS.distV} توزيع رأسي</button>
             </div>
           </div>
         </div>
@@ -2763,14 +2793,14 @@ function initElementDesignProps() {
       </div>
 
       <div class="prop-section">
-        <div class="prop-title">📐 محاذاة للشريحة (الكانفاس)</div>
+        <div class="prop-title">📐 محاذاة للشريحة (PowerPoint Align)</div>
         <div class="align-grid">
-          <button type="button" class="align-action-btn" data-align="left" title="محاذاة لليسار">⫷</button>
-          <button type="button" class="align-action-btn" data-align="centerH" title="توسيط أفقياً">⫿</button>
-          <button type="button" class="align-action-btn" data-align="right" title="محاذاة لليمين">⫸</button>
-          <button type="button" class="align-action-btn" data-align="top" title="محاذاة للأعلى">⫠</button>
-          <button type="button" class="align-action-btn" data-align="centerV" title="توسيط رأسياً">⫰</button>
-          <button type="button" class="align-action-btn" data-align="bottom" title="محاذاة للأسفل">⫡</button>
+          <button type="button" class="align-action-btn" data-align="left" title="محاذاة لليسار (PowerPoint Align Left)">${PPT_ALIGN_ICONS.left}</button>
+          <button type="button" class="align-action-btn" data-align="centerH" title="توسيط أفقياً (PowerPoint Align Center)">${PPT_ALIGN_ICONS.centerH}</button>
+          <button type="button" class="align-action-btn" data-align="right" title="محاذاة لليمين (PowerPoint Align Right)">${PPT_ALIGN_ICONS.right}</button>
+          <button type="button" class="align-action-btn" data-align="top" title="محاذاة للأعلى (PowerPoint Align Top)">${PPT_ALIGN_ICONS.top}</button>
+          <button type="button" class="align-action-btn" data-align="centerV" title="توسيط رأسياً (PowerPoint Align Middle)">${PPT_ALIGN_ICONS.centerV}</button>
+          <button type="button" class="align-action-btn" data-align="bottom" title="محاذاة للأسفل (PowerPoint Align Bottom)">${PPT_ALIGN_ICONS.bottom}</button>
         </div>
       </div>
 
@@ -2791,6 +2821,40 @@ function initElementDesignProps() {
         </div>
         <div style="margin-top:6px">
           <button type="button" class="prop-input" id="elemResetTransformBtn" style="font-size:10.5px;cursor:pointer;width:100%">↺ إعادة ضبط الدوران والانعكاس</button>
+        </div>
+      </div>
+
+      <div class="prop-section">
+        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🎯 نقطة الارتكاز (Origin Pivot)</span>
+          <span style="font-size:10px;color:#10b981;font-weight:700" id="originCoordsBadge">${Math.round(parseFloat(targetInner.dataset.originX ?? 0.5) * 100)}%, ${Math.round(parseFloat(targetInner.dataset.originY ?? 0.5) * 100)}%</span>
+        </div>
+        <div style="font-size:10px;color:var(--sh-text-dim);margin-bottom:6px">يدور ويتمدد العنصر بالنسبة لهذه النقطة (اسحب المقبض الأخضر ⊕ أو اختر من الشبكة):</div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div class="origin-9grid" id="origin9Grid">
+            <button type="button" class="origin-dot-btn" data-ox="0" data-oy="0" title="أعلى يسار"></button>
+            <button type="button" class="origin-dot-btn" data-ox="0.5" data-oy="0" title="أعلى وسط"></button>
+            <button type="button" class="origin-dot-btn" data-ox="1" data-oy="0" title="أعلى يمين"></button>
+            <button type="button" class="origin-dot-btn" data-ox="0" data-oy="0.5" title="وسط يسار"></button>
+            <button type="button" class="origin-dot-btn" data-ox="0.5" data-oy="0.5" title="المركز (افتراضي)"></button>
+            <button type="button" class="origin-dot-btn" data-ox="1" data-oy="0.5" title="وسط يمين"></button>
+            <button type="button" class="origin-dot-btn" data-ox="0" data-oy="1" title="أسفل يسار"></button>
+            <button type="button" class="origin-dot-btn" data-ox="0.5" data-oy="1" title="أسفل وسط"></button>
+            <button type="button" class="origin-dot-btn" data-ox="1" data-oy="1" title="أسفل يمين"></button>
+          </div>
+          <div style="flex:1">
+            <div class="prop-row" style="margin-bottom:4px">
+              <div class="prop-field">
+                <label>X %</label>
+                <input type="number" class="prop-input" id="elemOriginX" min="0" max="100" value="${Math.round(parseFloat(targetInner.dataset.originX ?? 0.5) * 100)}" />
+              </div>
+              <div class="prop-field">
+                <label>Y %</label>
+                <input type="number" class="prop-input" id="elemOriginY" min="0" max="100" value="${Math.round(parseFloat(targetInner.dataset.originY ?? 0.5) * 100)}" />
+              </div>
+            </div>
+            <button type="button" class="prop-input" id="btnCenterOrigin" style="cursor:pointer;font-size:10px;padding:3px 6px;width:100%">توسيط للمركز (50%, 50%)</button>
+          </div>
         </div>
       </div>
 
@@ -3417,6 +3481,59 @@ function initElementDesignProps() {
     if (btnResetTf) {
       btnResetTf.addEventListener('click', () => {
         inter.resetElementTransform(sel.el);
+        inter.drawSelectionOverlay();
+        core.commitChange();
+        renderProps();
+      });
+    }
+
+    // ── Origin 9-Grid & Percentage Inputs ──
+    const curOx = parseFloat(targetInner.dataset.originX ?? 0.5);
+    const curOy = parseFloat(targetInner.dataset.originY ?? 0.5);
+    panel.querySelectorAll('.origin-dot-btn').forEach(dot => {
+      const ox = parseFloat(dot.dataset.ox);
+      const oy = parseFloat(dot.dataset.oy);
+      const active = Math.abs(ox - curOx) < 0.05 && Math.abs(oy - curOy) < 0.05;
+      dot.classList.toggle('active', active);
+      dot.addEventListener('click', () => {
+        targetInner.dataset.originX = String(ox);
+        targetInner.dataset.originY = String(oy);
+        inter.applyElementTransform(targetInner);
+        inter.drawSelectionOverlay();
+        core.commitChange();
+        renderProps();
+      });
+    });
+
+    const oxInp = document.getElementById('elemOriginX');
+    const oyInp = document.getElementById('elemOriginY');
+    const btnCenterOrig = document.getElementById('btnCenterOrigin');
+
+    if (oxInp) {
+      oxInp.addEventListener('change', () => {
+        const val = Math.max(0, Math.min(100, parseFloat(oxInp.value) || 50)) / 100;
+        targetInner.dataset.originX = String(val);
+        inter.applyElementTransform(targetInner);
+        inter.drawSelectionOverlay();
+        core.commitChange();
+        renderProps();
+      });
+    }
+    if (oyInp) {
+      oyInp.addEventListener('change', () => {
+        const val = Math.max(0, Math.min(100, parseFloat(oyInp.value) || 50)) / 100;
+        targetInner.dataset.originY = String(val);
+        inter.applyElementTransform(targetInner);
+        inter.drawSelectionOverlay();
+        core.commitChange();
+        renderProps();
+      });
+    }
+    if (btnCenterOrig) {
+      btnCenterOrig.addEventListener('click', () => {
+        targetInner.dataset.originX = '0.5';
+        targetInner.dataset.originY = '0.5';
+        inter.applyElementTransform(targetInner);
         inter.drawSelectionOverlay();
         core.commitChange();
         renderProps();
@@ -5244,6 +5361,13 @@ function initGlobalShortcuts() {
    ============================================================ */
 export function initUIShell() {
   applyVersion();
+    // ── تحديث شارة "محفوظ / غير محفوظ" عند تغيّر dirty
+  document.addEventListener('ipb:dirtyChanged', () => {
+    const txt = document.getElementById('saveBadgeText');
+    const dot = document.querySelector('#saveBadge .save-dot');
+    if (txt) txt.textContent = state.dirty ? 'غير محفوظ' : 'محفوظ';
+    if (dot) dot.classList.toggle('dirty', state.dirty);
+  });
   initPropsTabs();
   initBottomPanel();
   initTopbarActions();
@@ -5256,6 +5380,7 @@ export function initUIShell() {
   initElementDesignProps();
   initCanvasControls();
   initToolbarToggle();
+  import('./ui-animation.js').then(m => m.initTimelineEditor && m.initTimelineEditor());
 
   // إخفاء الشريطين افتراضياً حتى يتم فتح أو إنشاء ملف
   import('./core.js').then(core => {
