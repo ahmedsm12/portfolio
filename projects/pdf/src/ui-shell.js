@@ -238,7 +238,11 @@ export function initPropsTabs() {
       if (panel) panel.style.display = 'block';
       if (key === 'design') updateDesignTabContent();
       if (key === 'effects') renderEffectsPanel();
-      if (key === 'anim') import('./ui-animation.js').then(m => m.renderAnimationPanel());
+      if (key === 'anim') {
+  import('./ui-animation.js')
+    .then(m => m.renderAnimationPanel())
+    .catch(err => console.warn('Animation panel failed:', err));
+}
       if (key === 'ai') import('./ui-ai-design.js').then(m => m.renderAiDesignPanel());
     });
   });
@@ -248,7 +252,11 @@ export function initPropsTabs() {
     const activeTabEl = root.querySelector('.props-tab.active');
     const key = activeTabEl ? activeTabEl.dataset.ptab : null;
     if (key === 'effects') renderEffectsPanel();
-    else if (key === 'anim') import('./ui-animation.js').then(m => m.renderAnimationPanel());
+    else if (tabName === 'anim') {
+  import('./ui-animation.js')
+    .then(m => m.renderAnimationPanel())
+    .catch(err => console.warn('Animation panel failed:', err));
+}
     else if (key === 'design') updateDesignTabContent();
   }
 
@@ -4055,7 +4063,9 @@ export function initUIShell() {
     if (dot) dot.classList.toggle('dirty', state.dirty);
   });
 
-  import('./ui-animation.js').then(m => m.initTimelineEditor && m.initTimelineEditor());
+  import('./ui-animation.js')
+  .then(m => m.initTimelineEditor && m.initTimelineEditor())
+  .catch(err => console.warn('Animation module init failed:', err));
 
   import('./core.js').then(core => {
     const hasProject = core.state.slides && core.state.slides.length > 0;
