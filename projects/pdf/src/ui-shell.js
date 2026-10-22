@@ -100,7 +100,11 @@ export function switchPropsTab(tabName) {
 
   if (tabName === 'design') updateDesignTabContent();
   if (tabName === 'effects') renderEffectsPanel();
-  if (tabName === 'anim') import('./ui-animation.js').then(m => m.renderAnimationPanel());
+  if (tabName === 'anim') {
+  import('./ui-animation.js')
+    .then(m => m.renderAnimationPanel())
+    .catch(err => console.warn('Animation panel failed:', err));
+}
   if (tabName === 'ai') import('./ui-ai-design.js').then(m => m.renderAiDesignPanel());
 }
 
@@ -252,11 +256,7 @@ export function initPropsTabs() {
     const activeTabEl = root.querySelector('.props-tab.active');
     const key = activeTabEl ? activeTabEl.dataset.ptab : null;
     if (key === 'effects') renderEffectsPanel();
-    else if (tabName === 'anim') {
-  import('./ui-animation.js')
-    .then(m => m.renderAnimationPanel())
-    .catch(err => console.warn('Animation panel failed:', err));
-}
+    else if (key === 'anim') import('./ui-animation.js').then(m => m.renderAnimationPanel());
     else if (key === 'design') updateDesignTabContent();
   }
 
