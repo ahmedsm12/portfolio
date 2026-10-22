@@ -1,9 +1,10 @@
 /* ============================================================
- * storage.js — حفظ/فتح .actpdf + تصدير PDF
+ * storage.js — حفظ/فتح .actpdf + تصدير PDF + Auto-save/Recovery
  * ============================================================
- *  ★ يحفظ zOrder لكل شريحة
- *  ★ يدعم wrappers الجديدة للـ SVG annotations
- *  ★ تصدير PDF مع z-order صحيح
+ *  ★ IndexedDB auto-save كل 30 ثانية
+ *  ★ Recovery prompt عند البدء
+ *  ★ Save Over عبر File System Access API
+ *  ★ تصدير PDF يحترم الدوران
  * ============================================================ */
 
 import {
@@ -46,7 +47,7 @@ async function getHtml2Canvas() {
 }
 
 /* ============================================================
-   §2. SVG ANNOTATIONS → PNG
+   §2. SVG ANNOTATIONS → PNG (with rotation support)
    ============================================================ */
 function buildAnnotationSvg(annotations, pdfW, pdfH, scale) {
   const parts = [
@@ -60,13 +61,49 @@ function buildAnnotationSvg(annotations, pdfW, pdfH, scale) {
     <marker id="circle-end" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto" markerUnits="strokeWidth"><circle cx="5" cy="5" r="4" fill="context-stroke"/></marker>
     <marker id="square-end" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto" markerUnits="strokeWidth"><rect x="1" y="1" width="8" height="8" fill="context-stroke"/></marker>
   </defs>`);
+
   for (const spec of annotations) {
     const tag = spec.tag, out = {}, attrs = spec.attrs || {};
     for (const k in attrs) out[k] = attrs[k];
     if (out['stroke-width']) out['stroke-width'] = parseFloat(out['stroke-width']) * scale;
     const attrStr = Object.keys(out).map(k => `${k}="${escapeXml(out[k])}"`).join(' ');
-    if (['path', 'line', 'rect', 'ellipse', 'circle'].includes(tag)) {
-      parts.push(`<${tag} ${attrStr}/>`);
+
+    // ★ تطبيق الدوران من dataset إن وُجد
+    const rot = parseFloat(spec.dataset && spec.dataset.rotation) || 0;
+    let transformAttr = '';
+    if (rot !== 0) {
+      const ox = parseFloat(spec.dataset.originX ?? 0.5);
+      const oy = parseFloat(spec.dataset.originY ?? 0.5);
+      let bx = 0, by = 0, bw = 0, bh = 0;
+      if (tag === 'rect') {
+        bx = parseFloat(out.x) || 0;
+        by = parseFloat(out.y) || 0;
+        bw = parseFloat(out.width) || 0;
+        bh = parseFloat(out.height) || 0;
+      } else if (tag === 'ellipse' || tag === 'circle') {
+        const cx = parseFloat(out.cx) || 0;
+        const cy = parseFloat(out.cy) || 0;
+        const rx = parseFloat(out.rx || out.r) || 0;
+        const ry = parseFloat(out.ry || out.r) || 0;
+        bx = cx - rx; by = cy - ry; bw = rx * 2; bh = ry * 2;
+      } else if (tag === 'line') {
+        bx = Math.min(parseFloat(out.x1) || 0, parseFloat(out.x2) || 0);
+        by = Math.min(parseFloat(out.y1) || 0, parseFloat(out.y2) || 0);
+        bw = Math.abs((parseFloat(out.x2) || 0) - (parseFloat(out.x1) || 0));
+        bh = Math.abs((parseFloat(out.y2) || 0) - (parseFloat(out.y1) || 0));
+      } else if (spec.dataset && spec.dataset.x !== undefined) {
+        bx = parseFloat(spec.dataset.x) || 0;
+        by = parseFloat(spec.dataset.y) || 0;
+        bw = parseFloat(spec.dataset.w) || 0;
+        bh = parseFloat(spec.dataset.h) || 0;
+      }
+      const px = bx + ox * bw;
+      const py = by + oy * bh;
+      transformAttr = ` transform="rotate(${rot}, ${px}, ${py})"`;
+    }
+
+    if (['path', 'line', 'rect', 'ellipse', 'circle', 'polygon'].includes(tag)) {
+      parts.push(`<${tag} ${attrStr}${transformAttr}/>`);
     }
   }
   parts.push('</svg>');
@@ -94,47 +131,53 @@ async function svgStrToPngDataUrl(svgStr, w, h) {
 }
 
 /* ============================================================
-   §3. SAVE .actpdf
+   §3. BUILD PROJECT BLOB + SAVE
    ============================================================ */
+let _lastFileHandle = null;
+
+async function _buildProjectBlob() {
+  const JSZip = await ensureJSZip();
+  savePageNow();
+
+  const now = new Date();
+  const version = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}`;
+
+  const zip = new JSZip();
+  const projectData = {
+    version: 2,
+    slides: state.slides,
+    pages: state.pages,
+    currentPage: state.currentPage,
+    totalPages: state.totalPages,
+    pdfName: `${state.pdfName}_v${version}`,
+    pdfIsImage: state.pdfIsImage,
+    projectDims: state.projectDims || null,
+    savedAt: Date.now(),
+  };
+  zip.file('project.json', JSON.stringify(projectData));
+
+  if (state.pdfBlob) {
+    const ext = state.pdfIsImage ? 'bin' : 'pdf';
+    zip.file(`document.${ext}`, state.pdfBlob);
+    zip.file('meta.json', JSON.stringify({ ext }));
+  }
+
+  mediaBlobs.forEach((blob, id) => {
+    zip.file(`media/${id}`, blob);
+  });
+
+  return await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+}
+
 export async function saveProjectAsFile() {
   if (!state.slides.length) { toast('لا يوجد مشروع لحفظه', 'warn'); return; }
   setLoading(true, 'جارٍ تجهيز الملف…');
   try {
-    const JSZip = await ensureJSZip();
-    savePageNow();
-
-    const now = new Date();
-    const version = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}`;
-
-    const zip = new JSZip();
-    const projectData = {
-      version: 2,
-      slides: state.slides,
-      pages: state.pages,
-      currentPage: state.currentPage,
-      totalPages: state.totalPages,
-      pdfName: `${state.pdfName}_v${version}`,
-      pdfIsImage: state.pdfIsImage,
-      projectDims: state.projectDims || null,
-      savedAt: Date.now(),
-    };
-    zip.file('project.json', JSON.stringify(projectData));
-
-    if (state.pdfBlob) {
-      const ext = state.pdfIsImage ? 'bin' : 'pdf';
-      zip.file(`document.${ext}`, state.pdfBlob);
-      zip.file('meta.json', JSON.stringify({ ext }));
-    }
-
-    mediaBlobs.forEach((blob, id) => {
-      zip.file(`media/${id}`, blob);
-    });
-
-    const blob = await zip.generateAsync({
-      type: 'blob',
-      compression: 'DEFLATE',
-      compressionOptions: { level: 6 },
-    });
+    const blob = await _buildProjectBlob();
     const outName = (state.pdfName || 'project').replace(/\.[^.]+$/, '') + FILE_EXT;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -144,7 +187,8 @@ export async function saveProjectAsFile() {
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     toast('تم حفظ المشروع ✅', 'ok');
     showSaveStatus('✓ تم التنزيل');
-	clearDirty();
+    clearDirty();
+    await clearAutoSaveIfMatches(state.pdfName);
   } catch (err) {
     console.error(err);
     toast('فشل الحفظ: ' + err.message, 'error');
@@ -153,8 +197,50 @@ export async function saveProjectAsFile() {
   }
 }
 
+/* ★ Save Over — يستخدم File System Access API إن وُجد */
+export async function saveProjectOver() {
+  if (!state.slides.length) { toast('لا يوجد مشروع لحفظه', 'warn'); return; }
+
+  if ('showSaveFilePicker' in window) {
+    try {
+      const wasNewHandle = !_lastFileHandle;
+      if (!_lastFileHandle) {
+        const ext = FILE_EXT;
+        _lastFileHandle = await window.showSaveFilePicker({
+          suggestedName: (state.pdfName || 'project').replace(/\.[^.]+$/, '') + ext,
+          types: [{
+            description: 'Interactive PDF Project',
+            accept: { 'application/octet-stream': [ext] },
+          }],
+        });
+      }
+      const blob = await _buildProjectBlob();
+      const writable = await _lastFileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      clearDirty();
+      await clearAutoSaveIfMatches(state.pdfName);
+      toast(wasNewHandle ? 'تم حفظ المشروع ✅' : 'تم الحفظ فوق الملف ✅', 'ok');
+      showSaveStatus('✓ تم الحفظ');
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        return;
+      }
+      console.warn('FS API save failed, falling back to download:', err);
+      _lastFileHandle = null;
+    }
+  }
+
+  await saveProjectAsFile();
+}
+
+export function resetFileHandle() {
+  _lastFileHandle = null;
+}
+
 /* ============================================================
-   §4. LOAD .actpdf
+   §4. LOAD
    ============================================================ */
 export async function loadProjectFromFile(file) {
   setLoading(true, 'جارٍ فتح المشروع…');
@@ -196,7 +282,7 @@ export async function loadProjectFromFile(file) {
 
     state.slides = data.slides || [];
     state.pages = data.pages || {};
-    state.history = {};
+    state.history = { past: [], future: [] };
     state.totalPages = data.totalPages || state.slides.length;
     state.currentPage = data.currentPage || 1;
     state.pdfName = data.pdfName || 'project.pdf';
@@ -230,11 +316,12 @@ export async function loadProjectFromFile(file) {
       await renderPage(state.currentPage);
       preloadAllPages(state.preloadToken);
     }
-	clearDirty();
+    clearDirty();
+    resetFileHandle();
     toast('تم فتح المشروع ✅', 'ok');
   } catch (err) {
     console.error(err);
-    alert('تعذّر فتح المشروع: ' + err.message);
+    toast('تعذّر فتح المشروع: ' + err.message, 'error');
   } finally {
     setLoading(false);
   }
@@ -438,5 +525,245 @@ export async function exportAnnotatedPdf() {
     toast('تعذّر التصدير: ' + err.message, 'error');
   } finally {
     setLoading(false);
+  }
+}
+
+/* ============================================================
+   §6. AUTO-SAVE & RECOVERY (IndexedDB)
+   ============================================================ */
+const AUTOSAVE_DB = 'pdfboard-autosave-v1';
+const AUTOSAVE_STORE = 'projects';
+const AUTOSAVE_KEY = 'current';
+const AUTOSAVE_INTERVAL_MS = 30000;
+const AUTOSAVE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+let _autosaveTimer = null;
+let _idbPromise = null;
+let _autosaveListenersWired = false;
+
+function _openDB() {
+  if (_idbPromise) return _idbPromise;
+  _idbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(AUTOSAVE_DB, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(AUTOSAVE_STORE)) {
+        db.createObjectStore(AUTOSAVE_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _idbPromise;
+}
+
+async function _idbPut(key, value) {
+  try {
+    const db = await _openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(AUTOSAVE_STORE, 'readwrite');
+      tx.objectStore(AUTOSAVE_STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn('IDB put failed:', err);
+  }
+}
+
+async function _idbGet(key) {
+  try {
+    const db = await _openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(AUTOSAVE_STORE, 'readonly');
+      const req = tx.objectStore(AUTOSAVE_STORE).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn('IDB get failed:', err);
+    return null;
+  }
+}
+
+async function _idbDelete(key) {
+  try {
+    const db = await _openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(AUTOSAVE_STORE, 'readwrite');
+      tx.objectStore(AUTOSAVE_STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn('IDB delete failed:', err);
+  }
+}
+
+/* ─── Core save to IDB ─── */
+export async function saveToAutoStore() {
+  if (!state.slides || !state.slides.length) return;
+  try {
+    savePageNow();
+    const projectData = {
+      version: 2,
+      slides: state.slides,
+      pages: state.pages,
+      currentPage: state.currentPage,
+      totalPages: state.totalPages,
+      pdfName: state.pdfName,
+      pdfIsImage: state.pdfIsImage,
+      projectDims: state.projectDims || null,
+      savedAt: Date.now(),
+    };
+    const blobs = {};
+    mediaBlobs.forEach((blob, id) => { blobs[id] = blob; });
+
+    await _idbPut(AUTOSAVE_KEY, {
+      projectData,
+      mediaBlobs: blobs,
+      documentBlob: state.pdfBlob || null,
+      timestamp: Date.now(),
+    });
+    document.dispatchEvent(new CustomEvent('ipb:autosaved'));
+  } catch (err) {
+    console.warn('Autosave failed:', err);
+  }
+}
+
+/* ─── Start / stop auto-save ─── */
+export function startAutoSave() {
+  stopAutoSave();
+  _autosaveTimer = setInterval(() => {
+    if (state.dirty && state.slides.length > 0) {
+      saveToAutoStore();
+    }
+  }, AUTOSAVE_INTERVAL_MS);
+
+  if (!_autosaveListenersWired) {
+    _autosaveListenersWired = true;
+
+    document.addEventListener('ipb:pageChanged', () => {
+      if (state.dirty && state.slides.length > 0) {
+        saveToAutoStore();
+      }
+    });
+
+    // ★ مسح auto-save عند إغلاق المشروع صراحةً
+    document.addEventListener('ipb:projectClosed', () => {
+      _idbDelete(AUTOSAVE_KEY).catch(() => {});
+      _lastFileHandle = null;
+    });
+
+    // ★ إعادة تعيين مقبض الملف عند إنشاء مشروع جديد
+    document.addEventListener('ipb:projectCreated', () => {
+      _lastFileHandle = null;
+    });
+  }
+}
+
+export function stopAutoSave() {
+  if (_autosaveTimer) {
+    clearInterval(_autosaveTimer);
+    _autosaveTimer = null;
+  }
+}
+
+/* ─── Recovery ─── */
+export async function checkForRecovery() {
+  const saved = await _idbGet(AUTOSAVE_KEY);
+  if (!saved) return null;
+  if (Date.now() - saved.timestamp > AUTOSAVE_MAX_AGE_MS) {
+    await _idbDelete(AUTOSAVE_KEY);
+    return null;
+  }
+  if (!saved.projectData || !Array.isArray(saved.projectData.slides) || !saved.projectData.slides.length) {
+    await _idbDelete(AUTOSAVE_KEY);
+    return null;
+  }
+  return saved;
+}
+
+export async function restoreFromAutoSave() {
+  const saved = await checkForRecovery();
+  if (!saved) return false;
+  try {
+    setLoading(true, 'جارٍ استعادة الجلسة السابقة…');
+
+    mediaBlobs.clear();
+    for (const [id, blob] of Object.entries(saved.mediaBlobs || {})) {
+      mediaBlobs.set(id, blob);
+    }
+
+    const data = saved.projectData;
+    state.slides = data.slides || [];
+    state.pages = data.pages || {};
+    state.history = { past: [], future: [] };
+    state.totalPages = data.totalPages || state.slides.length;
+    state.currentPage = data.currentPage || 1;
+    state.pdfName = data.pdfName || 'project';
+    state.pdfIsImage = !!data.pdfIsImage;
+    state.projectDims = data.projectDims || null;
+
+    document.body.classList.add('has-project');
+    document.body.classList.remove('no-project');
+
+    const stageEl = document.getElementById('stage');
+    if (stageEl) stageEl.classList.remove('empty');
+
+    if (saved.documentBlob) {
+      const f = new File([saved.documentBlob], state.pdfName, {
+        type: state.pdfIsImage
+          ? (saved.documentBlob.type || 'image/png')
+          : 'application/pdf',
+      });
+
+      if (state.pdfIsImage) {
+        await loadImageFile(f, { keepPages: true, skipRender: true });
+      } else {
+        await loadPdfFile(f, {
+          keepPages: true,
+          skipRender: true,
+          restoredSlides: state.slides,
+        });
+      }
+
+      // reassign — pdf.js قد يعيد التهيئة من doc.numPages
+      state.slides = data.slides;
+      state.totalPages = state.slides.length;
+      state.currentPage = Math.min(data.currentPage || 1, state.totalPages) || 1;
+    }
+
+    renderThumbnails();
+    await renderPage(state.currentPage);
+    preloadAllPages(state.preloadToken);
+
+    document.dispatchEvent(new CustomEvent('ipb:pageChanged', {
+      detail: { page: state.currentPage },
+    }));
+
+    clearDirty();
+    // مسح auto-save — يُعاد إنشاؤه عند أول تعديل
+    await _idbDelete(AUTOSAVE_KEY);
+
+    toast('تم استعادة الجلسة السابقة ✅', 'ok');
+    return true;
+  } catch (err) {
+    console.error('Restore failed:', err);
+    toast('تعذّر استعادة الجلسة: ' + err.message, 'error');
+    return false;
+  } finally {
+    setLoading(false);
+  }
+}
+
+export async function discardAutoSave() {
+  await _idbDelete(AUTOSAVE_KEY);
+}
+
+export async function clearAutoSaveIfMatches(projectName) {
+  const saved = await _idbGet(AUTOSAVE_KEY);
+  if (saved && saved.projectData && saved.projectData.pdfName === projectName) {
+    await _idbDelete(AUTOSAVE_KEY);
   }
 }

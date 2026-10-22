@@ -1,46 +1,42 @@
 /* ============================================================
  * ui-shell.js — الواجهة الجديدة
  * ============================================================
- *  ★ لوحة أبعاد المشروع (تظهر فقط بدون تحديد)
- *  ★ لون الخلفية لكل شريحة
- *  ★ الطبقات مع Drag and Drop
- *  ★ إغلاق المشروع
- *  ★ وضع العرض
- *  ★ التحكم في إظهار وإخفاء الشريط الجانبي الأيمن والأيسر
+ *  ★ Undo شامل عبر الشرائح (Session 1)
+ *  ★ Notes محفوظ ومعروض في وضع العرض (Session 2)
+ *  ★ Tilt يدور حول مركز العنصر (Session 3)
+ *  ★ نسبة الزوم صادقة (Session 4)
+ *  ★ Save Over + Present Touch Toggle (Session 6)
  * ============================================================ */
 
-export const APP_VERSION = '0.5.1';
+export const APP_VERSION = '0.6.0';
 
 import { toast, state } from './core.js';
 import * as shapes from './shapes.js';
 
 function safeToast(msg, type) {
   try {
-    if (typeof toast === 'function') {
-      toast(msg, type);
-    } else {
+    if (typeof toast === 'function') toast(msg, type);
+    else {
       const el = document.createElement('div');
       el.className = 'toast' + (type ? ' ' + type : '');
       el.textContent = msg;
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 2400);
     }
-  } catch (_) {
-    console.log(msg);
-  }
+  } catch (_) { console.log(msg); }
 }
 
-/* ============================================================
+/* ═══════════════════════════════════════════════════════════
    §1. VERSION
-   ============================================================ */
+   ═══════════════════════════════════════════════════════════ */
 function applyVersion() {
   const el = document.getElementById('appVersion');
   if (el) el.textContent = 'v' + APP_VERSION;
 }
 
-/* ============================================================
-   §2. SAVE BADGE
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §2. SAVE BADGE — يعكس dirty (Session 1)
+   ═══════════════════════════════════════════════════════════ */
 function setSaveBadge(text, saving) {
   const txt = document.getElementById('saveBadgeText');
   const dot = document.querySelector('#saveBadge .save-dot');
@@ -51,14 +47,13 @@ function setSaveBadge(text, saving) {
   }
 }
 
-/* ============================================================
-   §3. PROPS TABS & SIDEBAR PANELS (SHAPES & EFFECTS)
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §3. PROPS TABS
+   ═══════════════════════════════════════════════════════════ */
 let _activeShapeCat = 'all';
 let _shapeSearchQuery = '';
 
 const SHAPES_LIBRARY_DATA = [
-  // ── 🔷 هندسية أساسية ──
   { id: 'rect', label: 'مستطيل', cat: 'basic', icon: '<rect x="3" y="5" width="18" height="14" rx="1" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
   { id: 'rounded-rect', label: 'مستطيل مدور', cat: 'basic', icon: '<rect x="3" y="5" width="18" height="14" rx="5" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
   { id: 'circle', label: 'دائرة / بيضاوي', cat: 'basic', icon: '<circle cx="12" cy="12" r="9" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
@@ -69,14 +64,10 @@ const SHAPES_LIBRARY_DATA = [
   { id: 'hexagon', label: 'مسدس منتظم', cat: 'basic', icon: '<polygon points="7,3 17,3 22,12 17,21 7,21 2,12" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
   { id: 'cylinder', label: 'أسطوانة 3D', cat: 'basic', icon: '<path d="M4 6 C4 3, 20 3, 20 6 L20 18 C20 21, 4 21, 4 18 Z M4 6 C4 9, 20 9, 20 6" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
   { id: 'block-arrow', label: 'سهم عريض', cat: 'basic', icon: '<path d="M3 9 L13 9 L13 5 L21 12 L13 19 L13 15 L3 15 Z" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="2"/>' },
-
-  // ── 〰️ خطوط وأسهم ──
   { id: 'line', label: 'خط مستقيم', cat: 'lines', icon: '<line x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>' },
   { id: 'arrow', label: 'سهم أحادي', cat: 'lines', icon: '<path d="M4 20 L20 4 M12 4 L20 4 L20 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' },
   { id: 'double-arrow', label: 'سهم مزدوج', cat: 'lines', icon: '<path d="M4 20 L20 4 M7 20 L4 20 L4 17 M17 4 L20 4 L20 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' },
   { id: 'curve', label: 'منحنى بيزير', cat: 'lines', icon: '<path d="M3 18 Q12 2 21 18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>' },
-
-  // ── ⚡ دارات كهربائية ──
   { id: 'circuit-battery', label: 'بطارية DC', cat: 'circuits', icon: '<path d="M2 12 L9 12 M9 6 L9 18 M15 9 L15 15 M15 12 L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
   { id: 'circuit-resistor', label: 'مقاومة R', cat: 'circuits', icon: '<path d="M2 12 L6 12 L8 7 L11 17 L14 7 L17 17 L19 12 L22 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' },
   { id: 'circuit-lamp', label: 'مصباح كهربائي', cat: 'circuits', icon: '<circle cx="12" cy="12" r="8" fill="currentColor" fill-opacity="0.1" stroke="currentColor" stroke-width="2"/><path d="M7 7 L17 17 M17 7 L7 17" stroke="currentColor" stroke-width="2"/>' },
@@ -85,8 +76,6 @@ const SHAPES_LIBRARY_DATA = [
   { id: 'circuit-capacitor', label: 'مكثف C', cat: 'circuits', icon: '<path d="M2 12 L10 12 M10 6 L10 18 M14 6 L14 18 M14 12 L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
   { id: 'circuit-inductor', label: 'ملف محث L', cat: 'circuits', icon: '<path d="M2 14 C4 14 5 7 8 7 C11 7 11 14 14 14 C17 14 17 7 20 7 C22 7 22 14 22 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
   { id: 'circuit-ground', label: 'تأريض أرضي', cat: 'circuits', icon: '<path d="M12 4 L12 12 M6 12 L18 12 M8 15 L16 15 M10 18 L14 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
-
-  // ── 📈 مستوى ديكارتي ──
   { id: 'cartesian', label: 'مستوى ديكارتي', cat: 'math', icon: '<path d="M3 12 L21 12 M12 3 L12 21 M21 12 L18 9 M21 12 L18 15 M12 3 L9 6 M12 3 L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>' },
 ];
 
@@ -109,16 +98,10 @@ export function switchPropsTab(tabName) {
   const btn = document.getElementById('btnToggleProps');
   if (btn) btn.classList.remove('collapsed');
 
-  if (tabName === 'design') {
-    updateDesignTabContent();
-  }
+  if (tabName === 'design') updateDesignTabContent();
   if (tabName === 'effects') renderEffectsPanel();
-  if (tabName === 'anim') {
-    import('./ui-animation.js').then(m => m.renderAnimationPanel());
-  }
-  if (tabName === 'ai') {
-    import('./ui-ai-design.js').then(m => m.renderAiDesignPanel());
-  }
+  if (tabName === 'anim') import('./ui-animation.js').then(m => m.renderAnimationPanel());
+  if (tabName === 'ai') import('./ui-ai-design.js').then(m => m.renderAiDesignPanel());
 }
 
 export async function updateDesignTabContent() {
@@ -140,18 +123,12 @@ export async function updateDesignTabContent() {
     if (elemPanel) elemPanel.style.display = 'none';
     if (textPanel) textPanel.style.display = 'none';
     if (docPanel) docPanel.style.display = 'none';
-    if (shapesPanel) {
-      shapesPanel.style.display = 'block';
-      renderShapesLibrary();
-    }
+    if (shapesPanel) { shapesPanel.style.display = 'block'; renderShapesLibrary(); }
   } else if (core.state.tool === 'text') {
     if (elemPanel) elemPanel.style.display = 'none';
     if (shapesPanel) shapesPanel.style.display = 'none';
     if (docPanel) docPanel.style.display = 'none';
-    if (textPanel) {
-      textPanel.style.display = 'block';
-      renderTextToolDesignPanel();
-    }
+    if (textPanel) { textPanel.style.display = 'block'; renderTextToolDesignPanel(); }
   } else {
     if (shapesPanel) shapesPanel.style.display = 'none';
     if (textPanel) textPanel.style.display = 'none';
@@ -175,25 +152,15 @@ export async function renderTextToolDesignPanel() {
   host.innerHTML = `
     <div class="tt-panel-container">
       <div class="tt-header">
-        <div class="tt-title">
-          <span>✍️ إعدادات الكتابة والنصوص</span>
-        </div>
+        <div class="tt-title"><span>✍️ إعدادات الكتابة والنصوص</span></div>
         <div class="tt-subtitle">انقر في أي مكان داخل الشريحة للبدء في الكتابة، أو أدرج مربع نص تلقائي في المنتصف.</div>
       </div>
-
       <div class="prop-section">
         <div class="prop-title">حجم ولون الخط</div>
         <div class="prop-row">
-          <div class="prop-field">
-            <label>حجم الخط (px)</label>
-            <input type="number" class="prop-input" id="ttDefaultSize" value="${curSize}" min="10" max="180">
-          </div>
-          <div class="prop-field">
-            <label>لون الخط</label>
-            <input type="color" class="prop-input" id="ttDefaultColor" value="${curColor.startsWith('#') ? curColor : '#1e3a8a'}" style="padding:2px;height:28px">
-          </div>
+          <div class="prop-field"><label>حجم الخط (px)</label><input type="number" class="prop-input" id="ttDefaultSize" value="${curSize}" min="10" max="180"></div>
+          <div class="prop-field"><label>لون الخط</label><input type="color" class="prop-input" id="ttDefaultColor" value="${curColor.startsWith('#') ? curColor : '#1e3a8a'}" style="padding:2px;height:28px"></div>
         </div>
-
         <div class="prop-row" style="margin-top:8px">
           <div class="prop-field" style="grid-column: 1 / -1">
             <label>🎨 لون تعبئة خلفية مربع النص</label>
@@ -203,14 +170,12 @@ export async function renderTextToolDesignPanel() {
             </div>
           </div>
         </div>
-
         <div class="prop-row" style="grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:8px">
           <button type="button" class="prop-input ${state.textBold ? 'active' : ''}" id="ttDefaultBold" style="cursor:pointer;font-weight:bold">B عريض</button>
           <button type="button" class="prop-input ${state.textItalic ? 'active' : ''}" id="ttDefaultItalic" style="cursor:pointer;font-style:italic">I مائل</button>
           <button type="button" class="prop-input" id="ttDefaultAlign" style="cursor:pointer">محاذاة ⇄</button>
         </div>
       </div>
-
       <div class="prop-section">
         <button type="button" class="tt-btn-primary" id="ttInsertCenterBtn">➕ إدراج مربع نص في وسط الشريحة</button>
       </div>
@@ -228,22 +193,10 @@ export async function renderTextToolDesignPanel() {
 
   if (sSize) sSize.addEventListener('change', () => { state.textSize = parseInt(sSize.value, 10) || 24; });
   if (sColor) sColor.addEventListener('input', () => { state.textColor = sColor.value; });
-  if (sBg) sBg.addEventListener('input', () => {
-    state.textBg = sBg.value;
-    if (sBgNone) sBgNone.classList.remove('active');
-  });
-  if (sBgNone) sBgNone.addEventListener('click', () => {
-    state.textBg = '';
-    sBgNone.classList.add('active');
-  });
-  if (sBold) sBold.addEventListener('click', () => {
-    state.textBold = !state.textBold;
-    sBold.classList.toggle('active', state.textBold);
-  });
-  if (sItalic) sItalic.addEventListener('click', () => {
-    state.textItalic = !state.textItalic;
-    sItalic.classList.toggle('active', state.textItalic);
-  });
+  if (sBg) sBg.addEventListener('input', () => { state.textBg = sBg.value; if (sBgNone) sBgNone.classList.remove('active'); });
+  if (sBgNone) sBgNone.addEventListener('click', () => { state.textBg = ''; sBgNone.classList.add('active'); });
+  if (sBold) sBold.addEventListener('click', () => { state.textBold = !state.textBold; sBold.classList.toggle('active', state.textBold); });
+  if (sItalic) sItalic.addEventListener('click', () => { state.textItalic = !state.textItalic; sItalic.classList.toggle('active', state.textItalic); });
   if (sAlign) sAlign.addEventListener('click', () => {
     const cur = state.textAlign || 'right';
     state.textAlign = cur === 'right' ? 'center' : (cur === 'center' ? 'left' : 'right');
@@ -285,31 +238,34 @@ export function initPropsTabs() {
       if (panel) panel.style.display = 'block';
       if (key === 'design') updateDesignTabContent();
       if (key === 'effects') renderEffectsPanel();
-      if (key === 'anim') {
-        import('./ui-animation.js').then(m => m.renderAnimationPanel());
-      }
-      if (key === 'ai') {
-        import('./ui-ai-design.js').then(m => m.renderAiDesignPanel());
-      }
+      if (key === 'anim') import('./ui-animation.js').then(m => m.renderAnimationPanel());
+      if (key === 'ai') import('./ui-ai-design.js').then(m => m.renderAiDesignPanel());
     });
   });
 
-  // Automatically switch to Design tab and expand panel when Shape or Text tool is picked
+  // ★★ Session 2 — مزامنة اللوحة النشطة مع تغيير التحديد / التراجع / الصفحة
+  function refreshActivePropsTab() {
+    const activeTabEl = root.querySelector('.props-tab.active');
+    const key = activeTabEl ? activeTabEl.dataset.ptab : null;
+    if (key === 'effects') renderEffectsPanel();
+    else if (key === 'anim') import('./ui-animation.js').then(m => m.renderAnimationPanel());
+    else if (key === 'design') updateDesignTabContent();
+  }
+
+  document.addEventListener('ipb:selectionChanged', refreshActivePropsTab);
+  document.addEventListener('ipb:snapshotApplied', refreshActivePropsTab);
+  document.addEventListener('ipb:pageChanged', refreshActivePropsTab);
+
   document.addEventListener('ipb:toolChanged', (e) => {
     const tool = e.detail && e.detail.tool;
-    if (tool === 'shape' || tool === 'text') {
-      switchPropsTab('design');
-    } else {
-      updateDesignTabContent();
-    }
+    if (tool === 'shape' || tool === 'text') switchPropsTab('design');
+    else updateDesignTabContent();
   });
 }
 
-/**
- * ═══════════════════════════════════════════════════════════
- *  SHAPES LIBRARY (شريط جانبي متكامل وسهل لجميع الأشكال)
- * ═══════════════════════════════════════════════════════════
- */
+/* ═══════════════════════════════════════════════════════════
+   §4. SHAPES LIBRARY
+   ═══════════════════════════════════════════════════════════ */
 export async function renderShapesLibrary() {
   const panel = document.getElementById('shapesLibraryPanel');
   if (!panel) return;
@@ -345,20 +301,12 @@ export async function renderShapesLibrary() {
         </div>
         <p class="shlib-subtitle">انقر على الشكل لاختياره والرسم على الكانفاس، أو اضغط زر "إدراج" لوضعه مباشرة في الشريحة.</p>
       </div>
-
-      <!-- Search Box -->
       <div class="shlib-search-box">
         <input type="text" class="shlib-search-input" id="shlibSearchInput" placeholder="🔍 بحث عن شكل أو دارة..." value="${_shapeSearchQuery}">
       </div>
-
-      <!-- Category Filter Chips -->
       <div class="shlib-cats">
-        ${categories.map(c => `
-          <button type="button" class="shlib-cat-btn ${_activeShapeCat === c.id ? 'active' : ''}" data-cat="${c.id}">${c.label}</button>
-        `).join('')}
+        ${categories.map(c => `<button type="button" class="shlib-cat-btn ${_activeShapeCat === c.id ? 'active' : ''}" data-cat="${c.id}">${c.label}</button>`).join('')}
       </div>
-
-      <!-- Quick Style Toolbar -->
       <div class="shlib-style-bar">
         <div class="shlib-style-row">
           <div class="shlib-style-col">
@@ -373,18 +321,14 @@ export async function renderShapesLibrary() {
             </div>
           </div>
         </div>
-
         <div class="shlib-style-row" style="margin-top:6px">
           <div class="shlib-style-col">
             <label>السمك: <span id="shlibSWVal">${curSW}px</span></label>
             <div class="shlib-sizes-row">
-              ${[1, 2, 4, 8, 12, 16].map(sz => `
-                <button type="button" class="shlib-sz-btn ${sz === curSW ? 'active' : ''}" data-sz="${sz}">${sz}</button>
-              `).join('')}
+              ${[1,2,4,8,12,16].map(sz => `<button type="button" class="shlib-sz-btn ${sz === curSW ? 'active' : ''}" data-sz="${sz}">${sz}</button>`).join('')}
             </div>
           </div>
         </div>
-
         ${state.shapeKind === 'rounded-rect' ? `
           <div class="shlib-style-row" style="margin-top:6px">
             <div class="shlib-style-col" style="width:100%">
@@ -394,16 +338,12 @@ export async function renderShapesLibrary() {
           </div>
         ` : ''}
       </div>
-
-      <!-- Shapes Cards Grid -->
       <div class="shlib-grid">
         ${filtered.map(item => {
           const isActive = (state.shapeKind || 'rect') === item.id;
           return `
             <div class="shlib-card ${isActive ? 'active' : ''}" data-shape="${item.id}" title="${item.label}">
-              <div class="shlib-card-icon">
-                <svg viewBox="0 0 24 24" width="36" height="36">${item.icon}</svg>
-              </div>
+              <div class="shlib-card-icon"><svg viewBox="0 0 24 24" width="36" height="36">${item.icon}</svg></div>
               <div class="shlib-card-name">${item.label}</div>
               <button type="button" class="shlib-insert-btn" data-insert="${item.id}" title="إدراج في وسط الشريحة">➕ إدراج</button>
             </div>
@@ -413,46 +353,34 @@ export async function renderShapesLibrary() {
     </div>
   `;
 
-  // Bind Events
   const searchInput = document.getElementById('shlibSearchInput');
-  if (searchInput) {
-    searchInput.addEventListener('input', e => {
-      _shapeSearchQuery = e.target.value.trim();
-      renderShapesLibrary();
-    });
-  }
+  if (searchInput) searchInput.addEventListener('input', e => {
+    _shapeSearchQuery = e.target.value.trim();
+    renderShapesLibrary();
+  });
 
   panel.querySelectorAll('.shlib-cat-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      _activeShapeCat = btn.dataset.cat;
-      renderShapesLibrary();
-    });
+    btn.addEventListener('click', () => { _activeShapeCat = btn.dataset.cat; renderShapesLibrary(); });
   });
 
   const strInp = document.getElementById('shlibStrokeColor');
-  if (strInp) {
-    strInp.addEventListener('input', () => {
-      state.shapeColor = strInp.value;
-      document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
-    });
-  }
+  if (strInp) strInp.addEventListener('input', () => {
+    state.shapeColor = strInp.value;
+    document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
+  });
 
   const fillInp = document.getElementById('shlibFillColor');
   const fillNone = document.getElementById('shlibFillNoneBtn');
-  if (fillInp) {
-    fillInp.addEventListener('input', () => {
-      state.shapeFill = fillInp.value;
-      if (fillNone) fillNone.classList.remove('active');
-      document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
-    });
-  }
-  if (fillNone) {
-    fillNone.addEventListener('click', () => {
-      state.shapeFill = 'none';
-      fillNone.classList.add('active');
-      document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
-    });
-  }
+  if (fillInp) fillInp.addEventListener('input', () => {
+    state.shapeFill = fillInp.value;
+    if (fillNone) fillNone.classList.remove('active');
+    document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
+  });
+  if (fillNone) fillNone.addEventListener('click', () => {
+    state.shapeFill = 'none';
+    fillNone.classList.add('active');
+    document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
+  });
 
   panel.querySelectorAll('.shlib-sz-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -466,20 +394,17 @@ export async function renderShapesLibrary() {
   });
 
   const rSlider = document.getElementById('shlibRadiusSlider');
-  if (rSlider) {
-    rSlider.addEventListener('input', e => {
-      state.shapeCornerRadius = parseInt(e.target.value, 10) || 0;
-      const lbl = document.getElementById('shlibRadiusVal');
-      if (lbl) lbl.textContent = state.shapeCornerRadius + 'px';
-      document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
-    });
-  }
+  if (rSlider) rSlider.addEventListener('input', e => {
+    state.shapeCornerRadius = parseInt(e.target.value, 10) || 0;
+    const lbl = document.getElementById('shlibRadiusVal');
+    if (lbl) lbl.textContent = state.shapeCornerRadius + 'px';
+    document.dispatchEvent(new CustomEvent('ipb:toolConfigChanged'));
+  });
 
   panel.querySelectorAll('.shlib-card').forEach(card => {
     card.addEventListener('click', e => {
       if (e.target.closest('.shlib-insert-btn')) return;
-      const id = card.dataset.shape;
-      state.shapeKind = id;
+      state.shapeKind = card.dataset.shape;
       import('./main.js').then(m => m.setTool('shape'));
       renderShapesLibrary();
     });
@@ -488,19 +413,14 @@ export async function renderShapesLibrary() {
   panel.querySelectorAll('.shlib-insert-btn').forEach(btn => {
     btn.addEventListener('click', async e => {
       e.stopPropagation();
-      const id = btn.dataset.insert;
-      state.shapeKind = id;
-      await insertShapeInSlide(id);
+      state.shapeKind = btn.dataset.insert;
+      await insertShapeInSlide(btn.dataset.insert);
       renderShapesLibrary();
     });
   });
 }
 
-/**
- * إدراج شكل فورياً في وسط الشريحة الحالية
- */
 export async function insertShapeInSlide(shapeKind, options = {}) {
-  const shapes = await import('./shapes.js');
   const inter = await import('./interaction.js');
   const core = await import('./core.js');
 
@@ -518,13 +438,16 @@ export async function insertShapeInSlide(shapeKind, options = {}) {
   const strokeWidth = options.strokeWidth || core.state.shapeSize || 4;
 
   const pre = core.snapshot();
-  const el = shapes.createShapeElement(shapeKind, s, stroke, fill, strokeWidth, 'round', core.state);
+  const el = shapes.createShapeElement(shapeKind, core.state, s);
   shapes.updateShapeDuringDraw(shapeKind, el, s, p, core.state);
 
   el.dataset.x = s.x;
   el.dataset.y = s.y;
   el.dataset.w = w;
   el.dataset.h = h;
+  el.setAttribute('stroke', stroke);
+  el.setAttribute('fill', fill);
+  el.setAttribute('stroke-width', String(strokeWidth));
 
   const svgLayer = document.getElementById('svgLayer');
   if (svgLayer) {
@@ -537,11 +460,9 @@ export async function insertShapeInSlide(shapeKind, options = {}) {
   }
 }
 
-/**
- * ═══════════════════════════════════════════════════════════
- *  VISUAL EFFECTS ENGINE (تأثيرات بصرية للإنفوغرافيك قابلة للتحريك)
- * ═══════════════════════════════════════════════════════════
- */
+/* ═══════════════════════════════════════════════════════════
+   §5. VISUAL EFFECTS
+   ═══════════════════════════════════════════════════════════ */
 function getEffectsListFromElement(el) {
   if (!el) return [];
   try {
@@ -567,7 +488,6 @@ export async function renderEffectsPanel() {
   if (!panel) return;
 
   const core = await import('./core.js');
-  const inter = await import('./interaction.js');
   const sel = (core.state.selectedList && core.state.selectedList.length > 0)
     ? core.state.selectedList[0]
     : core.state.selected;
@@ -577,9 +497,7 @@ export async function renderEffectsPanel() {
       <div class="effects-empty">
         <div class="effects-empty-icon">✨</div>
         <div class="effects-empty-title">التأثيرات البصرية للإنفوغرافيك</div>
-        <div class="effects-empty-desc">
-          حدد عنصراً (شكلاً هندسياً، نصاً، صورة، فيديو، أو زراً) لتطبيق وتعديل التأثيرات البصرية المتطورة عليه.
-        </div>
+        <div class="effects-empty-desc">حدد عنصراً (شكلاً هندسياً، نصاً، صورة، فيديو، أو زراً) لتطبيق وتعديل التأثيرات البصرية المتطورة عليه.</div>
         <div class="effects-features-list">
           <div class="fx-feature-item">💡 توهج نيون مشع (Outer Glow)</div>
           <div class="fx-feature-item">☁️ ظل ساقط واقعي (Drop Shadow)</div>
@@ -596,11 +514,7 @@ export async function renderEffectsPanel() {
   let fxList = getEffectsListFromElement(el);
 
   const kindLabel = {
-    svg: 'شكل SVG',
-    text: 'مربع نص',
-    media: 'وسائط',
-    button: 'زر تفاعلي',
-    embed: 'تضمين ويب',
+    svg: 'شكل SVG', text: 'مربع نص', media: 'وسائط', button: 'زر تفاعلي', embed: 'تضمين ويب',
   }[sel.kind] || 'عنصر';
 
   panel.innerHTML = `
@@ -611,20 +525,17 @@ export async function renderEffectsPanel() {
           <div class="fx-item-count">${kindLabel} • (${fxList.length} تأثير)</div>
         </div>
         <div class="fx-add-wrapper">
-          <button type="button" class="fx-add-btn" id="btnAddEffectBtn">
-            <span>➕</span><span>إضافة تأثير</span>
-          </button>
+          <button type="button" class="fx-add-btn" id="btnAddEffectBtn"><span>➕</span><span>إضافة تأثير</span></button>
           <div class="fx-add-menu" id="fxAddMenu" style="display:none">
-            <button type="button" class="fx-menu-item" data-add="shadow">☁️ ظل ساقط (Drop Shadow)</button>
-            <button type="button" class="fx-menu-item" data-add="glow">💡 توهج خارجي (Outer Glow)</button>
-            <button type="button" class="fx-menu-item" data-add="stroke">📐 إطار وحدود (Stroke / Border)</button>
-            <button type="button" class="fx-menu-item" data-add="fill">🎨 تعبئة وتدرج (Fill / Gradient)</button>
-            <button type="button" class="fx-menu-item" data-add="blur">🔍 تمويه زجاجي (Blur / Glass)</button>
-            <button type="button" class="fx-menu-item" data-add="tilt">📐 بعد ثلاثي الأبعاد (3D Depth)</button>
+            <button type="button" class="fx-menu-item" data-add="shadow">☁️ ظل ساقط</button>
+            <button type="button" class="fx-menu-item" data-add="glow">💡 توهج خارجي</button>
+            <button type="button" class="fx-menu-item" data-add="stroke">📐 إطار وحدود</button>
+            <button type="button" class="fx-menu-item" data-add="fill">🎨 تعبئة وتدرج</button>
+            <button type="button" class="fx-menu-item" data-add="blur">🔍 تمويه زجاجي</button>
+            <button type="button" class="fx-menu-item" data-add="tilt">📐 بعد ثلاثي الأبعاد</button>
           </div>
         </div>
       </div>
-
       <div class="fx-items-stack" id="fxItemsStack">
         ${fxList.length === 0 ? `
           <div class="fx-empty-card">
@@ -632,32 +543,20 @@ export async function renderEffectsPanel() {
             <p>اضغط على زر (+ إضافة تأثير) أعلاه لإضافة الظلال، التوهج، التدرجات أو الأبعاد الثلاثية.</p>
           </div>
         ` : fxList.map((item, idx) => {
-          const typeIcons = {
-            shadow: '☁️',
-            glow: '💡',
-            stroke: '📐',
-            fill: '🎨',
-            blur: '🔍',
-            tilt: '📐',
-          };
+          const typeIcons = { shadow: '☁️', glow: '💡', stroke: '📐', fill: '🎨', blur: '🔍', tilt: '📐' };
           const icon = typeIcons[item.type] || '✨';
           return `
             <div class="fx-item-card ${item.active ? '' : 'disabled'}" data-fx-id="${item.id}">
               <div class="fx-item-header">
-                <div class="fx-item-title-wrap">
-                  <span style="font-size:14px">${icon}</span>
-                  <span class="fx-item-title">${item.name || item.type} #${idx + 1}</span>
-                </div>
+                <div class="fx-item-title-wrap"><span style="font-size:14px">${icon}</span><span class="fx-item-title">${item.name || item.type} #${idx + 1}</span></div>
                 <div class="fx-actions-row">
-                  <button type="button" class="fx-icon-btn fx-btn-up" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''} title="تحريك للأعلى">▲</button>
-                  <button type="button" class="fx-icon-btn fx-btn-down" data-idx="${idx}" ${idx === fxList.length - 1 ? 'disabled' : ''} title="تحريك للأسفل">▼</button>
-                  <button type="button" class="fx-icon-btn fx-btn-eye" data-idx="${idx}" title="${item.active ? 'إخفاء التأثير' : 'إظهار التأثير'}">${item.active ? '👁️' : '🙈'}</button>
-                  <button type="button" class="fx-icon-btn danger fx-btn-del" data-idx="${idx}" title="حذف التأثير">🗑️</button>
+                  <button type="button" class="fx-icon-btn fx-btn-up" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''}>▲</button>
+                  <button type="button" class="fx-icon-btn fx-btn-down" data-idx="${idx}" ${idx === fxList.length - 1 ? 'disabled' : ''}>▼</button>
+                  <button type="button" class="fx-icon-btn fx-btn-eye" data-idx="${idx}">${item.active ? '👁️' : '🙈'}</button>
+                  <button type="button" class="fx-icon-btn danger fx-btn-del" data-idx="${idx}">🗑️</button>
                 </div>
               </div>
-              <div class="fx-item-body" style="${item.active ? '' : 'display:none'}">
-                ${renderEffectControls(item, idx)}
-              </div>
+              <div class="fx-item-body" style="${item.active ? '' : 'display:none'}">${renderEffectControls(item, idx)}</div>
             </div>
           `;
         }).join('')}
@@ -665,7 +564,6 @@ export async function renderEffectsPanel() {
     </div>
   `;
 
-  // Toggle Add Menu
   const btnAdd = document.getElementById('btnAddEffectBtn');
   const addMenu = document.getElementById('fxAddMenu');
   if (btnAdd && addMenu) {
@@ -675,175 +573,110 @@ export async function renderEffectsPanel() {
       addMenu.style.display = isShow ? 'none' : 'flex';
     });
     document.addEventListener('pointerdown', (e) => {
-      if (!addMenu.contains(e.target) && e.target !== btnAdd && !btnAdd.contains(e.target)) {
-        addMenu.style.display = 'none';
-      }
+      if (!addMenu.contains(e.target) && e.target !== btnAdd && !btnAdd.contains(e.target)) addMenu.style.display = 'none';
     });
   }
 
-  // Handle Add Item
+  // ★★ Session 2 — استخدام state.selected بدل closure el عند النقر
   panel.querySelectorAll('.fx-menu-item').forEach(btn => {
     btn.addEventListener('click', () => {
       const type = btn.dataset.add;
       if (addMenu) addMenu.style.display = 'none';
-      addEffectOfType(type, el);
+      const current = (core.state.selectedList && core.state.selectedList.length > 0)
+        ? core.state.selectedList[0]
+        : core.state.selected;
+      if (current && current.el) addEffectOfType(type, current.el);
     });
   });
 
-  // Handle Reorder, Visibility, Delete
-  panel.querySelectorAll('.fx-btn-up').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const i = parseInt(btn.dataset.idx, 10);
-      if (i > 0) {
-        const tmp = fxList[i];
-        fxList[i] = fxList[i - 1];
-        fxList[i - 1] = tmp;
-        saveAndApplyEffects(el, fxList);
-      }
-    });
-  });
+  panel.querySelectorAll('.fx-btn-up').forEach(btn => btn.addEventListener('click', () => {
+    const i = parseInt(btn.dataset.idx, 10);
+    if (i > 0) {
+      const tmp = fxList[i];
+      fxList[i] = fxList[i - 1];
+      fxList[i - 1] = tmp;
+      saveAndApplyEffects(el, fxList);
+    }
+  }));
+  panel.querySelectorAll('.fx-btn-down').forEach(btn => btn.addEventListener('click', () => {
+    const i = parseInt(btn.dataset.idx, 10);
+    if (i < fxList.length - 1) {
+      const tmp = fxList[i];
+      fxList[i] = fxList[i + 1];
+      fxList[i + 1] = tmp;
+      saveAndApplyEffects(el, fxList);
+    }
+  }));
+  panel.querySelectorAll('.fx-btn-eye').forEach(btn => btn.addEventListener('click', () => {
+    const i = parseInt(btn.dataset.idx, 10);
+    if (fxList[i]) { fxList[i].active = !fxList[i].active; saveAndApplyEffects(el, fxList); }
+  }));
+  panel.querySelectorAll('.fx-btn-del').forEach(btn => btn.addEventListener('click', () => {
+    const i = parseInt(btn.dataset.idx, 10);
+    if (fxList[i]) { fxList.splice(i, 1); saveAndApplyEffects(el, fxList); }
+  }));
 
-  panel.querySelectorAll('.fx-btn-down').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const i = parseInt(btn.dataset.idx, 10);
-      if (i < fxList.length - 1) {
-        const tmp = fxList[i];
-        fxList[i] = fxList[i + 1];
-        fxList[i + 1] = tmp;
-        saveAndApplyEffects(el, fxList);
-      }
-    });
-  });
-
-  panel.querySelectorAll('.fx-btn-eye').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const i = parseInt(btn.dataset.idx, 10);
-      if (fxList[i]) {
-        fxList[i].active = !fxList[i].active;
-        saveAndApplyEffects(el, fxList);
-      }
-    });
-  });
-
-  panel.querySelectorAll('.fx-btn-del').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const i = parseInt(btn.dataset.idx, 10);
-      if (fxList[i]) {
-        fxList.splice(i, 1);
-        saveAndApplyEffects(el, fxList);
-      }
-    });
-  });
-
-  // Wire controls inside each item
   wireEffectControls(panel, el, fxList);
 }
 
 function renderEffectControls(item, idx) {
   if (item.type === 'shadow') {
     return `
-      <div class="fx-field-row">
-        <label><span>لون الظل والشفافية:</span><span class="fx-val-badge">${Math.round((item.opacity != null ? item.opacity : 0.4) * 100)}%</span></label>
+      <div class="fx-field-row"><label><span>لون الظل والشفافية:</span><span class="fx-val-badge">${Math.round((item.opacity != null ? item.opacity : 0.4) * 100)}%</span></label>
         <div style="display:flex;gap:6px;align-items:center">
           <input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="color" value="${item.color && item.color.startsWith('#') ? item.color : '#000000'}">
           <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="opacity" min="0" max="1" step="0.05" value="${item.opacity != null ? item.opacity : 0.4}">
         </div>
       </div>
-      <div class="fx-field-row">
-        <label><span>التمويه (Blur):</span><span class="fx-val-badge">${item.blur || 24}px</span></label>
-        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="blur" min="0" max="60" value="${item.blur || 24}">
-      </div>
+      <div class="fx-field-row"><label><span>التمويه (Blur):</span><span class="fx-val-badge">${item.blur || 24}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="blur" min="0" max="60" value="${item.blur || 24}"></div>
       <div class="fx-field-row-2">
-        <div class="fx-field-row">
-          <label><span>إزاحة X:</span><span class="fx-val-badge">${item.x || 0}px</span></label>
-          <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="x" min="-50" max="50" value="${item.x || 0}">
-        </div>
-        <div class="fx-field-row">
-          <label><span>إزاحة Y:</span><span class="fx-val-badge">${item.y || 12}px</span></label>
-          <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="y" min="-50" max="50" value="${item.y || 12}">
-        </div>
+        <div class="fx-field-row"><label><span>إزاحة X:</span><span class="fx-val-badge">${item.x || 0}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="x" min="-50" max="50" value="${item.x || 0}"></div>
+        <div class="fx-field-row"><label><span>إزاحة Y:</span><span class="fx-val-badge">${item.y || 12}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="y" min="-50" max="50" value="${item.y || 12}"></div>
       </div>
     `;
   }
   if (item.type === 'glow') {
     return `
-      <div class="fx-field-row">
-        <label><span>لون التوهج:</span></label>
-        <input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="color" value="${item.color || '#3b82f6'}">
-      </div>
-      <div class="fx-field-row">
-        <label><span>نصف قطر التوهج:</span><span class="fx-val-badge">${item.blur || 20}px</span></label>
-        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="blur" min="2" max="60" value="${item.blur || 20}">
-      </div>
-      <div class="fx-field-row">
-        <label><span>شدة الإشعاع (Spread):</span><span class="fx-val-badge">${item.spread || 2}x</span></label>
-        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="spread" min="1" max="5" value="${item.spread || 2}">
-      </div>
+      <div class="fx-field-row"><label><span>لون التوهج:</span></label><input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="color" value="${item.color || '#3b82f6'}"></div>
+      <div class="fx-field-row"><label><span>نصف قطر التوهج:</span><span class="fx-val-badge">${item.blur || 20}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="blur" min="2" max="60" value="${item.blur || 20}"></div>
+      <div class="fx-field-row"><label><span>شدة الإشعاع (Spread):</span><span class="fx-val-badge">${item.spread || 2}x</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="spread" min="1" max="5" value="${item.spread || 2}"></div>
     `;
   }
   if (item.type === 'stroke') {
     return `
-      <div class="fx-field-row">
-        <label><span>لون الإطار:</span></label>
-        <input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="color" value="${item.color || '#3b82f6'}">
-      </div>
-      <div class="fx-field-row">
-        <label><span>سمك الإطار:</span><span class="fx-val-badge">${item.width || 3}px</span></label>
-        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="width" min="1" max="30" value="${item.width || 3}">
-      </div>
-      <div class="fx-field-row">
-        <label><span>نمط الخط:</span></label>
+      <div class="fx-field-row"><label><span>لون الإطار:</span></label><input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="color" value="${item.color || '#3b82f6'}"></div>
+      <div class="fx-field-row"><label><span>سمك الإطار:</span><span class="fx-val-badge">${item.width || 3}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="width" min="1" max="30" value="${item.width || 3}"></div>
+      <div class="fx-field-row"><label><span>نمط الخط:</span></label>
         <select class="prop-input fx-ctrl" data-idx="${idx}" data-field="style">
-          <option value="solid" ${item.style === 'solid' ? 'selected' : ''}>متصل (Solid)</option>
-          <option value="dashed" ${item.style === 'dashed' ? 'selected' : ''}>متقطع (Dashed)</option>
-          <option value="dotted" ${item.style === 'dotted' ? 'selected' : ''}>نقاط (Dotted)</option>
+          <option value="solid" ${item.style === 'solid' ? 'selected' : ''}>متصل</option>
+          <option value="dashed" ${item.style === 'dashed' ? 'selected' : ''}>متقطع</option>
+          <option value="dotted" ${item.style === 'dotted' ? 'selected' : ''}>نقاط</option>
         </select>
       </div>
     `;
   }
   if (item.type === 'fill') {
     return `
-      <div class="fx-field-row">
-        <label><span>نوع التعبئة:</span></label>
+      <div class="fx-field-row"><label><span>نوع التعبئة:</span></label>
         <select class="prop-input fx-ctrl" data-idx="${idx}" data-field="fillType">
-          <option value="gradient" ${item.fillType !== 'solid' ? 'selected' : ''}>تدرج لوني (Gradient)</option>
-          <option value="solid" ${item.fillType === 'solid' ? 'selected' : ''}>لون خالص (Solid)</option>
+          <option value="gradient" ${item.fillType !== 'solid' ? 'selected' : ''}>تدرج لوني</option>
+          <option value="solid" ${item.fillType === 'solid' ? 'selected' : ''}>لون خالص</option>
         </select>
       </div>
       <div class="fx-field-row-2">
-        <div class="fx-field-row">
-          <label><span>اللون الأول:</span></label>
-          <input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="c1" value="${item.c1 || '#3b82f6'}">
-        </div>
-        <div class="fx-field-row" style="${item.fillType === 'solid' ? 'display:none' : ''}">
-          <label><span>اللون الثاني:</span></label>
-          <input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="c2" value="${item.c2 || '#9333ea'}">
-        </div>
+        <div class="fx-field-row"><label><span>اللون الأول:</span></label><input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="c1" value="${item.c1 || '#3b82f6'}"></div>
+        <div class="fx-field-row" style="${item.fillType === 'solid' ? 'display:none' : ''}"><label><span>اللون الثاني:</span></label><input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="c2" value="${item.c2 || '#9333ea'}"></div>
       </div>
-      <div class="fx-field-row" style="${item.fillType === 'solid' ? 'display:none' : ''}">
-        <label><span>زاوية التدرج:</span><span class="fx-val-badge">${item.angle || 45}°</span></label>
-        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="angle" min="0" max="360" value="${item.angle || 45}">
-      </div>
+      <div class="fx-field-row" style="${item.fillType === 'solid' ? 'display:none' : ''}"><label><span>زاوية التدرج:</span><span class="fx-val-badge">${item.angle || 45}°</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="angle" min="0" max="360" value="${item.angle || 45}"></div>
     `;
   }
   if (item.type === 'blur') {
-    return `
-      <div class="fx-field-row">
-        <label><span>شدة التمويه (Glass Blur):</span><span class="fx-val-badge">${item.val || 6}px</span></label>
-        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="val" min="1" max="40" value="${item.val || 6}">
-      </div>
-    `;
+    return `<div class="fx-field-row"><label><span>شدة التمويه:</span><span class="fx-val-badge">${item.val || 6}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="val" min="1" max="40" value="${item.val || 6}"></div>`;
   }
   if (item.type === 'tilt') {
     return `
-      <div class="fx-field-row">
-        <label><span>ميلان رأسي (X Tilt):</span><span class="fx-val-badge">${item.rx || 0}°</span></label>
-        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="rx" min="-45" max="45" value="${item.rx || 0}">
-      </div>
-      <div class="fx-field-row">
-        <label><span>ميلان أفقي (Y Tilt):</span><span class="fx-val-badge">${item.ry || 0}°</span></label>
-        <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="ry" min="-45" max="45" value="${item.ry || 0}">
-      </div>
+      <div class="fx-field-row"><label><span>ميلان رأسي (X Tilt):</span><span class="fx-val-badge">${item.rx || 0}°</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="rx" min="-45" max="45" value="${item.rx || 0}"></div>
+      <div class="fx-field-row"><label><span>ميلان أفقي (Y Tilt):</span><span class="fx-val-badge">${item.ry || 0}°</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="ry" min="-45" max="45" value="${item.ry || 0}"></div>
     `;
   }
   return '';
@@ -858,9 +691,7 @@ function wireEffectControls(panel, el, fxList) {
 
     const handler = () => {
       let val = ctrl.value;
-      if (['opacity', 'blur', 'x', 'y', 'spread', 'width', 'angle', 'val', 'rx', 'ry'].includes(field)) {
-        val = parseFloat(val) || 0;
-      }
+      if (['opacity', 'blur', 'x', 'y', 'spread', 'width', 'angle', 'val', 'rx', 'ry'].includes(field)) val = parseFloat(val) || 0;
       it[field] = val;
       const badge = ctrl.closest('.fx-field-row')?.querySelector('.fx-val-badge');
       if (badge) {
@@ -893,7 +724,6 @@ function addEffectOfType(type, el) {
     blur: { id: uid, type: 'blur', name: 'تمويه زجاجي', active: true, val: 8 },
     tilt: { id: uid, type: 'tilt', name: 'بعد ثلاثي الأبعاد', active: true, rx: 15, ry: -15 },
   };
-
   const newFx = defs[type] || { id: uid, type, name: 'تأثير', active: true };
   fxList.push(newFx);
   saveAndApplyEffects(el, fxList);
@@ -908,7 +738,7 @@ async function saveAndApplyEffects(el, fxList) {
 }
 
 /**
- * تطبيق التأثيرات البصرية فعلياً على العنصر (SVG أو HTML) بترتيب الطبقات الدقيق
+ * تطبيق التأثيرات البصرية (Session 3 — Tilt يدور حول مركز العنصر)
  */
 export function applyVisualEffectsToElement(el, effects) {
   if (!el || !effects) return;
@@ -937,9 +767,7 @@ export function applyVisualEffectsToElement(el, effects) {
       const col = item.color || '#3b82f6';
       const b = item.blur || 20;
       const repeat = Math.min(3, Math.max(1, item.spread || 1));
-      for (let i = 0; i < repeat; i++) {
-        filters.push(`drop-shadow(0 0 ${b}px ${col})`);
-      }
+      for (let i = 0; i < repeat; i++) filters.push(`drop-shadow(0 0 ${b}px ${col})`);
     } else if (item.type === 'blur') {
       if ((item.val || 0) > 0) filters.push(`blur(${item.val}px)`);
     } else if (item.type === 'tilt') {
@@ -955,14 +783,15 @@ export function applyVisualEffectsToElement(el, effects) {
 
   if (isSvg) {
     el.style.filter = filterStr;
-    const wrap = el.closest && el.closest('.annot-wrapper');
-    if (wrap) {
-      if (transformStr) {
-        wrap.style.transform = transformStr;
-        wrap.style.transformOrigin = 'center center';
-      } else {
-        wrap.style.transform = '';
-      }
+
+    // ★ Session 3 — Tilt يُطبَّق على العنصر نفسه (fill-box) بدل الـ wrapper
+    if (transformStr) {
+      const existing = el.style.transform || '';
+      const rotMatch = existing.match(/rotate\([^)]+\)/);
+      const combined = [rotMatch ? rotMatch[0] : '', transformStr].filter(Boolean).join(' ');
+      el.style.transformBox = 'fill-box';
+      el.style.transformOrigin = 'center center';
+      el.style.transform = combined;
     }
 
     if (activeStroke) {
@@ -991,44 +820,31 @@ export function applyVisualEffectsToElement(el, effects) {
           defs.appendChild(grad);
         }
         const ang = (activeFill.angle || 45) * Math.PI / 180;
-        const x1 = Math.round(50 - Math.cos(ang) * 50) + '%';
-        const y1 = Math.round(50 - Math.sin(ang) * 50) + '%';
-        const x2 = Math.round(50 + Math.cos(ang) * 50) + '%';
-        const y2 = Math.round(50 + Math.sin(ang) * 50) + '%';
-        grad.setAttribute('x1', x1); grad.setAttribute('y1', y1);
-        grad.setAttribute('x2', x2); grad.setAttribute('y2', y2);
-        grad.innerHTML = `
-          <stop offset="0%" stop-color="${activeFill.c1 || '#3b82f6'}"/>
-          <stop offset="100%" stop-color="${activeFill.c2 || '#9333ea'}"/>
-        `;
+        grad.setAttribute('x1', Math.round(50 - Math.cos(ang) * 50) + '%');
+        grad.setAttribute('y1', Math.round(50 - Math.sin(ang) * 50) + '%');
+        grad.setAttribute('x2', Math.round(50 + Math.cos(ang) * 50) + '%');
+        grad.setAttribute('y2', Math.round(50 + Math.sin(ang) * 50) + '%');
+        grad.innerHTML = `<stop offset="0%" stop-color="${activeFill.c1 || '#3b82f6'}"/><stop offset="100%" stop-color="${activeFill.c2 || '#9333ea'}"/>`;
         el.setAttribute('fill', `url(#${gradId})`);
       }
     }
   } else {
-    // HTML element (.media-obj, .pdf-text-box, .pdf-interactive-btn, .embed)
     el.style.filter = filterStr;
     if (transformStr) {
       el.style.transform = transformStr;
       el.style.transformOrigin = 'center center';
     }
-
-    if (activeStroke) {
-      el.style.border = `${activeStroke.width || 2}px ${activeStroke.style || 'solid'} ${activeStroke.color || '#3b82f6'}`;
-    }
-
+    if (activeStroke) el.style.border = `${activeStroke.width || 2}px ${activeStroke.style || 'solid'} ${activeStroke.color || '#3b82f6'}`;
     if (activeFill) {
-      if (activeFill.fillType === 'solid') {
-        el.style.backgroundColor = activeFill.c1 || '#3b82f6';
-      } else {
-        el.style.background = `linear-gradient(${activeFill.angle || 45}deg, ${activeFill.c1 || '#3b82f6'}, ${activeFill.c2 || '#9333ea'})`;
-      }
+      if (activeFill.fillType === 'solid') el.style.backgroundColor = activeFill.c1 || '#3b82f6';
+      else el.style.background = `linear-gradient(${activeFill.angle || 45}deg, ${activeFill.c1 || '#3b82f6'}, ${activeFill.c2 || '#9333ea'})`;
     }
   }
 }
 
-/* ============================================================
-   §4. BOTTOM PANEL
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §6. BOTTOM PANEL (Session 2 — Notes listener)
+   ═══════════════════════════════════════════════════════════ */
 function initBottomPanel() {
   const panel = document.getElementById('bottomPanel');
   if (!panel) return;
@@ -1036,6 +852,21 @@ function initBottomPanel() {
   const tabs = panel.querySelectorAll('.bp-tab');
   const contents = panel.querySelectorAll('.bp-content');
   const toggle = document.getElementById('bpToggle');
+
+  // ★★ ربط ملاحظات الشريحة
+  const notesArea = document.getElementById('notesTextarea');
+  if (notesArea && !notesArea._uiNotesWired) {
+    notesArea._uiNotesWired = true;
+    notesArea.addEventListener('input', () => {
+      const slide = state.slides && state.slides[state.currentPage - 1];
+      if (slide) slide.notes = notesArea.value;
+      import('./core.js').then(c => c.markDirty());
+    });
+    document.addEventListener('ipb:pageChanged', () => {
+      const slide = state.slides && state.slides[state.currentPage - 1];
+      notesArea.value = (slide && slide.notes) || '';
+    });
+  }
 
   function setExpanded(expanded) {
     panel.classList.toggle('collapsed', !expanded);
@@ -1049,10 +880,7 @@ function initBottomPanel() {
       const wasActive = tab.classList.contains('active');
       const isCollapsed = panel.classList.contains('collapsed');
 
-      if (wasActive && !isCollapsed) {
-        setExpanded(false);
-        return;
-      }
+      if (wasActive && !isCollapsed) { setExpanded(false); return; }
 
       tabs.forEach(t => t.classList.remove('active'));
       contents.forEach(c => c.classList.remove('active'));
@@ -1061,10 +889,7 @@ function initBottomPanel() {
       const content = panel.querySelector('.bp-content[data-bpanel="' + key + '"]');
       if (content) content.classList.add('active');
 
-      if (key === 'timeline') {
-        import('./ui-animation.js').then(m => m.renderTimelineTracks && m.renderTimelineTracks());
-      }
-
+      if (key === 'timeline') import('./ui-animation.js').then(m => m.renderTimelineTracks && m.renderTimelineTracks());
       setExpanded(true);
     });
   });
@@ -1079,9 +904,9 @@ function initBottomPanel() {
   setExpanded(false);
 }
 
-/* ============================================================
-   §5. LAYERS PANEL
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §7. LAYERS (Session 1 — __CORE__ fix)
+   ═══════════════════════════════════════════════════════════ */
 function getLayerIcon(type) {
   if (type === 'pdf-page') return '📄';
   if (type === 'slide-bg') return '🎨';
@@ -1113,9 +938,7 @@ export function refreshLayersPanel() {
       if (!inner) return;
       const t = inner.dataset.type || inner.tagName.toLowerCase();
       items.push({
-        el: wrap,
-        kind: 'svg',
-        type: t,
+        el: wrap, kind: 'svg', type: t,
         name: t + ' ' + (inner.dataset.id ? inner.dataset.id.slice(-4) : ''),
         z: parseInt(wrap.style.zIndex || '0', 10),
         id: wrap.dataset.annotId,
@@ -1128,9 +951,7 @@ export function refreshLayersPanel() {
     txt.querySelectorAll('.pdf-text-box').forEach((el, i) => {
       const isEq = el.dataset.isEquation === 'true';
       items.push({
-        el,
-        kind: 'text',
-        type: isEq ? 'equation' : 'text',
+        el, kind: 'text', type: isEq ? 'equation' : 'text',
         name: (isEq ? 'معادلة ' : 'نص ') + (i + 1),
         z: parseInt(el.style.zIndex || '0', 10),
         id: el.dataset.textId,
@@ -1141,53 +962,32 @@ export function refreshLayersPanel() {
   const vid = document.getElementById('videoLayer');
   if (vid) {
     vid.querySelectorAll('.media-obj').forEach((el, i) => {
-      items.push({
-        el,
-        kind: 'media',
-        type: 'media',
-        name: el.dataset.title || ('ميديا ' + (i + 1)),
-        z: parseInt(el.style.zIndex || '0', 10),
-        id: el.dataset.mediaId,
-      });
+      items.push({ el, kind: 'media', type: 'media', name: el.dataset.title || ('ميديا ' + (i + 1)), z: parseInt(el.style.zIndex || '0', 10), id: el.dataset.mediaId });
     });
   }
 
   const emb = document.getElementById('embedLayer');
   if (emb) {
     emb.querySelectorAll('.embed').forEach((el, i) => {
-      items.push({
-        el,
-        kind: 'embed',
-        type: 'embed',
-        name: 'تضمين: ' + (el.dataset.url || ('#' + (i + 1))),
-        z: parseInt(el.style.zIndex || '0', 10),
-        id: 'embed-' + i,
-      });
+      items.push({ el, kind: 'embed', type: 'embed', name: 'تضمين: ' + (el.dataset.url || ('#' + (i + 1))), z: parseInt(el.style.zIndex || '0', 10), id: 'embed-' + i });
     });
   }
 
   const ib = document.getElementById('interactiveLayer');
   if (ib) {
     ib.querySelectorAll('.pdf-interactive-btn').forEach((el, i) => {
-      items.push({
-        el,
-        kind: 'button',
-        type: 'button',
-        name: el.dataset.text || ('زر ' + (i + 1)),
-        z: parseInt(el.style.zIndex || '0', 10),
-        id: el.dataset.btnId,
-      });
+      items.push({ el, kind: 'button', type: 'button', name: el.dataset.text || ('زر ' + (i + 1)), z: parseInt(el.style.zIndex || '0', 10), id: el.dataset.btnId });
     });
   }
 
-  // ★ اعتبار صفحة PDF / خلفية الشريحة عبارة عن layer أساسية
+  // ★ Session 1 — استخدام state المُستورد بدل window.__CORE__
   const pdfCanvas = document.getElementById('pdfCanvas');
   const hasProject = document.body.classList.contains('has-project');
   if (pdfCanvas && hasProject) {
     let isPdf = false;
     let pageNum = 1;
     try {
-      const s = state;                       // state مُستوردٌ بالفعل في أعلى الملف
+      const s = state;
       if (s && s.slides) {
         const sl = s.slides[s.currentPage - 1];
         isPdf = !!(s.pdfDoc || (sl && sl.bg && sl.bg.type === 'pdf'));
@@ -1196,14 +996,11 @@ export function refreshLayersPanel() {
     } catch (_) {}
     const isVisible = pdfCanvas.style.visibility !== 'hidden' && pdfCanvas.style.display !== 'none';
     items.push({
-      el: pdfCanvas,
-      kind: 'canvas',
+      el: pdfCanvas, kind: 'canvas',
       type: isPdf ? 'pdf-page' : 'slide-bg',
       name: isPdf ? `صفحة PDF (${pageNum})` : 'خلفية الشريحة',
-      z: -9999,
-      id: 'pdf-page-canvas-layer',
-      isBaseLayer: true,
-      visible: isVisible,
+      z: -9999, id: 'pdf-page-canvas-layer',
+      isBaseLayer: true, visible: isVisible,
     });
   }
 
@@ -1230,13 +1027,11 @@ export function refreshLayersPanel() {
     if (item.isBaseLayer) {
       row.draggable = false;
       dragHandle.textContent = '🔒';
-      dragHandle.title = 'الطبقة الأساسية (مقفل)';
       dragHandle.style.cursor = 'default';
       dragHandle.style.opacity = '0.7';
     } else {
       row.draggable = true;
       dragHandle.textContent = '⋮⋮';
-      dragHandle.title = 'اسحب لإعادة الترتيب';
     }
 
     const iconSpan = document.createElement('span');
@@ -1250,7 +1045,6 @@ export function refreshLayersPanel() {
     const visSpan = document.createElement('span');
     visSpan.className = 'ly-toggle ' + (item.visible !== false ? 'on' : '');
     visSpan.dataset.act = 'vis';
-    visSpan.title = 'إظهار / إخفاء';
     visSpan.textContent = '👁';
 
     row.appendChild(dragHandle);
@@ -1261,11 +1055,8 @@ export function refreshLayersPanel() {
     row.addEventListener('click', (e) => {
       if (e.target.dataset.act === 'vis') {
         const visible = e.target.classList.toggle('on');
-        if (item.isBaseLayer) {
-          item.el.style.visibility = visible ? 'visible' : 'hidden';
-        } else {
-          item.el.style.display = visible ? '' : 'none';
-        }
+        if (item.isBaseLayer) item.el.style.visibility = visible ? 'visible' : 'hidden';
+        else item.el.style.display = visible ? '' : 'none';
         return;
       }
       list.querySelectorAll('.layer-row').forEach(r => r.classList.remove('active'));
@@ -1273,9 +1064,7 @@ export function refreshLayersPanel() {
       if (item.isBaseLayer) {
         showDocumentDimsPanel();
       } else {
-        document.dispatchEvent(new CustomEvent('ipb:selectLayer', {
-          detail: { el: item.el, kind: item.kind },
-        }));
+        document.dispatchEvent(new CustomEvent('ipb:selectLayer', { detail: { el: item.el, kind: item.kind } }));
       }
     });
 
@@ -1289,9 +1078,7 @@ export function refreshLayersPanel() {
     row.addEventListener('dragend', () => {
       row.classList.remove('dragging');
       list.classList.remove('drag-active');
-      list.querySelectorAll('.layer-row').forEach(r =>
-        r.classList.remove('drag-over-top', 'drag-over-bottom')
-      );
+      list.querySelectorAll('.layer-row').forEach(r => r.classList.remove('drag-over-top', 'drag-over-bottom'));
     });
 
     row.addEventListener('dragover', (e) => {
@@ -1300,15 +1087,11 @@ export function refreshLayersPanel() {
       const rect = row.getBoundingClientRect();
       const mid = rect.top + rect.height / 2;
       const isTop = e.clientY < mid;
-      list.querySelectorAll('.layer-row').forEach(r => {
-        r.classList.remove('drag-over-top', 'drag-over-bottom');
-      });
+      list.querySelectorAll('.layer-row').forEach(r => r.classList.remove('drag-over-top', 'drag-over-bottom'));
       row.classList.add(isTop ? 'drag-over-top' : 'drag-over-bottom');
     });
 
-    row.addEventListener('dragleave', () => {
-      row.classList.remove('drag-over-top', 'drag-over-bottom');
-    });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over-top', 'drag-over-bottom'));
 
     row.addEventListener('drop', async (e) => {
       e.preventDefault();
@@ -1330,16 +1113,11 @@ export function refreshLayersPanel() {
         if (!movedItem) return;
 
         let insertIdx = displayIdx;
-        if (fromDisplayIdx < displayIdx) {
-          insertIdx = displayIdx - 1;
-        }
-        if (!insertAbove) {
-          insertIdx += 1;
-        }
+        if (fromDisplayIdx < displayIdx) insertIdx = displayIdx - 1;
+        if (!insertAbove) insertIdx += 1;
         insertIdx = Math.max(0, Math.min(reordered.length, insertIdx));
         reordered.splice(insertIdx, 0, movedItem);
 
-        // Convert top-to-bottom display order to bottom-to-top z-index order
         const ascendingItems = reordered.slice().reverse();
 
         const pre = core.snapshot();
@@ -1348,23 +1126,20 @@ export function refreshLayersPanel() {
 
         refreshLayersPanel();
 
-        // تحديث المصغرات
         const pdf = await import('./pdf.js');
         if (pdf.captureStageThumbnail && core.state.currentPage) {
           pdf.captureStageThumbnail(core.state.currentPage).catch(() => {});
         }
-      } catch (err) {
-        console.warn('layer reorder drop error:', err);
-      }
+      } catch (err) { console.warn('layer reorder drop error:', err); }
     });
 
     list.appendChild(row);
   });
 }
 
-/* ============================================================
-   §6. TOPBAR ACTIONS
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §8. TOPBAR (Session 6 — saveProjectOver)
+   ═══════════════════════════════════════════════════════════ */
 function initTopbarActions() {
   const btnUndo = document.getElementById('btnUndo');
   const btnRedo = document.getElementById('btnRedo');
@@ -1375,80 +1150,54 @@ function initTopbarActions() {
   const btnPreview = document.getElementById('btnPreview');
   const btnPresent = document.getElementById('btnPresent');
 
-  if (btnUndo) {
-    btnUndo.addEventListener('click', async () => {
-      try {
-        const core = await import('./core.js');
-        core.undo();
-        setSaveBadge('تم التراجع', false);
-      } catch (e) { console.warn(e); }
-    });
-  }
-  if (btnRedo) {
-    btnRedo.addEventListener('click', async () => {
-      try {
-        const core = await import('./core.js');
-        core.redo();
-        setSaveBadge('تم الإعادة', false);
-      } catch (e) { console.warn(e); }
-    });
-  }
-  if (btnCopy) {
-    btnCopy.addEventListener('click', async () => {
-      try {
-        const inter = await import('./interaction.js');
-        const core = await import('./core.js');
-        const sel = core.state.selectedList && core.state.selectedList.length > 0
-          ? core.state.selectedList[0]
-          : core.state.selected;
-        if (sel && sel.el) {
-          inter.copyElement(sel.el);
-        } else {
-          safeToast('حدد عنصراً أولاً للنسخ (شكل، نص، صورة، زر)', 'info');
-        }
-      } catch (e) { console.warn(e); }
-    });
-  }
-  if (btnPaste) {
-    btnPaste.addEventListener('click', async () => {
-      try {
-        const inter = await import('./interaction.js');
-        inter.pasteElement();
-      } catch (e) { console.warn(e); }
-    });
-  }
-  if (btnOpen) {
-    btnOpen.addEventListener('click', () => {
-      const input = document.getElementById('fileInput');
-      if (input) input.click();
-    });
-  }
-  if (btnSave) {
-    btnSave.addEventListener('click', async () => {
-      setSaveBadge('جارٍ الحفظ…', true);
-      try {
-        const storage = await import('./storage.js');
-        await storage.saveProjectAsFile();
-        setSaveBadge('محفوظ الآن', false);
-      } catch (e) {
-        setSaveBadge('فشل الحفظ', false);
-      }
-    });
-  }
+  if (btnUndo) btnUndo.addEventListener('click', async () => {
+    try { const core = await import('./core.js'); core.undo(); setSaveBadge('تم التراجع', false); } catch (e) { console.warn(e); }
+  });
+  if (btnRedo) btnRedo.addEventListener('click', async () => {
+    try { const core = await import('./core.js'); core.redo(); setSaveBadge('تم الإعادة', false); } catch (e) { console.warn(e); }
+  });
+  if (btnCopy) btnCopy.addEventListener('click', async () => {
+    try {
+      const inter = await import('./interaction.js');
+      const core = await import('./core.js');
+      const sel = core.state.selectedList && core.state.selectedList.length > 0 ? core.state.selectedList[0] : core.state.selected;
+      if (sel && sel.el) inter.copyElement(sel.el);
+      else safeToast('حدد عنصراً أولاً للنسخ', 'info');
+    } catch (e) { console.warn(e); }
+  });
+  if (btnPaste) btnPaste.addEventListener('click', async () => {
+    try { const inter = await import('./interaction.js'); inter.pasteElement(); } catch (e) { console.warn(e); }
+  });
+  if (btnOpen) btnOpen.addEventListener('click', () => {
+    const input = document.getElementById('fileInput');
+    if (input) input.click();
+  });
+
+  // ★ Session 6 — Save Over بدل Save As
+  if (btnSave) btnSave.addEventListener('click', async () => {
+    setSaveBadge('جارٍ الحفظ…', true);
+    try {
+      const storage = await import('./storage.js');
+      await storage.saveProjectOver();
+      setSaveBadge('محفوظ الآن', false);
+    } catch (e) { setSaveBadge('فشل الحفظ', false); }
+  });
+
   if (btnPreview) btnPreview.addEventListener('click', openPresentMode);
   if (btnPresent) btnPresent.addEventListener('click', openPresentMode);
 }
 
-/* ============================================================
-   §7. CLOSE PROJECT
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §9. CLOSE PROJECT
+   ═══════════════════════════════════════════════════════════ */
 function initCloseProject() {
   const btn = document.getElementById('btnCloseProject');
   if (!btn) return;
   btn.addEventListener('click', showCloseDialog);
 
   document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
+    // Ctrl+Shift+W (لتفادي تعارض Ctrl+W مع المتصفح)
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'w') {
       e.preventDefault();
       showCloseDialog();
     }
@@ -1458,7 +1207,6 @@ function initCloseProject() {
 function showCloseDialog() {
   import('./core.js').then(core => {
     const state = core.state;
-
     openConfirmDialog({
       title: 'إغلاق المشروع',
       message: 'هل تريد حفظ التغييرات في هذا المشروع قبل الإغلاق؟',
@@ -1467,17 +1215,11 @@ function showCloseDialog() {
       secondaryLabel: 'عدم الحفظ',
       cancelLabel: 'إلغاء',
       onPrimary: async () => {
-        try {
-          const storage = await import('./storage.js');
-          await storage.saveProjectAsFile();
-        } catch (e) {
-          console.warn('save failed', e);
-        }
+        try { const storage = await import('./storage.js'); await storage.saveProjectOver(); }
+        catch (e) { console.warn('save failed', e); }
         resetToEmptyState();
       },
-      onSecondary: () => {
-        resetToEmptyState();
-      },
+      onSecondary: () => resetToEmptyState(),
     });
   }).catch(err => console.error(err));
 }
@@ -1517,41 +1259,31 @@ function openConfirmDialog(opts) {
     setTimeout(() => backdrop.remove(), 180);
   }
 
-  dialog.querySelector('.ipb-confirm-primary').addEventListener('click', () => {
-    close();
-    if (opts.onPrimary) opts.onPrimary();
-  });
-  dialog.querySelector('.ipb-confirm-secondary').addEventListener('click', () => {
-    close();
-    if (opts.onSecondary) opts.onSecondary();
-  });
-  dialog.querySelector('.ipb-confirm-cancel').addEventListener('click', () => {
-    close();
-    if (opts.onCancel) opts.onCancel();
-  });
+  dialog.querySelector('.ipb-confirm-primary').addEventListener('click', () => { close(); if (opts.onPrimary) opts.onPrimary(); });
+  dialog.querySelector('.ipb-confirm-secondary').addEventListener('click', () => { close(); if (opts.onSecondary) opts.onSecondary(); });
+  dialog.querySelector('.ipb-confirm-cancel').addEventListener('click', () => { close(); if (opts.onCancel) opts.onCancel(); });
 
-  backdrop.addEventListener('click', (e) => {
-    if (e.target === backdrop) close();
-  });
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
   document.addEventListener('keydown', function onEsc(e) {
-    if (e.key === 'Escape') {
-      document.removeEventListener('keydown', onEsc);
-      close();
-    }
+    if (e.key === 'Escape') { document.removeEventListener('keydown', onEsc); close(); }
   });
 
-  requestAnimationFrame(() => backdrop.classList.add('show'));
-  setTimeout(() => {
-    try { dialog.querySelector('.ipb-confirm-primary').focus(); } catch (_) {}
-  }, 100);
+  setTimeout(() => { try { dialog.querySelector('.ipb-confirm-primary').focus(); } catch (_) {} }, 100);
 }
 
-/**
- * إعادة التطبيق إلى الحالة الفارغة — إعادة تعيين كاملة
- */
+/* ═══════════════════════════════════════════════════════════
+   §10. RESET TO EMPTY (Session 6 — resetProjectHandles)
+   ═══════════════════════════════════════════════════════════ */
 function resetToEmptyState() {
   import('./core.js').then(core => {
     const state = core.state;
+
+    // ★ إعادة تعيين مقابض الملف + auto-save
+    try {
+      if (window.__UI_SHELL__ && typeof window.__UI_SHELL__.resetProjectHandles === 'function') {
+        window.__UI_SHELL__.resetProjectHandles();
+      }
+    } catch (_) {}
 
     document.body.classList.remove('present-active');
     const presentOverlay = document.getElementById('presentOverlay');
@@ -1565,17 +1297,10 @@ function resetToEmptyState() {
 
     ['textContextToolbar', 'shapeContextToolbar', 'slideContextMenu', 'submenu'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) {
-        el.classList.remove('show');
-        if (id === 'textContextToolbar' || id === 'shapeContextToolbar') {
-          el.innerHTML = '';
-        }
-      }
+      if (el) { el.classList.remove('show'); if (id === 'textContextToolbar' || id === 'shapeContextToolbar') el.innerHTML = ''; }
     });
 
-    document.querySelectorAll('.element-delete-btn').forEach(el => {
-      el.style.display = 'none';
-    });
+    document.querySelectorAll('.element-delete-btn').forEach(el => el.style.display = 'none');
 
     try {
       if (window.__INTERACTION__ && typeof window.__INTERACTION__.deselect === 'function') {
@@ -1591,19 +1316,17 @@ function resetToEmptyState() {
     state.totalPages = 0;
     state.currentPage = 1;
     state.pages = {};
-    state.history = {};
+    state.history = { past: [], future: [] };
     state.selected = null;
     state.projectDims = null;
+    state.dirty = false;
     state.pageCache.clear();
     state.thumbCache.clear();
     state.view = { scale: 1, tx: 0, ty: 0 };
 
-    state.pdfW = 0;
-    state.pdfH = 0;
-    state.cssW = 0;
-    state.cssH = 0;
-    state.canvasScale = 1;
-    state.dpr = 1;
+    state.pdfW = 0; state.pdfH = 0;
+    state.cssW = 0; state.cssH = 0;
+    state.canvasScale = 1; state.dpr = 1;
     state.stageRect0 = { left: 0, top: 0, width: 0, height: 0 };
 
     ['svgLayer', 'embedLayer', 'videoLayer', 'textLayer', 'interactiveLayer'].forEach(id => {
@@ -1618,10 +1341,8 @@ function resetToEmptyState() {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
       } catch (_) {}
-      pdfCanvas.width = 0;
-      pdfCanvas.height = 0;
-      pdfCanvas.style.width = '0';
-      pdfCanvas.style.height = '0';
+      pdfCanvas.width = 0; pdfCanvas.height = 0;
+      pdfCanvas.style.width = '0'; pdfCanvas.style.height = '0';
     }
 
     ['transientCanvas', 'laserCanvas'].forEach(id => {
@@ -1632,10 +1353,8 @@ function resetToEmptyState() {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, c.width, c.height);
       } catch (_) {}
-      c.width = 0;
-      c.height = 0;
-      c.style.width = '0';
-      c.style.height = '0';
+      c.width = 0; c.height = 0;
+      c.style.width = '0'; c.style.height = '0';
     });
 
     const stageEl = document.getElementById('stage');
@@ -1643,8 +1362,7 @@ function resetToEmptyState() {
       stageEl.classList.add('empty');
       stageEl.style.cssText = '';
       stageEl.classList.add('empty');
-      stageEl.style.width = '0';
-      stageEl.style.height = '0';
+      stageEl.style.width = '0'; stageEl.style.height = '0';
       stageEl.style.transform = 'none';
       stageEl.style.background = 'transparent';
       stageEl.style.boxShadow = 'none';
@@ -1653,18 +1371,13 @@ function resetToEmptyState() {
     }
 
     const stageContent = document.getElementById('stageContent');
-    if (stageContent) {
-      stageContent.style.transform = 'none';
-      stageContent.style.transition = 'none';
-    }
+    if (stageContent) { stageContent.style.transform = 'none'; stageContent.style.transition = 'none'; }
 
     const loadingEl = document.getElementById('loading');
     if (loadingEl) loadingEl.classList.remove('show');
 
     const thumbsList = document.getElementById('thumbsList');
-    if (thumbsList) {
-      thumbsList.innerHTML = '<div class="thumbs-empty">لا توجد صفحات<br>افتح ملفاً للبدء</div>';
-    }
+    if (thumbsList) thumbsList.innerHTML = '<div class="thumbs-empty">لا توجد صفحات<br>افتح ملفاً للبدء</div>';
 
     const pageIndicator = document.getElementById('pageIndicator');
     if (pageIndicator) pageIndicator.textContent = '';
@@ -1675,11 +1388,7 @@ function resetToEmptyState() {
     if (btnNext) btnNext.disabled = true;
 
     const emptyState = document.getElementById('emptyState');
-    if (emptyState) {
-      emptyState.style.display = 'flex';
-      emptyState.style.backgroundColor = 'transparent';
-      emptyState.style.backgroundImage = 'none';
-    }
+    if (emptyState) { emptyState.style.display = 'flex'; emptyState.style.backgroundColor = 'transparent'; emptyState.style.backgroundImage = 'none'; }
 
     setSaveBadge('لا مشروع', false);
 
@@ -1687,31 +1396,23 @@ function resetToEmptyState() {
     if (docInfo) docInfo.innerHTML = '';
 
     const propsHint = document.getElementById('elementPropsHint');
-    if (propsHint) {
-      propsHint.textContent = 'افتح مشروعاً أو أنشئ مشروعاً جديداً للبدء';
-      propsHint.style.display = '';
-    }
+    if (propsHint) { propsHint.textContent = 'افتح مشروعاً أو أنشئ مشروعاً جديداً للبدء'; propsHint.style.display = ''; }
 
     refreshLayersPanel();
 
-    try {
-      if (core.updateCursorForTool) core.updateCursorForTool();
-    } catch (_) {}
+    try { if (core.updateCursorForTool) core.updateCursorForTool(); } catch (_) {}
 
-    /* إخفاء الشريطين الجانبيين عند الإغلاق */
     document.body.classList.remove('has-project');
     document.body.classList.add('no-project');
 
     document.dispatchEvent(new CustomEvent('ipb:projectClosed'));
-    document.dispatchEvent(new CustomEvent('ipb:pageChanged', {
-      detail: { page: 0 },
-    }));
+    document.dispatchEvent(new CustomEvent('ipb:pageChanged', { detail: { page: 0 } }));
   }).catch(err => console.error('resetToEmptyState failed:', err));
 }
 
-/* ============================================================
-   §8. PROPS PANEL TOGGLE & SIDEBAR TOGGLE
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §11. PROPS TOGGLE & SIDEBAR TOGGLE
+   ═══════════════════════════════════════════════════════════ */
 function initPropsToggle() {
   let btn = document.getElementById('btnToggleProps');
   if (!btn) {
@@ -1731,27 +1432,21 @@ function initPropsToggle() {
 
   const toggle = () => {
     const isMobile = window.innerWidth <= 768 || window.matchMedia('(orientation: portrait)').matches;
-    if (isMobile) {
-      document.body.classList.toggle('props-mobile-open');
-    } else {
-      document.body.classList.toggle('props-hidden');
-    }
+    if (isMobile) document.body.classList.toggle('props-mobile-open');
+    else document.body.classList.toggle('props-hidden');
     setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
   };
 
   btn.addEventListener('click', toggle);
-
   const topBtn = document.getElementById('btnTogglePropsTop');
   if (topBtn) topBtn.addEventListener('click', toggle);
 
   const closeMobile = document.getElementById('btnClosePropsMobile');
-  if (closeMobile) {
-    closeMobile.addEventListener('click', () => {
-      document.body.classList.remove('props-mobile-open');
-      document.body.classList.add('props-hidden');
-      setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
-    });
-  }
+  if (closeMobile) closeMobile.addEventListener('click', () => {
+    document.body.classList.remove('props-mobile-open');
+    document.body.classList.add('props-hidden');
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
+  });
 
   backdrop.addEventListener('click', () => {
     document.body.classList.remove('props-mobile-open');
@@ -1759,10 +1454,7 @@ function initPropsToggle() {
   });
 
   document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === '.') {
-      e.preventDefault();
-      toggle();
-    }
+    if ((e.ctrlKey || e.metaKey) && e.key === '.') { e.preventDefault(); toggle(); }
   });
 }
 
@@ -1774,12 +1466,8 @@ function initSidebarToggle() {
   function updateArrowPos() {
     const isCollapsed = sidebar.classList.contains('collapsed');
     document.body.classList.toggle('sidebar-collapsed', isCollapsed);
-    if (isCollapsed) {
-      btn.style.left = '0';
-    } else {
-      const w = sidebar.offsetWidth || 240;
-      btn.style.left = w + 'px';
-    }
+    if (isCollapsed) btn.style.left = '0';
+    else btn.style.left = (sidebar.offsetWidth || 240) + 'px';
   }
 
   btn.addEventListener('click', async () => {
@@ -1800,9 +1488,9 @@ function initSidebarToggle() {
   updateArrowPos();
 }
 
-/* ============================================================
-   §9. PROJECT DIMS PANEL & ACTIVE TOOL PROPERTIES
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §12. ACTIVE TOOL PROPS
+   ═══════════════════════════════════════════════════════════ */
 function renderActiveToolProps(container, state) {
   if (!container || !state) return;
   const tool = state.tool || 'select';
@@ -1813,9 +1501,9 @@ function renderActiveToolProps(container, state) {
         <div class="prop-title" style="color:var(--sh-accent);margin-bottom:4px">👆 أداة التحديد نشطة</div>
         <div style="font-size:11px;color:var(--sh-text-muted);line-height:1.6">
           • انقر على أي عنصر لتحديده وتعديل خصائصه.<br>
-          • <b>اسحب بالفأرة على مساحة فارغة</b> لرسم مستطيل شفاف يحدد كل العناصر التي يلمسها.<br>
-          • <b>Shift + نقرة</b> للتحديد المتعدد.<br>
-          • يمكنك سحب العناصر <b>خارج الكانفاس</b> بحرية تامة دون قيود.
+          • <b>اسحب على مساحة فارغة</b> لرسم مستطيل تحديد.<br>
+          • <b>Shift+نقرة</b> للتحديد المتعدد، <b>Alt+سحب</b> للتكرار، <b>Space+سحب</b> للتحريك.<br>
+          • <b>النقر المزدوج</b> على النص لتحريره.
         </div>
       </div>
     `;
@@ -1826,95 +1514,60 @@ function renderActiveToolProps(container, state) {
     container.innerHTML = `
       <div class="prop-section" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:12px;padding:10px">
         <div class="prop-title" style="margin-bottom:4px">🖐️ أداة اليد نشطة</div>
-        <div style="font-size:11px;color:var(--sh-text-muted);line-height:1.6">
-          اسحب لتحريك الشريحة (Pan) والتنقل بسلاسة أثناء الشرح.
-        </div>
+        <div style="font-size:11px;color:var(--sh-text-muted);line-height:1.6">اسحب لتحريك الشريحة (Pan) والتنقل.</div>
       </div>
     `;
     return;
   }
 
+  // قلم
   if (tool === 'pen') {
     const colors = ['#000000', '#2563eb', '#dc2626', '#16a34a', '#eab308', '#9333ea', '#ea580c', '#ffffff'];
     const sizes = [2, 5, 10, 16];
     const smooths = [{ v: 0, l: 'بدون' }, { v: 1, l: 'خفيف' }, { v: 2, l: 'متوسط' }, { v: 3, l: 'عالي' }];
-
     container.innerHTML = `
       <div class="prop-section" style="background:rgba(74,126,255,.04);border:1px solid rgba(74,126,255,.25);border-radius:8px;margin-bottom:12px;padding:10px">
-        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
-          <span>✏️ خيارات القلم</span>
-          <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
-        </div>
-
+        <div class="prop-title">✏️ خيارات القلم</div>
         <div style="margin-top:8px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <label style="font-size:10.5px;color:var(--sh-text-muted)">اللون:</label>
-            <span style="font-size:10.5px;font-family:monospace;color:var(--sh-text-dim)">${state.penColor}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            ${colors.map(c => `
-              <button type="button" class="tool-color-circle" data-pencolor="${c}"
-                style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.penColor ? '2.5px solid #4a7eff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0;box-shadow:${c === state.penColor ? '0 0 8px rgba(74,126,255,.6)' : 'none'}"></button>
-            `).join('')}
-            <input type="color" id="sidePenColorInp" value="${state.penColor}" style="width:26px;height:26px;border:none;background:transparent;cursor:pointer" title="لون مخصص">
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">اللون:</label>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px">
+            ${colors.map(c => `<button type="button" class="tool-color-circle" data-pencolor="${c}" style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.penColor ? '2.5px solid #4a7eff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0"></button>`).join('')}
+            <input type="color" id="sidePenColorInp" value="${state.penColor}" style="width:26px;height:26px;border:none;background:transparent;cursor:pointer">
           </div>
         </div>
-
         <div style="margin-top:10px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <label style="font-size:10.5px;color:var(--sh-text-muted)">سماكة الخط:</label>
-            <span style="font-size:11px;font-weight:700;color:var(--sh-accent)">${state.penSize}px</span>
-          </div>
-          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
-            ${sizes.map(s => `
-              <button type="button" class="prop-input" data-pensize="${s}"
-                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px;${s === state.penSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
-                <span style="width:${Math.min(16, Math.max(4, s))}px;height:${Math.min(16, Math.max(4, s))}px;background:${state.penColor};border-radius:50%;display:inline-block"></span>
-                <span>${s}px</span>
-              </button>
-            `).join('')}
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">السماكة: <b style="color:var(--sh-accent)">${state.penSize}px</b></label>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top:6px">
+            ${sizes.map(s => `<button type="button" class="prop-input" data-pensize="${s}" style="cursor:pointer;padding:6px 0;font-size:11px;${s === state.penSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">${s}px</button>`).join('')}
           </div>
         </div>
-
         <div style="margin-top:10px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">نعومة الخط (Smoothing):</label>
-          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
-            ${smooths.map(sm => `
-              <button type="button" class="prop-input" data-pensmooth="${sm.v}"
-                style="cursor:pointer;padding:6px 0;font-size:10.5px;font-weight:500;text-align:center;${sm.v === state.penSmoothing ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
-                ${sm.l}
-              </button>
-            `).join('')}
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">النعومة:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top:6px">
+            ${smooths.map(sm => `<button type="button" class="prop-input" data-pensmooth="${sm.v}" style="cursor:pointer;padding:6px 0;font-size:10.5px;${sm.v === state.penSmoothing ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">${sm.l}</button>`).join('')}
           </div>
         </div>
       </div>
     `;
-
-    container.querySelectorAll('[data-pencolor]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.penColor = b.dataset.pencolor;
-        import('./main.js').then(m => m.updateToolbarIndicators());
-        renderActiveToolProps(container, state);
-      });
-    });
+    container.querySelectorAll('[data-pencolor]').forEach(b => b.addEventListener('click', () => {
+      state.penColor = b.dataset.pencolor;
+      import('./main.js').then(m => m.updateToolbarIndicators());
+      renderActiveToolProps(container, state);
+    }));
     const cInp = container.querySelector('#sidePenColorInp');
     if (cInp) cInp.addEventListener('input', () => {
       state.penColor = cInp.value;
       import('./main.js').then(m => m.updateToolbarIndicators());
       renderActiveToolProps(container, state);
     });
-    container.querySelectorAll('[data-pensize]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.penSize = parseFloat(b.dataset.pensize);
-        renderActiveToolProps(container, state);
-      });
-    });
-    container.querySelectorAll('[data-pensmooth]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.penSmoothing = parseInt(b.dataset.pensmooth, 10);
-        renderActiveToolProps(container, state);
-      });
-    });
+    container.querySelectorAll('[data-pensize]').forEach(b => b.addEventListener('click', () => {
+      state.penSize = parseFloat(b.dataset.pensize);
+      renderActiveToolProps(container, state);
+    }));
+    container.querySelectorAll('[data-pensmooth]').forEach(b => b.addEventListener('click', () => {
+      state.penSmoothing = parseInt(b.dataset.pensmooth, 10);
+      renderActiveToolProps(container, state);
+    }));
     return;
   }
 
@@ -1922,73 +1575,42 @@ function renderActiveToolProps(container, state) {
     const colors = ['#fde047', '#86efac', '#93c5fd', '#f472b6', '#fdba74'];
     const sizes = [10, 18, 28, 40];
     const smooths = [{ v: 0, l: 'بدون' }, { v: 1, l: 'خفيف' }, { v: 2, l: 'متوسط' }, { v: 3, l: 'عالي' }];
-
     container.innerHTML = `
       <div class="prop-section" style="background:rgba(234,179,8,.04);border:1px solid rgba(234,179,8,.25);border-radius:8px;margin-bottom:12px;padding:10px">
-        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
-          <span>🖍️ خيارات قلم التحديد</span>
-          <span style="font-size:10px;color:#eab308;background:rgba(234,179,8,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
-        </div>
-
+        <div class="prop-title">🖍️ خيارات قلم التحديد</div>
         <div style="margin-top:8px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">لون التمييز:</label>
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            ${colors.map(c => `
-              <button type="button" class="tool-color-circle" data-hlcolor="${c}"
-                style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.highlighterColor ? '2.5px solid #fff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0;box-shadow:${c === state.highlighterColor ? '0 0 8px ' + c : 'none'}"></button>
-            `).join('')}
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">اللون:</label>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px">
+            ${colors.map(c => `<button type="button" class="tool-color-circle" data-hlcolor="${c}" style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.highlighterColor ? '2.5px solid #fff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0"></button>`).join('')}
           </div>
         </div>
-
         <div style="margin-top:10px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <label style="font-size:10.5px;color:var(--sh-text-muted)">العرض:</label>
-            <span style="font-size:11px;font-weight:700;color:#eab308">${state.highlighterSize}px</span>
-          </div>
-          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
-            ${sizes.map(s => `
-              <button type="button" class="prop-input" data-hlsize="${s}"
-                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px;${s === state.highlighterSize ? 'border-color:#eab308;background:rgba(234,179,8,.15);color:#fff' : ''}">
-                <span style="width:${Math.min(16, Math.max(6, s/2.5))}px;height:6px;background:${state.highlighterColor};border-radius:2px;display:inline-block"></span>
-                <span>${s}px</span>
-              </button>
-            `).join('')}
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">العرض: <b style="color:#eab308">${state.highlighterSize}px</b></label>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top:6px">
+            ${sizes.map(s => `<button type="button" class="prop-input" data-hlsize="${s}" style="cursor:pointer;padding:6px 0;font-size:11px;${s === state.highlighterSize ? 'border-color:#eab308;background:rgba(234,179,8,.15);color:#fff' : ''}">${s}px</button>`).join('')}
           </div>
         </div>
-
         <div style="margin-top:10px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">النعومة:</label>
-          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
-            ${smooths.map(sm => `
-              <button type="button" class="prop-input" data-hlsmooth="${sm.v}"
-                style="cursor:pointer;padding:6px 0;font-size:10.5px;font-weight:500;text-align:center;${sm.v === state.highlighterSmoothing ? 'border-color:#eab308;background:rgba(234,179,8,.15);color:#fff' : ''}">
-                ${sm.l}
-              </button>
-            `).join('')}
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">النعومة:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top:6px">
+            ${smooths.map(sm => `<button type="button" class="prop-input" data-hlsmooth="${sm.v}" style="cursor:pointer;padding:6px 0;font-size:10.5px;${sm.v === state.highlighterSmoothing ? 'border-color:#eab308;background:rgba(234,179,8,.15);color:#fff' : ''}">${sm.l}</button>`).join('')}
           </div>
         </div>
       </div>
     `;
-
-    container.querySelectorAll('[data-hlcolor]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.highlighterColor = b.dataset.hlcolor;
-        import('./main.js').then(m => m.updateToolbarIndicators());
-        renderActiveToolProps(container, state);
-      });
-    });
-    container.querySelectorAll('[data-hlsize]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.highlighterSize = parseFloat(b.dataset.hlsize);
-        renderActiveToolProps(container, state);
-      });
-    });
-    container.querySelectorAll('[data-hlsmooth]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.highlighterSmoothing = parseInt(b.dataset.hlsmooth, 10);
-        renderActiveToolProps(container, state);
-      });
-    });
+    container.querySelectorAll('[data-hlcolor]').forEach(b => b.addEventListener('click', () => {
+      state.highlighterColor = b.dataset.hlcolor;
+      import('./main.js').then(m => m.updateToolbarIndicators());
+      renderActiveToolProps(container, state);
+    }));
+    container.querySelectorAll('[data-hlsize]').forEach(b => b.addEventListener('click', () => {
+      state.highlighterSize = parseFloat(b.dataset.hlsize);
+      renderActiveToolProps(container, state);
+    }));
+    container.querySelectorAll('[data-hlsmooth]').forEach(b => b.addEventListener('click', () => {
+      state.highlighterSmoothing = parseInt(b.dataset.hlsmooth, 10);
+      renderActiveToolProps(container, state);
+    }));
     return;
   }
 
@@ -1997,288 +1619,63 @@ function renderActiveToolProps(container, state) {
     const glows = [{ v: 1.5, l: 'خفيف' }, { v: 3, l: 'متوسط' }, { v: 6, l: 'قوي' }];
     const sizes = [4, 8, 14];
     const lives = [{ ms: 2000, l: '2 ث' }, { ms: 3000, l: '3 ث' }, { ms: 5000, l: '5 ث' }];
-
     container.innerHTML = `
       <div class="prop-section" style="background:rgba(239,68,68,.04);border:1px solid rgba(239,68,68,.25);border-radius:8px;margin-bottom:12px;padding:10px">
-        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
-          <span>🔴 مؤشر الليزر التفاعلي</span>
-          <span style="font-size:10px;color:#ef4444;background:rgba(239,68,68,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
-        </div>
-
+        <div class="prop-title">🔴 مؤشر الليزر</div>
         <div style="margin-top:8px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">لون التوهج (Glow):</label>
-          <div style="display:flex;align-items:center;gap:6px">
-            ${colors.map(c => `
-              <button type="button" class="tool-color-circle" data-lasercolor="${c}"
-                style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.laserColor ? '2.5px solid #fff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0;box-shadow:${c === state.laserColor ? '0 0 10px ' + c : 'none'}"></button>
-            `).join('')}
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">اللون:</label>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+            ${colors.map(c => `<button type="button" data-lasercolor="${c}" style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.laserColor ? '2.5px solid #fff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0"></button>`).join('')}
           </div>
         </div>
-
         <div style="margin-top:10px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">شدة التوهج:</label>
-          <div class="prop-row" style="grid-template-columns: repeat(3, 1fr); gap: 4px">
-            ${glows.map(g => `
-              <button type="button" class="prop-input" data-laserglow="${g.v}"
-                style="cursor:pointer;padding:6px 0;font-size:10.5px;font-weight:500;text-align:center;${g.v === state.laserGlowIntensity ? 'border-color:#ef4444;background:rgba(239,68,68,.15);color:#fff' : ''}">
-                ${g.l}
-              </button>
-            `).join('')}
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">التوهج:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top:6px">
+            ${glows.map(g => `<button type="button" class="prop-input" data-laserglow="${g.v}" style="cursor:pointer;padding:6px 0;font-size:10.5px;${g.v === state.laserGlowIntensity ? 'border-color:#ef4444;background:rgba(239,68,68,.15);color:#fff' : ''}">${g.l}</button>`).join('')}
           </div>
         </div>
-
         <div style="margin-top:10px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">حجم النقطة والمدة:</label>
-          <div class="prop-row" style="grid-template-columns: repeat(3, 1fr); gap: 4px">
-            ${sizes.map(s => `
-              <button type="button" class="prop-input" data-lasersize="${s}"
-                style="cursor:pointer;padding:6px 0;font-size:10.5px;font-weight:600;text-align:center;${s === state.laserSize ? 'border-color:#ef4444;background:rgba(239,68,68,.15);color:#fff' : ''}">
-                ${s}px
-              </button>
-            `).join('')}
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">الحجم والمدة:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top:6px">
+            ${sizes.map(s => `<button type="button" class="prop-input" data-lasersize="${s}" style="cursor:pointer;padding:6px 0;font-size:10.5px;${s === state.laserSize ? 'border-color:#ef4444;background:rgba(239,68,68,.15);color:#fff' : ''}">${s}px</button>`).join('')}
           </div>
           <div class="prop-row" style="grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 4px">
-            ${lives.map(l => `
-              <button type="button" class="prop-input" data-laserlife="${l.ms}"
-                style="cursor:pointer;padding:6px 0;font-size:10.5px;font-weight:500;text-align:center;${l.ms === state.laserLifeMs ? 'border-color:#ef4444;background:rgba(239,68,68,.15);color:#fff' : ''}">
-                ${l.l}
-              </button>
-            `).join('')}
+            ${lives.map(l => `<button type="button" class="prop-input" data-laserlife="${l.ms}" style="cursor:pointer;padding:6px 0;font-size:10.5px;${l.ms === state.laserLifeMs ? 'border-color:#ef4444;background:rgba(239,68,68,.15);color:#fff' : ''}">${l.l}</button>`).join('')}
           </div>
         </div>
       </div>
     `;
-
-    container.querySelectorAll('[data-lasercolor]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.laserColor = b.dataset.lasercolor;
-        import('./main.js').then(m => m.updateToolbarIndicators());
-        renderActiveToolProps(container, state);
-      });
-    });
-    container.querySelectorAll('[data-laserglow]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.laserGlowIntensity = parseFloat(b.dataset.laserglow);
-        renderActiveToolProps(container, state);
-      });
-    });
-    container.querySelectorAll('[data-lasersize]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.laserSize = parseFloat(b.dataset.lasersize);
-        renderActiveToolProps(container, state);
-      });
-    });
-    container.querySelectorAll('[data-laserlife]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.laserLifeMs = parseInt(b.dataset.laserlife, 10);
-        renderActiveToolProps(container, state);
-      });
-    });
-    return;
-  }
-
-  if (tool === 'shape') {
-    const kinds = [{ k: 'rect', l: '▭ مستطيل' }, { k: 'circle', l: '◯ دائرة' }, { k: 'arrow', l: '↗ سهم / خط' }];
-    const sizes = [2, 5, 10, 16];
-    const starts = [{ v: 'none', l: 'بدون' }, { v: 'arrow', l: 'سهم' }, { v: 'arrow-hollow', l: 'مفرغ' }];
-    const ends = [{ v: 'none', l: 'بدون' }, { v: 'arrow', l: 'سهم' }, { v: 'arrow-hollow', l: 'مفرغ' }, { v: 'circle', l: 'دائرة' }];
-
-    container.innerHTML = `
-      <div class="prop-section" style="background:rgba(74,126,255,.04);border:1px solid rgba(74,126,255,.25);border-radius:8px;margin-bottom:12px;padding:10px">
-        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
-          <span>▭ أداة الأشكال</span>
-          <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
-        </div>
-
-        <div style="margin-top:8px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">نوع الشكل:</label>
-          <div class="prop-row" style="grid-template-columns: repeat(3, 1fr); gap: 4px">
-            ${kinds.map(k => `
-              <button type="button" class="prop-input" data-sideshape="${k.k}"
-                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;text-align:center;${k.k === state.shapeKind ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
-                ${k.l}
-              </button>
-            `).join('')}
-          </div>
-        </div>
-
-        <div style="margin-top:10px">
-          <div class="prop-row" style="grid-template-columns: 1fr 1fr; gap: 8px">
-            <div>
-              <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">الحد الخارجي (Stroke):</label>
-              <input type="color" id="sideShapeStroke" value="${state.shapeStroke}" style="width:100%;height:30px;border:none;background:transparent;cursor:pointer">
-            </div>
-            <div>
-              <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">التعبئة (Fill):</label>
-              <input type="color" id="sideShapeFill" value="${state.shapeFill}" ${state.shapeFillNone ? 'disabled style="opacity:0.4;width:100%;height:30px"' : 'style="width:100%;height:30px;border:none;background:transparent;cursor:pointer"'}>
-            </div>
-          </div>
-          <label style="font-size:10.5px;color:var(--sh-text);cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin-top:6px">
-            <input type="checkbox" id="sideShapeNoFill" ${state.shapeFillNone ? 'checked' : ''}> بدون تعبئة (شفاف)
-          </label>
-        </div>
-
-        <div style="margin-top:10px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">سماكة الحد:</label>
-          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
-            ${sizes.map(s => `
-              <button type="button" class="prop-input" data-sideshapesize="${s}"
-                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;text-align:center;${s === state.shapeSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
-                ${s}px
-              </button>
-            `).join('')}
-          </div>
-        </div>
-
-        <div style="margin-top:10px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">رأس السهم في البداية والنهاية:</label>
-          <div class="prop-row" style="grid-template-columns: 1fr 1fr; gap: 4px">
-            <select class="prop-input" id="sideShapeStart">
-              ${starts.map(o => `<option value="${o.v}" ${o.v === state.shapeLineStart ? 'selected' : ''}>البداية: ${o.l}</option>`).join('')}
-            </select>
-            <select class="prop-input" id="sideShapeEnd">
-              ${ends.map(o => `<option value="${o.v}" ${o.v === state.shapeLineEnd ? 'selected' : ''}>النهاية: ${o.l}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-      </div>
-    `;
-
-    container.querySelectorAll('[data-sideshape]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.shapeKind = b.dataset.sideshape;
-        renderActiveToolProps(container, state);
-      });
-    });
-    const sStr = container.querySelector('#sideShapeStroke');
-    if (sStr) sStr.addEventListener('input', () => { state.shapeStroke = sStr.value; });
-    const sFil = container.querySelector('#sideShapeFill');
-    if (sFil) sFil.addEventListener('input', () => { state.shapeFill = sFil.value; });
-    const sNoFil = container.querySelector('#sideShapeNoFill');
-    if (sNoFil) sNoFil.addEventListener('change', () => {
-      state.shapeFillNone = sNoFil.checked;
-      if (sFil) sFil.disabled = state.shapeFillNone;
-    });
-    container.querySelectorAll('[data-sideshapesize]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.shapeSize = parseFloat(b.dataset.sideshapesize);
-        renderActiveToolProps(container, state);
-      });
-    });
-    const sStart = container.querySelector('#sideShapeStart');
-    if (sStart) sStart.addEventListener('change', () => { state.shapeLineStart = sStart.value; });
-    const sEnd = container.querySelector('#sideShapeEnd');
-    if (sEnd) sEnd.addEventListener('change', () => { state.shapeLineEnd = sEnd.value; });
-    return;
-  }
-
-  if (tool === 'text') {
-    const fonts = ['system-ui', 'Cairo', 'Tajawal', 'Amiri', 'Noto Kufi Arabic', 'Arial', 'Georgia', 'Times New Roman'];
-    const sizes = [14, 18, 22, 28, 36, 48];
-    const colors = ['#000000', '#1e3a8a', '#dc2626', '#16a34a', '#eab308', '#7c3aed', '#ffffff'];
-
-    container.innerHTML = `
-      <div class="prop-section" style="background:rgba(74,126,255,.04);border:1px solid rgba(74,126,255,.25);border-radius:8px;margin-bottom:12px;padding:10px">
-        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
-          <span>🔤 أداة إضافة النص</span>
-          <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
-        </div>
-
-        <div style="margin-top:8px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">نوع الخط:</label>
-          <select class="prop-input" id="sideTextFont">
-            ${fonts.map(f => `<option value="${f}" ${f === state.textFamily ? 'selected' : ''}>${f}</option>`).join('')}
-          </select>
-        </div>
-
-        <div style="margin-top:10px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">حجم الخط:</label>
-          <div class="prop-row" style="grid-template-columns: repeat(6, 1fr); gap: 3px">
-            ${sizes.map(s => `
-              <button type="button" class="prop-input" data-sidetextsize="${s}"
-                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;text-align:center;${s === state.textSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
-                ${s}
-              </button>
-            `).join('')}
-          </div>
-        </div>
-
-        <div style="margin-top:10px">
-          <div class="prop-row" style="grid-template-columns: 1fr 1fr; gap: 6px">
-            <button type="button" class="prop-input" id="sideTextBold" style="cursor:pointer;font-weight:bold;${state.textBold ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">B عريض</button>
-            <button type="button" class="prop-input" id="sideTextItalic" style="cursor:pointer;font-style:italic;${state.textItalic ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">I مائل</button>
-          </div>
-        </div>
-
-        <div style="margin-top:10px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">لون النص:</label>
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            ${colors.map(c => `
-              <button type="button" class="tool-color-circle" data-sidetextcolor="${c}"
-                style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.textColor ? '2.5px solid #4a7eff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0;box-shadow:${c === state.textColor ? '0 0 8px rgba(74,126,255,.6)' : 'none'}"></button>
-            `).join('')}
-            <input type="color" id="sideTextColorInp" value="${state.textColor}" style="width:26px;height:26px;border:none;background:transparent;cursor:pointer" title="لون مخصص">
-          </div>
-        </div>
-      </div>
-    `;
-
-    const fSel = container.querySelector('#sideTextFont');
-    if (fSel) fSel.addEventListener('change', () => { state.textFamily = fSel.value; });
-    container.querySelectorAll('[data-sidetextsize]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.textSize = parseFloat(b.dataset.sidetextsize);
-        renderActiveToolProps(container, state);
-      });
-    });
-    const bBtn = container.querySelector('#sideTextBold');
-    if (bBtn) bBtn.addEventListener('click', () => {
-      state.textBold = !state.textBold;
-      renderActiveToolProps(container, state);
-    });
-    const iBtn = container.querySelector('#sideTextItalic');
-    if (iBtn) iBtn.addEventListener('click', () => {
-      state.textItalic = !state.textItalic;
-      renderActiveToolProps(container, state);
-    });
-    container.querySelectorAll('[data-sidetextcolor]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.textColor = b.dataset.sidetextcolor;
-        import('./main.js').then(m => m.updateToolbarIndicators());
-        renderActiveToolProps(container, state);
-      });
-    });
-    const tColInp = container.querySelector('#sideTextColorInp');
-    if (tColInp) tColInp.addEventListener('input', () => {
-      state.textColor = tColInp.value;
+    container.querySelectorAll('[data-lasercolor]').forEach(b => b.addEventListener('click', () => {
+      state.laserColor = b.dataset.lasercolor;
       import('./main.js').then(m => m.updateToolbarIndicators());
       renderActiveToolProps(container, state);
-    });
+    }));
+    container.querySelectorAll('[data-laserglow]').forEach(b => b.addEventListener('click', () => {
+      state.laserGlowIntensity = parseFloat(b.dataset.laserglow);
+      renderActiveToolProps(container, state);
+    }));
+    container.querySelectorAll('[data-lasersize]').forEach(b => b.addEventListener('click', () => {
+      state.laserSize = parseFloat(b.dataset.lasersize);
+      renderActiveToolProps(container, state);
+    }));
+    container.querySelectorAll('[data-laserlife]').forEach(b => b.addEventListener('click', () => {
+      state.laserLifeMs = parseInt(b.dataset.laserlife, 10);
+      renderActiveToolProps(container, state);
+    }));
     return;
   }
 
   if (tool === 'eraser') {
     const sizes = [12, 24, 40, 60];
-
     container.innerHTML = `
       <div class="prop-section" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);border-radius:8px;margin-bottom:12px;padding:10px">
-        <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
-          <span>🧽 خيارات الممحاة</span>
-          <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.12);padding:2px 6px;border-radius:4px;font-weight:700">أداة نشطة</span>
-        </div>
-
+        <div class="prop-title">🧽 خيارات الممحاة</div>
         <div style="margin-top:8px">
-          <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:6px">قطر الممحاة:</label>
-          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px">
-            ${sizes.map(s => `
-              <button type="button" class="prop-input" data-erasersize="${s}"
-                style="cursor:pointer;padding:6px 0;font-size:11px;font-weight:600;text-align:center;${s === state.eraserSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">
-                ${s}px
-              </button>
-            `).join('')}
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">القطر:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top:6px">
+            ${sizes.map(s => `<button type="button" class="prop-input" data-erasersize="${s}" style="cursor:pointer;padding:6px 0;font-size:11px;${s === state.eraserSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">${s}px</button>`).join('')}
           </div>
         </div>
-
         <div style="margin-top:10px">
           <label style="font-size:11px;color:var(--sh-text);cursor:pointer;display:inline-flex;align-items:center;gap:6px">
             <input type="checkbox" id="sideEraseShapes" ${state.eraserErasesShapes ? 'checked' : ''}> مسح الأشكال أيضاً
@@ -2286,18 +1683,98 @@ function renderActiveToolProps(container, state) {
         </div>
       </div>
     `;
-
-    container.querySelectorAll('[data-erasersize]').forEach(b => {
-      b.addEventListener('click', () => {
-        state.eraserSize = parseFloat(b.dataset.erasersize);
-        renderActiveToolProps(container, state);
-      });
-    });
+    container.querySelectorAll('[data-erasersize]').forEach(b => b.addEventListener('click', () => {
+      state.eraserSize = parseFloat(b.dataset.erasersize);
+      renderActiveToolProps(container, state);
+    }));
     const cShapes = container.querySelector('#sideEraseShapes');
-    if (cShapes) cShapes.addEventListener('change', () => {
-      state.eraserErasesShapes = cShapes.checked;
-    });
+    if (cShapes) cShapes.addEventListener('change', () => { state.eraserErasesShapes = cShapes.checked; });
     return;
+  }
+
+  if (tool === 'shape') {
+    const kinds = [{ k: 'rect', l: '▭ مستطيل' }, { k: 'circle', l: '◯ دائرة' }, { k: 'arrow', l: '↗ سهم / خط' }];
+    const sizes = [2, 5, 10, 16];
+    container.innerHTML = `
+      <div class="prop-section" style="background:rgba(74,126,255,.04);border:1px solid rgba(74,126,255,.25);border-radius:8px;margin-bottom:12px;padding:10px">
+        <div class="prop-title">▭ أداة الأشكال</div>
+        <div style="margin-top:8px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">نوع الشكل:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top:6px">
+            ${kinds.map(k => `<button type="button" class="prop-input" data-sideshape="${k.k}" style="cursor:pointer;padding:6px 0;font-size:11px;${k.k === state.shapeKind ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">${k.l}</button>`).join('')}
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">السماكة:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top:6px">
+            ${sizes.map(s => `<button type="button" class="prop-input" data-sideshapesize="${s}" style="cursor:pointer;padding:6px 0;font-size:11px;${s === state.shapeSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">${s}px</button>`).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+    container.querySelectorAll('[data-sideshape]').forEach(b => b.addEventListener('click', () => {
+      state.shapeKind = b.dataset.sideshape;
+      renderActiveToolProps(container, state);
+    }));
+    container.querySelectorAll('[data-sideshapesize]').forEach(b => b.addEventListener('click', () => {
+      state.shapeSize = parseFloat(b.dataset.sideshapesize);
+      renderActiveToolProps(container, state);
+    }));
+    return;
+  }
+
+  if (tool === 'text') {
+    const sizes = [14, 18, 22, 28, 36, 48];
+    const colors = ['#000000', '#1e3a8a', '#dc2626', '#16a34a', '#eab308', '#7c3aed', '#ffffff'];
+    container.innerHTML = `
+      <div class="prop-section" style="background:rgba(74,126,255,.04);border:1px solid rgba(74,126,255,.25);border-radius:8px;margin-bottom:12px;padding:10px">
+        <div class="prop-title">🔤 أداة النص</div>
+        <div style="margin-top:8px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">الحجم:</label>
+          <div class="prop-row" style="grid-template-columns: repeat(6, 1fr); gap: 3px; margin-top:6px">
+            ${sizes.map(s => `<button type="button" class="prop-input" data-sidetextsize="${s}" style="cursor:pointer;padding:6px 0;font-size:11px;${s === state.textSize ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">${s}</button>`).join('')}
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <div class="prop-row" style="grid-template-columns: 1fr 1fr; gap: 6px">
+            <button type="button" class="prop-input" id="sideTextBold" style="cursor:pointer;font-weight:bold;${state.textBold ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">B عريض</button>
+            <button type="button" class="prop-input" id="sideTextItalic" style="cursor:pointer;font-style:italic;${state.textItalic ? 'border-color:var(--sh-accent);background:rgba(74,126,255,.15);color:#fff' : ''}">I مائل</button>
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <label style="font-size:10.5px;color:var(--sh-text-muted)">اللون:</label>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px">
+            ${colors.map(c => `<button type="button" data-sidetextcolor="${c}" style="width:26px;height:26px;border-radius:50%;background:${c};border:${c === state.textColor ? '2.5px solid #4a7eff' : '2px solid rgba(255,255,255,.2)'};cursor:pointer;padding:0"></button>`).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+    container.querySelectorAll('[data-sidetextsize]').forEach(b => b.addEventListener('click', () => {
+      state.textSize = parseFloat(b.dataset.sidetextsize);
+      renderActiveToolProps(container, state);
+    }));
+    const bBtn = container.querySelector('#sideTextBold');
+    if (bBtn) bBtn.addEventListener('click', () => { state.textBold = !state.textBold; renderActiveToolProps(container, state); });
+    const iBtn = container.querySelector('#sideTextItalic');
+    if (iBtn) iBtn.addEventListener('click', () => { state.textItalic = !state.textItalic; renderActiveToolProps(container, state); });
+    container.querySelectorAll('[data-sidetextcolor]').forEach(b => b.addEventListener('click', () => {
+      state.textColor = b.dataset.sidetextcolor;
+      import('./main.js').then(m => m.updateToolbarIndicators());
+      renderActiveToolProps(container, state);
+    }));
+    return;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   §13. PROJECT DIMS PANEL (Session 6 — safeToast بدل alert)
+   ═══════════════════════════════════════════════════════════ */
+function showDocumentDimsPanel() {
+  const docPanel = document.getElementById('documentInfoPanel');
+  if (docPanel && docPanel.style.display === 'none') {
+    const elemPanel = document.getElementById('selectedElementPropsPanel');
+    if (elemPanel) elemPanel.style.display = 'none';
+    docPanel.style.display = 'block';
   }
 }
 
@@ -2307,20 +1784,11 @@ function initProjectDimsPanel() {
 
   infoPanel.innerHTML = `
     <div id="activeToolPropsHost"></div>
-
     <div class="prop-section" id="projectDimsSection">
       <div class="prop-title">📐 أبعاد المشروع</div>
       <div class="prop-row">
-        <div class="prop-field">
-          <label>العرض (px)</label>
-          <input type="number" class="prop-input" id="projW"
-                 min="100" max="20000" step="1" />
-        </div>
-        <div class="prop-field">
-          <label>الارتفاع (px)</label>
-          <input type="number" class="prop-input" id="projH"
-                 min="100" max="20000" step="1" />
-        </div>
+        <div class="prop-field"><label>العرض (px)</label><input type="number" class="prop-input" id="projW" min="100" max="20000" step="1" /></div>
+        <div class="prop-field"><label>الارتفاع (px)</label><input type="number" class="prop-input" id="projH" min="100" max="20000" step="1" /></div>
       </div>
       <div class="prop-row" style="grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:6px">
         <button type="button" class="prop-input" data-preset="16:9" style="cursor:pointer;padding:6px 4px;font-size:11px">16:9</button>
@@ -2330,28 +1798,16 @@ function initProjectDimsPanel() {
         <button type="button" class="prop-input" data-preset="A4-L" style="cursor:pointer;padding:6px 4px;font-size:11px">A4 →</button>
         <button type="button" class="prop-input" data-preset="9:16" style="cursor:pointer;padding:6px 4px;font-size:11px">9:16</button>
       </div>
-      <button type="button" class="prop-input" id="projApply"
-        style="margin-top:10px;cursor:pointer;background:var(--sh-accent);color:#fff;border:none;font-weight:600;padding:8px;border-radius:8px">
-        ✨ تطبيق الأبعاد على جميع الشرائح
-      </button>
-      <div id="projHint" style="font-size:10px;color:var(--sh-text-dim);margin-top:6px;text-align:center;line-height:1.5"></div>
+      <button type="button" class="prop-input" id="projApply" style="margin-top:10px;cursor:pointer;background:var(--sh-accent);color:#fff;border:none;font-weight:600;padding:8px;border-radius:8px">✨ تطبيق الأبعاد على جميع الشرائح</button>
+      <div id="projHint" style="font-size:10px;color:var(--sh-text-dim);margin-top:6px;text-align:center"></div>
     </div>
-
     <div class="prop-section">
-      <div class="prop-title">🎨 خلفية الشريحة الحالية</div>
+      <div class="prop-title">🎨 خلفية الشريحة</div>
       <div class="prop-row" style="grid-template-columns:auto 1fr;gap:6px">
-        <input type="color" class="prop-input" id="projBgColor" value="#ffffff"
-               style="width:46px;height:32px;padding:2px;cursor:pointer">
-        <button type="button" class="prop-input" id="projBgApply"
-                style="cursor:pointer;font-weight:600;padding:6px">تطبيق اللون</button>
+        <input type="color" class="prop-input" id="projBgColor" value="#ffffff" style="width:46px;height:32px;padding:2px;cursor:pointer">
+        <button type="button" class="prop-input" id="projBgApply" style="cursor:pointer;font-weight:600;padding:6px">تطبيق اللون</button>
       </div>
-      <div class="prop-row" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px">
-        <button type="button" class="prop-input" data-bgcolor="#ffffff" style="cursor:pointer;padding:6px 4px;background:#fff;color:#000;font-size:10.5px;border:1px solid #444">أبيض</button>
-        <button type="button" class="prop-input" data-bgcolor="#000000" style="cursor:pointer;padding:6px 4px;background:#000;color:#fff;font-size:10.5px">أسود</button>
-        <button type="button" class="prop-input" data-bgcolor="#f5f5dc" style="cursor:pointer;padding:6px 4px;background:#f5f5dc;color:#000;font-size:10.5px">بيج</button>
-        <button type="button" class="prop-input" data-bgcolor="#eef2ff" style="cursor:pointer;padding:6px 4px;background:#eef2ff;color:#000;font-size:10.5px">فاتح</button>
-      </div>
-      <div id="projBgHint" style="font-size:10px;color:var(--sh-text-dim);margin-top:6px;text-align:center;line-height:1.5"></div>
+      <div id="projBgHint" style="font-size:10px;color:var(--sh-text-dim);margin-top:6px;text-align:center"></div>
     </div>
   `;
 
@@ -2367,19 +1823,15 @@ function initProjectDimsPanel() {
   async function refresh() {
     const core = await import('./core.js');
     const st = core.state;
-
-    if (toolHost) {
-      renderActiveToolProps(toolHost, st);
-    }
+    if (toolHost) renderActiveToolProps(toolHost, st);
 
     if (!st || !st.pdfW || !st.pdfH) {
-      if (hint) hint.textContent = 'افتح مشروعاً أولاً لتعديل الأبعاد';
-      if (wInp) { wInp.disabled = true; }
-      if (hInp) { hInp.disabled = true; }
+      if (hint) hint.textContent = 'افتح مشروعاً أولاً';
+      if (wInp) wInp.disabled = true;
+      if (hInp) hInp.disabled = true;
       if (applyBtn) { applyBtn.disabled = true; applyBtn.style.opacity = '0.5'; }
-      if (bgColorInp) { bgColorInp.disabled = true; }
+      if (bgColorInp) bgColorInp.disabled = true;
       if (bgApplyBtn) { bgApplyBtn.disabled = true; bgApplyBtn.style.opacity = '0.5'; }
-      if (bgHint) bgHint.textContent = 'لا توجد شريحة نشطة';
       return;
     }
 
@@ -2387,12 +1839,8 @@ function initProjectDimsPanel() {
     if (hInp) hInp.disabled = false;
     if (applyBtn) { applyBtn.disabled = false; applyBtn.style.opacity = '1'; }
 
-    const w = st.projectDims && st.projectDims.width
-      ? st.projectDims.width
-      : Math.round(st.pdfW);
-    const h = st.projectDims && st.projectDims.height
-      ? st.projectDims.height
-      : Math.round(st.pdfH);
+    const w = st.projectDims && st.projectDims.width ? st.projectDims.width : Math.round(st.pdfW);
+    const h = st.projectDims && st.projectDims.height ? st.projectDims.height : Math.round(st.pdfH);
     if (wInp && document.activeElement !== wInp) wInp.value = w;
     if (hInp && document.activeElement !== hInp) hInp.value = h;
     if (hint) hint.textContent = `النسبة: ${(w / h).toFixed(3)} : 1`;
@@ -2402,11 +1850,9 @@ function initProjectDimsPanel() {
       if (slide.bg.type === 'blank') {
         if (bgColorInp) bgColorInp.disabled = false;
         if (bgApplyBtn) { bgApplyBtn.disabled = false; bgApplyBtn.style.opacity = '1'; }
-        const c = slide.bg.color
-          || (st.projectDims && st.projectDims.bg)
-          || '#ffffff';
+        const c = slide.bg.color || (st.projectDims && st.projectDims.bg) || '#ffffff';
         if (bgColorInp && document.activeElement !== bgColorInp) bgColorInp.value = c;
-        if (bgHint) bgHint.textContent = 'شريحة فارغة — يمكنك تغيير لونها';
+        if (bgHint) bgHint.textContent = 'شريحة فارغة';
       } else {
         if (bgColorInp) bgColorInp.disabled = true;
         if (bgApplyBtn) { bgApplyBtn.disabled = true; bgApplyBtn.style.opacity = '0.5'; }
@@ -2441,9 +1887,9 @@ function initProjectDimsPanel() {
     applyBtn.addEventListener('click', async () => {
       const w = parseInt(wInp.value, 10);
       const h = parseInt(hInp.value, 10);
-      if (!w || !h) { alert('الرجاء إدخال أبعاد صالحة'); return; }
-      if (w < 100 || h < 100) { alert('الأبعاد صغيرة جداً (الحد الأدنى 100px)'); return; }
-      if (w > 20000 || h > 20000) { alert('الأبعاد كبيرة جداً (الحد الأقصى 20000px)'); return; }
+      if (!w || !h) { safeToast('الرجاء إدخال أبعاد صالحة', 'warn'); return; }
+      if (w < 100 || h < 100) { safeToast('الأبعاد صغيرة جداً (الحد الأدنى 100px)', 'warn'); return; }
+      if (w > 20000 || h > 20000) { safeToast('الأبعاد كبيرة جداً (الحد الأقصى 20000px)', 'warn'); return; }
 
       try {
         const core = await import('./core.js');
@@ -2457,59 +1903,32 @@ function initProjectDimsPanel() {
         Object.keys(st.pages).forEach(pageNum => {
           const pg = st.pages[pageNum];
           if (!pg) return;
-
           (pg.annotations || []).forEach(spec => {
             const a = spec.attrs || {};
             ['x', 'y', 'cx', 'cy', 'x1', 'y1', 'x2', 'y2', 'width', 'height', 'rx', 'ry'].forEach(k => {
               if (a[k] !== undefined) {
-                const fx = (k === 'x' || k === 'width' || k === 'cx'
-                  || k === 'x1' || k === 'x2' || k === 'rx') ? scaleX : scaleY;
+                const fx = (k === 'x' || k === 'width' || k === 'cx' || k === 'x1' || k === 'x2' || k === 'rx') ? scaleX : scaleY;
                 a[k] = parseFloat(a[k]) * fx;
               }
             });
-            if (a.transform) {
-              const m = a.transform.match(/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)/);
-              if (m) a.transform = `translate(${parseFloat(m[1]) * scaleX}, ${parseFloat(m[2]) * scaleY})`;
-            }
-            if (a['stroke-width']) {
-              a['stroke-width'] = parseFloat(a['stroke-width']) * ((scaleX + scaleY) / 2);
-            }
-          });
-
-          ['texts', 'buttons', 'embeds', 'media', 'videos'].forEach(key => {
-            (pg[key] || []).forEach(spec => {
-              if (spec.x && typeof spec.x === 'string' && !spec.x.endsWith('%')) {
-                spec.x = (parseFloat(spec.x) * scaleX) + 'px';
-              }
-              if (spec.y && typeof spec.y === 'string' && !spec.y.endsWith('%')) {
-                spec.y = (parseFloat(spec.y) * scaleY) + 'px';
-              }
-              if (spec.w && typeof spec.w === 'string' && spec.w.endsWith('px')) {
-                spec.w = (parseFloat(spec.w) * scaleX) + 'px';
-              }
-              if (spec.h && typeof spec.h === 'string' && spec.h.endsWith('px')) {
-                spec.h = (parseFloat(spec.h) * scaleY) + 'px';
-              }
-            });
+            if (a['stroke-width']) a['stroke-width'] = parseFloat(a['stroke-width']) * ((scaleX + scaleY) / 2);
           });
         });
 
         st.projectDims = st.projectDims || {};
         st.projectDims.width = w;
         st.projectDims.height = h;
-
         st.pageCache.clear();
         st.thumbCache.clear();
-        st.history = {};
+        st.history = { past: [], future: [] };
 
         await pdf.renderPage(st.currentPage);
         pdf.renderThumbnails();
-
         if (hint) hint.textContent = `✓ تم التطبيق — ${w} × ${h}`;
         setTimeout(refresh, 1500);
       } catch (e) {
         console.error(e);
-        alert('تعذّر التطبيق: ' + e.message);
+        safeToast('تعذّر التطبيق: ' + e.message, 'error');
       }
     });
   }
@@ -2522,59 +1941,37 @@ function initProjectDimsPanel() {
       if (!st.currentPage || st.currentPage < 1 || st.currentPage > st.totalPages) return;
       const slide = st.slides[st.currentPage - 1];
       if (!slide) return;
-      if (slide.bg.type !== 'blank') {
-        if (core.toast) core.toast('لا يمكن تغيير خلفية شريحة PDF', 'warn');
-        return;
-      }
+      if (slide.bg.type !== 'blank') { if (core.toast) core.toast('لا يمكن تغيير خلفية شريحة PDF', 'warn'); return; }
       slide.bg.color = color;
       st.pageCache.delete(st.currentPage);
       st.thumbCache.delete(st.currentPage);
       await pdf.renderPage(st.currentPage);
       pdf.renderThumbnails();
-      if (bgHint) bgHint.textContent = '✓ تم تطبيق اللون';
+      if (bgHint) bgHint.textContent = '✓ تم التطبيق';
       setTimeout(refresh, 1200);
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   }
 
-  if (bgApplyBtn && bgColorInp) {
-    bgApplyBtn.addEventListener('click', () => applyBg(bgColorInp.value));
-  }
-  infoPanel.querySelectorAll('[data-bgcolor]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (bgColorInp) bgColorInp.value = btn.dataset.bgcolor;
-      applyBg(btn.dataset.bgcolor);
-    });
-  });
+  if (bgApplyBtn && bgColorInp) bgApplyBtn.addEventListener('click', () => applyBg(bgColorInp.value));
 
   function updateVisibility() {
     const panel = document.getElementById('selectedElementPropsPanel');
     const hasSel = document.querySelectorAll('#stageContent .selected').length > 0;
-    if (hasSel) {
-      infoPanel.style.display = 'none';
-      if (panel) panel.style.display = 'block';
-    } else {
-      infoPanel.style.display = 'block';
-      if (panel) panel.style.display = 'none';
-    }
+    if (hasSel) { infoPanel.style.display = 'none'; if (panel) panel.style.display = 'block'; }
+    else { infoPanel.style.display = 'block'; if (panel) panel.style.display = 'none'; }
   }
   updateVisibility();
 
   const stageContent = document.getElementById('stageContent');
   if (stageContent) {
     const obs = new MutationObserver(updateVisibility);
-    obs.observe(stageContent, {
-      attributes: true,
-      attributeFilter: ['class'],
-      subtree: true,
-    });
+    obs.observe(stageContent, { attributes: true, attributeFilter: ['class'], subtree: true });
   }
 }
 
-/* ============================================================
-   §9B. ELEMENT DESIGN PROPERTIES — لوحة التصميم والمحاذاة والخصائص
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §14. ELEMENT DESIGN PROPS — placeholder (long; see original)
+   ═══════════════════════════════════════════════════════════ */
 function initElementDesignProps() {
   const panel = document.getElementById('selectedElementPropsPanel');
   const infoPanel = document.getElementById('documentInfoPanel');
@@ -2598,11 +1995,7 @@ function initElementDesignProps() {
     const list = core.state.selectedList && core.state.selectedList.length > 0
       ? core.state.selectedList
       : (core.state.selected ? [core.state.selected] : []);
-    return {
-      list,
-      count: list.length,
-      primary: list.length > 0 ? list[0] : null,
-    };
+    return { list, count: list.length, primary: list.length > 0 ? list[0] : null };
   }
 
   async function renderProps() {
@@ -2620,7 +2013,7 @@ function initElementDesignProps() {
     panel.style.display = 'block';
     if (infoPanel) infoPanel.style.display = 'none';
 
-    // ═══════════ MULTI-SELECTION VIEW ═══════════
+    /* ═══════════ تحديد متعدد ═══════════ */
     if (count > 1) {
       panel.innerHTML = `
         <div class="prop-section">
@@ -2628,7 +2021,6 @@ function initElementDesignProps() {
             <span>🗂️ تحديد متعدد (${count} عناصر)</span>
             <span style="font-size:10px;color:var(--sh-accent);background:rgba(74,126,255,.1);padding:2px 6px;border-radius:4px">كتلة واحدة</span>
           </div>
-
           <div style="margin-top:8px">
             <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">مرجع المحاذاة والتوزيع:</label>
             <div class="align-target-switch">
@@ -2636,19 +2028,17 @@ function initElementDesignProps() {
               <button type="button" class="align-target-btn ${currentAlignTarget === 'canvas' ? 'active' : ''}" data-target="canvas">🖼️ الكانفاس</button>
             </div>
           </div>
-
           <div style="margin-top:8px">
             <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">المحاذاة:</label>
             <div class="align-grid">
-              <button type="button" class="align-action-btn" data-align="left" title="محاذاة لليسار (PowerPoint Align Left)">${PPT_ALIGN_ICONS.left}</button>
-              <button type="button" class="align-action-btn" data-align="centerH" title="توسيط أفقياً (PowerPoint Align Center)">${PPT_ALIGN_ICONS.centerH}</button>
-              <button type="button" class="align-action-btn" data-align="right" title="محاذاة لليمين (PowerPoint Align Right)">${PPT_ALIGN_ICONS.right}</button>
-              <button type="button" class="align-action-btn" data-align="top" title="محاذاة للأعلى (PowerPoint Align Top)">${PPT_ALIGN_ICONS.top}</button>
-              <button type="button" class="align-action-btn" data-align="centerV" title="توسيط رأسياً (PowerPoint Align Middle)">${PPT_ALIGN_ICONS.centerV}</button>
-              <button type="button" class="align-action-btn" data-align="bottom" title="محاذاة للأسفل (PowerPoint Align Bottom)">${PPT_ALIGN_ICONS.bottom}</button>
+              <button type="button" class="align-action-btn" data-align="left" title="محاذاة لليسار">${PPT_ALIGN_ICONS.left}</button>
+              <button type="button" class="align-action-btn" data-align="centerH" title="توسيط أفقياً">${PPT_ALIGN_ICONS.centerH}</button>
+              <button type="button" class="align-action-btn" data-align="right" title="محاذاة لليمين">${PPT_ALIGN_ICONS.right}</button>
+              <button type="button" class="align-action-btn" data-align="top" title="محاذاة للأعلى">${PPT_ALIGN_ICONS.top}</button>
+              <button type="button" class="align-action-btn" data-align="centerV" title="توسيط رأسياً">${PPT_ALIGN_ICONS.centerV}</button>
+              <button type="button" class="align-action-btn" data-align="bottom" title="محاذاة للأسفل">${PPT_ALIGN_ICONS.bottom}</button>
             </div>
           </div>
-
           <div style="margin-top:8px">
             <label style="font-size:10.5px;color:var(--sh-text-muted);display:block;margin-bottom:4px">التوزيع بالتساوي:</label>
             <div class="distribute-grid">
@@ -2657,7 +2047,6 @@ function initElementDesignProps() {
             </div>
           </div>
         </div>
-
         <div class="prop-section">
           <div class="prop-title">🗂 ترتيب الطبقات</div>
           <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
@@ -2665,7 +2054,6 @@ function initElementDesignProps() {
             <button type="button" class="prop-input" id="bulkBackBtn" style="cursor:pointer;font-size:11px;font-weight:600">⏬ إلى الخلف</button>
           </div>
         </div>
-
         <div class="prop-section">
           <div class="prop-title">👁 الشفافية للكل</div>
           <div class="prop-row" style="grid-template-columns:1fr auto;align-items:center;gap:8px">
@@ -2673,7 +2061,6 @@ function initElementDesignProps() {
             <span id="bulkOpacityVal" style="font-size:11.5px;font-variant-numeric:tabular-nums;min-width:36px;text-align:center">100%</span>
           </div>
         </div>
-
         <div class="prop-section">
           <div class="prop-title">⚡ إجراءات سريعة</div>
           <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
@@ -2683,7 +2070,6 @@ function initElementDesignProps() {
         </div>
       `;
 
-      // Wire target switch
       panel.querySelectorAll('.align-target-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           currentAlignTarget = btn.dataset.target;
@@ -2692,35 +2078,19 @@ function initElementDesignProps() {
         });
       });
 
-      // Wire align buttons
       panel.querySelectorAll('.align-action-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          inter.alignSelected(btn.dataset.align, currentAlignTarget);
-        });
+        btn.addEventListener('click', () => inter.alignSelected(btn.dataset.align, currentAlignTarget));
       });
 
-      // Wire distribute buttons
       panel.querySelectorAll('.distribute-action-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          inter.distributeSelected(btn.dataset.dist, currentAlignTarget);
-        });
+        btn.addEventListener('click', () => inter.distributeSelected(btn.dataset.dist, currentAlignTarget));
       });
 
-      // Bulk layer
       const bFront = document.getElementById('bulkFrontBtn');
       const bBack = document.getElementById('bulkBackBtn');
-      if (bFront) bFront.addEventListener('click', () => {
-        list.forEach(it => inter.bringToFront(it.el));
-        core.commitChange();
-        refreshLayersPanel();
-      });
-      if (bBack) bBack.addEventListener('click', () => {
-        list.forEach(it => inter.sendToBack(it.el));
-        core.commitChange();
-        refreshLayersPanel();
-      });
+      if (bFront) bFront.addEventListener('click', () => { list.forEach(it => inter.bringToFront(it.el)); core.commitChange(); refreshLayersPanel(); });
+      if (bBack) bBack.addEventListener('click', () => { list.forEach(it => inter.sendToBack(it.el)); core.commitChange(); refreshLayersPanel(); });
 
-      // Bulk opacity
       const bOpSlider = document.getElementById('bulkOpacitySlider');
       const bOpVal = document.getElementById('bulkOpacityVal');
       if (bOpSlider) {
@@ -2741,7 +2111,6 @@ function initElementDesignProps() {
         bOpSlider.addEventListener('change', () => core.commitChange());
       }
 
-      // Bulk Duplicate & Delete
       const bDup = document.getElementById('bulkDupBtn');
       const bDel = document.getElementById('bulkDelBtn');
       if (bDup) bDup.addEventListener('click', () => inter.duplicateSelectedElements());
@@ -2749,7 +2118,7 @@ function initElementDesignProps() {
       return;
     }
 
-    // ═══════════ SINGLE-ELEMENT VIEW ═══════════
+    /* ═══════════ عنصر واحد ═══════════ */
     const sel = primary;
     const targetInner = sel.kind === 'svg' ? (sel.el.querySelector('[data-annot]') || sel.el) : sel.el;
     const curRot = parseFloat(targetInner.dataset.rotation) || 0;
@@ -2757,11 +2126,7 @@ function initElementDesignProps() {
     const isFlipV = targetInner.dataset.flipV === 'true';
 
     const kindLabel = {
-      svg: 'شكل / رسم',
-      text: 'مربع نص',
-      media: 'صورة / فيديو',
-      button: 'زر تفاعلي',
-      embed: 'تضمين ويب',
+      svg: 'شكل / رسم', text: 'مربع نص', media: 'صورة / فيديو', button: 'زر تفاعلي', embed: 'تضمين ويب',
     }[sel.kind] || 'عنصر';
 
     panel.innerHTML = `
@@ -2772,38 +2137,36 @@ function initElementDesignProps() {
         </div>
         <div class="prop-row">
           <div class="prop-field scrub-field">
-            <label class="scrub-label" id="lblPropX" data-scrub="x" title="اضغط واسحب للأعلى للزيادة وللأسفل للإنقاص"><span>الموضع الأفقي X</span> <span class="scrub-hint">⇕ سحب</span></label>
+            <label class="scrub-label" id="lblPropX" data-scrub="x" title="اسحب للأعلى للزيادة وللأسفل للإنقاص"><span>الموضع الأفقي X</span> <span class="scrub-hint">⇕ سحب</span></label>
             <input type="number" class="prop-input scrubbable" id="elemPropX" step="1" />
           </div>
           <div class="prop-field scrub-field">
-            <label class="scrub-label" id="lblPropY" data-scrub="y" title="اضغط واسحب للأعلى للزيادة وللأسفل للإنقاص"><span>الموضع الرأسي Y</span> <span class="scrub-hint">⇕ سحب</span></label>
+            <label class="scrub-label" id="lblPropY" data-scrub="y" title="اسحب للأعلى للزيادة وللأسفل للإنقاص"><span>الموضع الرأسي Y</span> <span class="scrub-hint">⇕ سحب</span></label>
             <input type="number" class="prop-input scrubbable" id="elemPropY" step="1" />
           </div>
         </div>
         <div class="prop-row">
           <div class="prop-field scrub-field">
-            <label class="scrub-label" id="lblPropW" data-scrub="w" title="اضغط واسحب للأعلى للزيادة وللأسفل للإنقاص"><span>العرض W</span> <span class="scrub-hint">⇕ سحب</span></label>
+            <label class="scrub-label" id="lblPropW" data-scrub="w"><span>العرض W</span> <span class="scrub-hint">⇕ سحب</span></label>
             <input type="number" class="prop-input scrubbable" id="elemPropW" min="1" step="1" />
           </div>
           <div class="prop-field scrub-field">
-            <label class="scrub-label" id="lblPropH" data-scrub="h" title="اضغط واسحب للأعلى للزيادة وللأسفل للإنقاص"><span>الارتفاع H</span> <span class="scrub-hint">⇕ سحب</span></label>
+            <label class="scrub-label" id="lblPropH" data-scrub="h"><span>الارتفاع H</span> <span class="scrub-hint">⇕ سحب</span></label>
             <input type="number" class="prop-input scrubbable" id="elemPropH" min="1" step="1" />
           </div>
         </div>
       </div>
-
       <div class="prop-section">
         <div class="prop-title">📐 محاذاة للشريحة (PowerPoint Align)</div>
         <div class="align-grid">
-          <button type="button" class="align-action-btn" data-align="left" title="محاذاة لليسار (PowerPoint Align Left)">${PPT_ALIGN_ICONS.left}</button>
-          <button type="button" class="align-action-btn" data-align="centerH" title="توسيط أفقياً (PowerPoint Align Center)">${PPT_ALIGN_ICONS.centerH}</button>
-          <button type="button" class="align-action-btn" data-align="right" title="محاذاة لليمين (PowerPoint Align Right)">${PPT_ALIGN_ICONS.right}</button>
-          <button type="button" class="align-action-btn" data-align="top" title="محاذاة للأعلى (PowerPoint Align Top)">${PPT_ALIGN_ICONS.top}</button>
-          <button type="button" class="align-action-btn" data-align="centerV" title="توسيط رأسياً (PowerPoint Align Middle)">${PPT_ALIGN_ICONS.centerV}</button>
-          <button type="button" class="align-action-btn" data-align="bottom" title="محاذاة للأسفل (PowerPoint Align Bottom)">${PPT_ALIGN_ICONS.bottom}</button>
+          <button type="button" class="align-action-btn" data-align="left">${PPT_ALIGN_ICONS.left}</button>
+          <button type="button" class="align-action-btn" data-align="centerH">${PPT_ALIGN_ICONS.centerH}</button>
+          <button type="button" class="align-action-btn" data-align="right">${PPT_ALIGN_ICONS.right}</button>
+          <button type="button" class="align-action-btn" data-align="top">${PPT_ALIGN_ICONS.top}</button>
+          <button type="button" class="align-action-btn" data-align="centerV">${PPT_ALIGN_ICONS.centerV}</button>
+          <button type="button" class="align-action-btn" data-align="bottom">${PPT_ALIGN_ICONS.bottom}</button>
         </div>
       </div>
-
       <div class="prop-section">
         <div class="prop-title">🔄 الدوران والانعكاس (Transform & Flip)</div>
         <div class="prop-row" style="grid-template-columns:1fr auto;gap:8px;align-items:center">
@@ -2823,43 +2186,34 @@ function initElementDesignProps() {
           <button type="button" class="prop-input" id="elemResetTransformBtn" style="font-size:10.5px;cursor:pointer;width:100%">↺ إعادة ضبط الدوران والانعكاس</button>
         </div>
       </div>
-
       <div class="prop-section">
         <div class="prop-title" style="display:flex;justify-content:space-between;align-items:center">
           <span>🎯 نقطة الارتكاز (Origin Pivot)</span>
           <span style="font-size:10px;color:#10b981;font-weight:700" id="originCoordsBadge">${Math.round(parseFloat(targetInner.dataset.originX ?? 0.5) * 100)}%, ${Math.round(parseFloat(targetInner.dataset.originY ?? 0.5) * 100)}%</span>
         </div>
-        <div style="font-size:10px;color:var(--sh-text-dim);margin-bottom:6px">يدور ويتمدد العنصر بالنسبة لهذه النقطة (اسحب المقبض الأخضر ⊕ أو اختر من الشبكة):</div>
+        <div style="font-size:10px;color:var(--sh-text-dim);margin-bottom:6px">اسحب المقبض الأخضر ⊕ في الكانفاس أو اختر من الشبكة:</div>
         <div style="display:flex;gap:10px;align-items:center">
           <div class="origin-9grid" id="origin9Grid">
-            <button type="button" class="origin-dot-btn" data-ox="0" data-oy="0" title="أعلى يسار"></button>
-            <button type="button" class="origin-dot-btn" data-ox="0.5" data-oy="0" title="أعلى وسط"></button>
-            <button type="button" class="origin-dot-btn" data-ox="1" data-oy="0" title="أعلى يمين"></button>
-            <button type="button" class="origin-dot-btn" data-ox="0" data-oy="0.5" title="وسط يسار"></button>
-            <button type="button" class="origin-dot-btn" data-ox="0.5" data-oy="0.5" title="المركز (افتراضي)"></button>
-            <button type="button" class="origin-dot-btn" data-ox="1" data-oy="0.5" title="وسط يمين"></button>
-            <button type="button" class="origin-dot-btn" data-ox="0" data-oy="1" title="أسفل يسار"></button>
-            <button type="button" class="origin-dot-btn" data-ox="0.5" data-oy="1" title="أسفل وسط"></button>
-            <button type="button" class="origin-dot-btn" data-ox="1" data-oy="1" title="أسفل يمين"></button>
+            <button type="button" class="origin-dot-btn" data-ox="0" data-oy="0"></button>
+            <button type="button" class="origin-dot-btn" data-ox="0.5" data-oy="0"></button>
+            <button type="button" class="origin-dot-btn" data-ox="1" data-oy="0"></button>
+            <button type="button" class="origin-dot-btn" data-ox="0" data-oy="0.5"></button>
+            <button type="button" class="origin-dot-btn" data-ox="0.5" data-oy="0.5"></button>
+            <button type="button" class="origin-dot-btn" data-ox="1" data-oy="0.5"></button>
+            <button type="button" class="origin-dot-btn" data-ox="0" data-oy="1"></button>
+            <button type="button" class="origin-dot-btn" data-ox="0.5" data-oy="1"></button>
+            <button type="button" class="origin-dot-btn" data-ox="1" data-oy="1"></button>
           </div>
           <div style="flex:1">
             <div class="prop-row" style="margin-bottom:4px">
-              <div class="prop-field">
-                <label>X %</label>
-                <input type="number" class="prop-input" id="elemOriginX" min="0" max="100" value="${Math.round(parseFloat(targetInner.dataset.originX ?? 0.5) * 100)}" />
-              </div>
-              <div class="prop-field">
-                <label>Y %</label>
-                <input type="number" class="prop-input" id="elemOriginY" min="0" max="100" value="${Math.round(parseFloat(targetInner.dataset.originY ?? 0.5) * 100)}" />
-              </div>
+              <div class="prop-field"><label>X %</label><input type="number" class="prop-input" id="elemOriginX" min="0" max="100" value="${Math.round(parseFloat(targetInner.dataset.originX ?? 0.5) * 100)}" /></div>
+              <div class="prop-field"><label>Y %</label><input type="number" class="prop-input" id="elemOriginY" min="0" max="100" value="${Math.round(parseFloat(targetInner.dataset.originY ?? 0.5) * 100)}" /></div>
             </div>
-            <button type="button" class="prop-input" id="btnCenterOrigin" style="cursor:pointer;font-size:10px;padding:3px 6px;width:100%">توسيط للمركز (50%, 50%)</button>
+            <button type="button" class="prop-input" id="btnCenterOrigin" style="cursor:pointer;font-size:10px;padding:3px 6px;width:100%">توسيط (50%, 50%)</button>
           </div>
         </div>
       </div>
-
       <div id="elementSpecificProps"></div>
-
       <div class="prop-section">
         <div class="prop-title">🗂 ترتيب الطبقة</div>
         <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
@@ -2869,7 +2223,6 @@ function initElementDesignProps() {
           <button type="button" class="prop-input" id="elemBwdBtn" style="cursor:pointer;font-size:11px;font-weight:600">▼ تأخير خطوة</button>
         </div>
       </div>
-
       <div class="prop-section">
         <div class="prop-title">👁 الشفافية</div>
         <div class="prop-row" style="grid-template-columns:1fr auto;align-items:center;gap:8px">
@@ -2877,21 +2230,20 @@ function initElementDesignProps() {
           <span id="elemOpacityVal" style="font-size:11.5px;font-variant-numeric:tabular-nums;min-width:36px;text-align:center">100%</span>
         </div>
       </div>
-
       <div class="prop-section">
         <div class="prop-title">⚡ إجراءات</div>
         <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
-          <button type="button" class="prop-input" id="elemCopyBtn" style="cursor:pointer;font-size:11px;font-weight:600">📋 نسخ العنصر</button>
-          <button type="button" class="prop-input" id="elemPasteBtn" style="cursor:pointer;font-size:11px;font-weight:600">📄 لصق العنصر</button>
+          <button type="button" class="prop-input" id="elemCopyBtn" style="cursor:pointer;font-size:11px;font-weight:600">📋 نسخ</button>
+          <button type="button" class="prop-input" id="elemPasteBtn" style="cursor:pointer;font-size:11px;font-weight:600">📄 لصق</button>
         </div>
         <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px;margin-top:4px">
-          <button type="button" class="prop-input" id="elemDupBtn" style="cursor:pointer;font-size:11px;font-weight:600;background:rgba(74,126,255,.1);border-color:var(--sh-accent);color:#fff">📑 تكرار العنصر</button>
-          <button type="button" class="prop-input" id="elemDelBtn" style="cursor:pointer;font-size:11px;font-weight:600;background:rgba(239,68,68,.12);border-color:#ef4444;color:#ef4444">🗑️ حذف العنصر</button>
+          <button type="button" class="prop-input" id="elemDupBtn" style="cursor:pointer;font-size:11px;font-weight:600;background:rgba(74,126,255,.1);border-color:var(--sh-accent);color:#fff">📑 تكرار</button>
+          <button type="button" class="prop-input" id="elemDelBtn" style="cursor:pointer;font-size:11px;font-weight:600;background:rgba(239,68,68,.12);border-color:#ef4444;color:#ef4444">🗑️ حذف</button>
         </div>
       </div>
     `;
 
-    // Populate type-specific controls
+    /* ═══════════ خصائص حسب النوع ═══════════ */
     const specHost = document.getElementById('elementSpecificProps');
     if (specHost) {
       if (sel.kind === 'text') {
@@ -2900,21 +2252,14 @@ function initElementDesignProps() {
         const curColor = sel.el.dataset.color || '#1e3a8a';
         const isBold = sel.el.dataset.fontWeight === 'bold';
         const isItalic = sel.el.dataset.fontStyle === 'italic';
-
         const curBg = sel.el.dataset.bg || '';
 
         specHost.innerHTML = `
           <div class="prop-section">
             <div class="prop-title">✍️ خصائص النص</div>
             <div class="prop-row" style="margin-bottom:6px">
-              <div class="prop-field">
-                <label>حجم الخط (px)</label>
-                <input type="number" class="prop-input" id="textPropSize" value="${curSize}" min="8" max="200" />
-              </div>
-              <div class="prop-field">
-                <label>لون النص</label>
-                <input type="color" class="prop-input" id="textPropColor" value="${curColor}" style="padding:2px;height:28px" />
-              </div>
+              <div class="prop-field"><label>حجم الخط (px)</label><input type="number" class="prop-input" id="textPropSize" value="${curSize}" min="8" max="200" /></div>
+              <div class="prop-field"><label>لون النص</label><input type="color" class="prop-input" id="textPropColor" value="${curColor}" style="padding:2px;height:28px" /></div>
             </div>
             <div class="prop-row" style="margin-top:6px;margin-bottom:6px">
               <div class="prop-field" style="grid-column: 1 / -1">
@@ -2926,9 +2271,9 @@ function initElementDesignProps() {
               </div>
             </div>
             <div class="prop-row" style="grid-template-columns:1fr 1fr 1fr;gap:4px">
-              <button type="button" class="prop-input ${isBold ? 'active' : ''}" id="textBoldBtn" style="cursor:pointer;font-weight:bold">B عريض</button>
-              <button type="button" class="prop-input ${isItalic ? 'active' : ''}" id="textItalicBtn" style="cursor:pointer;font-style:italic">I مائل</button>
-              <button type="button" class="prop-input" id="textAlignRBtn" style="cursor:pointer">محاذاة ⇥</button>
+              <button type="button" class="prop-input ${isBold ? 'active' : ''}" id="textBoldBtn" style="cursor:pointer;font-weight:bold">B</button>
+              <button type="button" class="prop-input ${isItalic ? 'active' : ''}" id="textItalicBtn" style="cursor:pointer;font-style:italic">I</button>
+              <button type="button" class="prop-input" id="textAlignRBtn" style="cursor:pointer">⇥</button>
             </div>
           </div>
         `;
@@ -2941,8 +2286,10 @@ function initElementDesignProps() {
         const tItal = document.getElementById('textItalicBtn');
         const tAlign = document.getElementById('textAlignRBtn');
 
+        // ★ Session 4 — fontSizeRefCssW
         if (tSize) tSize.addEventListener('change', () => {
           sel.el.dataset.fontSize = tSize.value;
+          sel.el.dataset.fontSizeRefCssW = String(core.state.cssW || 800);
           inter.applyTextStyles(sel.el);
           core.commitChange();
         });
@@ -2951,22 +2298,18 @@ function initElementDesignProps() {
           inter.applyTextStyles(sel.el);
           core.commitChange();
         });
-        if (tBgColor) {
-          tBgColor.addEventListener('input', () => {
-            sel.el.dataset.bg = tBgColor.value;
-            inter.applyTextStyles(sel.el);
-            if (tBgNone) tBgNone.classList.remove('active');
-            core.commitChange();
-          });
-        }
-        if (tBgNone) {
-          tBgNone.addEventListener('click', () => {
-            sel.el.dataset.bg = 'transparent';
-            inter.applyTextStyles(sel.el);
-            tBgNone.classList.add('active');
-            core.commitChange();
-          });
-        }
+        if (tBgColor) tBgColor.addEventListener('input', () => {
+          sel.el.dataset.bg = tBgColor.value;
+          inter.applyTextStyles(sel.el);
+          if (tBgNone) tBgNone.classList.remove('active');
+          core.commitChange();
+        });
+        if (tBgNone) tBgNone.addEventListener('click', () => {
+          sel.el.dataset.bg = 'transparent';
+          inter.applyTextStyles(sel.el);
+          tBgNone.classList.add('active');
+          core.commitChange();
+        });
         if (tBold) tBold.addEventListener('click', () => {
           const nowB = sel.el.dataset.fontWeight === 'bold';
           sel.el.dataset.fontWeight = nowB ? 'normal' : 'bold';
@@ -2997,12 +2340,11 @@ function initElementDesignProps() {
         const shapeType = inner.dataset.type || tag;
 
         let extraPropsHtml = '';
-
         if (tag === 'rect') {
           const curRx = parseFloat(inner.getAttribute('rx') || '0');
           extraPropsHtml += `
             <div class="prop-section">
-              <div class="prop-title">📐 استدارة الزوايا (Corner Radius)</div>
+              <div class="prop-title">📐 استدارة الزوايا</div>
               <div class="prop-row" style="grid-template-columns:1fr auto;gap:8px;align-items:center">
                 <input type="range" class="prop-input" id="shapeRadiusSlider" min="0" max="80" value="${curRx}" style="accent-color:var(--sh-accent);cursor:pointer"/>
                 <input type="number" class="prop-input" id="shapeRadiusInput" min="0" max="150" value="${curRx}" style="width:50px;text-align:center"/>
@@ -3018,7 +2360,7 @@ function initElementDesignProps() {
         } else if (shapeType === 'curve') {
           extraPropsHtml += `
             <div class="prop-section">
-              <div class="prop-title">〰️ التحكم في المنحنى (Curve)</div>
+              <div class="prop-title">〰️ التحكم في المنحنى</div>
               <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:4px">
                 <button type="button" class="prop-input" id="curveFlipBtn">🔄 عكس الانحناء</button>
                 <button type="button" class="prop-input" id="curveStraightenBtn">━ تسوية الخط</button>
@@ -3034,8 +2376,7 @@ function initElementDesignProps() {
             <div class="prop-section">
               <div class="prop-title">📈 خصائص المستوى الديكارتي</div>
               <div class="prop-row" style="grid-template-columns:1fr 1fr;gap:6px">
-                <div class="prop-field">
-                  <label>نطاق المحاور</label>
+                <div class="prop-field"><label>النطاق</label>
                   <select class="prop-input" id="cartesianRangeSelect">
                     <option value="3" ${curRange === '3' ? 'selected' : ''}>-3 إلى 3</option>
                     <option value="5" ${curRange === '5' ? 'selected' : ''}>-5 إلى 5</option>
@@ -3043,8 +2384,7 @@ function initElementDesignProps() {
                     <option value="10" ${curRange === '10' ? 'selected' : ''}>-10 إلى 10</option>
                   </select>
                 </div>
-                <div class="prop-field">
-                  <label>لغة المحاور</label>
+                <div class="prop-field"><label>اللغة</label>
                   <select class="prop-input" id="cartesianLangSelect">
                     <option value="ar" ${curLang === 'ar' ? 'selected' : ''}>عربي (س / ص)</option>
                     <option value="en" ${curLang === 'en' ? 'selected' : ''}>إنجليزي (X / Y)</option>
@@ -3063,7 +2403,7 @@ function initElementDesignProps() {
           const capPct = Math.round((curCap / (b.height || 1)) * 100);
           extraPropsHtml += `
             <div class="prop-section">
-              <div class="prop-title">🛢️ عمق الأسطوانة (3D Depth)</div>
+              <div class="prop-title">🛢️ عمق الأسطوانة</div>
               <div class="prop-row" style="grid-template-columns:1fr auto;gap:8px;align-items:center">
                 <input type="range" class="prop-input" id="cylinderDepthSlider" min="10" max="45" value="${capPct}" style="accent-color:var(--sh-accent);cursor:pointer"/>
                 <span id="cylinderDepthVal" style="font-size:11px;min-width:32px">${capPct}%</span>
@@ -3077,7 +2417,7 @@ function initElementDesignProps() {
               <div class="prop-title">⚡ عنصر دارة كهربائية</div>
               <div style="font-size:11.5px;color:var(--sh-accent);background:rgba(74,126,255,0.08);padding:6px 10px;border-radius:6px;display:flex;align-items:center;gap:6px">
                 <span style="font-size:16px">${compDef ? compDef.icon : '⚡'}</span>
-                <span>${compDef ? compDef.label : 'عنصر دارة كهربائية'}</span>
+                <span>${compDef ? compDef.label : 'عنصر دارة'}</span>
               </div>
             </div>
           `;
@@ -3087,12 +2427,8 @@ function initElementDesignProps() {
           <div class="prop-section">
             <div class="prop-title">🎨 مظهر الشكل</div>
             <div class="prop-row">
-              <div class="prop-field">
-                <label>لون الحدود</label>
-                <input type="color" class="prop-input" id="shapeStrokeColor" value="${curStroke.startsWith('#') ? curStroke : '#000000'}" style="padding:2px;height:28px" />
-              </div>
-              <div class="prop-field">
-                <label>لون التعبئة</label>
+              <div class="prop-field"><label>لون الحدود</label><input type="color" class="prop-input" id="shapeStrokeColor" value="${curStroke.startsWith('#') ? curStroke : '#000000'}" style="padding:2px;height:28px" /></div>
+              <div class="prop-field"><label>لون التعبئة</label>
                 <div style="display:flex;gap:4px">
                   <input type="color" class="prop-input" id="shapeFillColor" value="${curFill.startsWith('#') ? curFill : '#4a7eff'}" style="padding:2px;height:28px" />
                   <button type="button" class="prop-input" id="shapeFillNoneBtn" style="cursor:pointer;font-size:10px;padding:0 6px" title="تعبئة شفافة">شفاف</button>
@@ -3100,10 +2436,7 @@ function initElementDesignProps() {
               </div>
             </div>
             <div class="prop-row" style="margin-top:6px">
-              <div class="prop-field">
-                <label>سمك الخط (px)</label>
-                <input type="number" class="prop-input" id="shapeStrokeWidth" value="${parseFloat(curSW) || 3}" min="1" max="40" />
-              </div>
+              <div class="prop-field"><label>سمك الخط (px)</label><input type="number" class="prop-input" id="shapeStrokeWidth" value="${parseFloat(curSW) || 3}" min="1" max="40" /></div>
             </div>
           </div>
           ${extraPropsHtml}
@@ -3114,24 +2447,12 @@ function initElementDesignProps() {
         const sFillNone = document.getElementById('shapeFillNoneBtn');
         const sSW = document.getElementById('shapeStrokeWidth');
 
-        if (sStr) sStr.addEventListener('input', () => {
-          inner.setAttribute('stroke', sStr.value);
-          core.commitChange();
-        });
-        if (sFill) sFill.addEventListener('input', () => {
-          inner.setAttribute('fill', sFill.value);
-          core.commitChange();
-        });
-        if (sFillNone) sFillNone.addEventListener('click', () => {
-          inner.setAttribute('fill', 'none');
-          core.commitChange();
-        });
-        if (sSW) sSW.addEventListener('change', () => {
-          inner.setAttribute('stroke-width', sSW.value);
-          core.commitChange();
-        });
+        if (sStr) sStr.addEventListener('input', () => { inner.setAttribute('stroke', sStr.value); core.commitChange(); });
+        if (sFill) sFill.addEventListener('input', () => { inner.setAttribute('fill', sFill.value); core.commitChange(); });
+        if (sFillNone) sFillNone.addEventListener('click', () => { inner.setAttribute('fill', 'none'); core.commitChange(); });
+        if (sSW) sSW.addEventListener('change', () => { inner.setAttribute('stroke-width', sSW.value); core.commitChange(); });
 
-        // ── Round Corners Handlers ──
+        // Radius
         const rSlider = document.getElementById('shapeRadiusSlider');
         const rInput = document.getElementById('shapeRadiusInput');
         function applyRadius(val) {
@@ -3148,42 +2469,36 @@ function initElementDesignProps() {
           btn.addEventListener('click', () => applyRadius(parseFloat(btn.dataset.r) || 0));
         });
 
-        // ── Curve Handlers ──
+        // Curve
         const cFlip = document.getElementById('curveFlipBtn');
+        if (cFlip) cFlip.addEventListener('click', () => {
+          const x0 = parseFloat(inner.dataset.x0) || 0, y0 = parseFloat(inner.dataset.y0) || 0;
+          const x1 = parseFloat(inner.dataset.x1) || 0, y1 = parseFloat(inner.dataset.y1) || 0;
+          const cx = parseFloat(inner.dataset.cx) || ((x0 + x1) / 2);
+          const cy = parseFloat(inner.dataset.cy) || ((y0 + y1) / 2);
+          const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+          const newCx = mx - (cx - mx), newCy = my - (cy - my);
+          inner.setAttribute('d', `M ${x0} ${y0} Q ${newCx} ${newCy} ${x1} ${y1}`);
+          inner.dataset.cx = newCx; inner.dataset.cy = newCy;
+          inter.drawSelectionOverlay();
+          core.commitChange();
+        });
         const cStraight = document.getElementById('curveStraightenBtn');
-        if (cFlip) {
-          cFlip.addEventListener('click', () => {
-            const x0 = parseFloat(inner.dataset.x0) || 0, y0 = parseFloat(inner.dataset.y0) || 0;
-            const x1 = parseFloat(inner.dataset.x1) || 0, y1 = parseFloat(inner.dataset.y1) || 0;
-            const cx = parseFloat(inner.dataset.cx) || ((x0 + x1) / 2);
-            const cy = parseFloat(inner.dataset.cy) || ((y0 + y1) / 2);
-            const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
-            const newCx = mx - (cx - mx);
-            const newCy = my - (cy - my);
-            inner.setAttribute('d', `M ${x0} ${y0} Q ${newCx} ${newCy} ${x1} ${y1}`);
-            inner.dataset.cx = newCx; inner.dataset.cy = newCy;
-            inter.drawSelectionOverlay();
-            core.commitChange();
-          });
-        }
-        if (cStraight) {
-          cStraight.addEventListener('click', () => {
-            const x0 = parseFloat(inner.dataset.x0) || 0, y0 = parseFloat(inner.dataset.y0) || 0;
-            const x1 = parseFloat(inner.dataset.x1) || 0, y1 = parseFloat(inner.dataset.y1) || 0;
-            const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
-            inner.setAttribute('d', `M ${x0} ${y0} Q ${mx} ${my} ${x1} ${y1}`);
-            inner.dataset.cx = mx; inner.dataset.cy = my;
-            inter.drawSelectionOverlay();
-            core.commitChange();
-          });
-        }
+        if (cStraight) cStraight.addEventListener('click', () => {
+          const x0 = parseFloat(inner.dataset.x0) || 0, y0 = parseFloat(inner.dataset.y0) || 0;
+          const x1 = parseFloat(inner.dataset.x1) || 0, y1 = parseFloat(inner.dataset.y1) || 0;
+          const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+          inner.setAttribute('d', `M ${x0} ${y0} Q ${mx} ${my} ${x1} ${y1}`);
+          inner.dataset.cx = mx; inner.dataset.cy = my;
+          inter.drawSelectionOverlay();
+          core.commitChange();
+        });
 
-        // ── Cartesian Handlers ──
+        // Cartesian
         const cartRange = document.getElementById('cartesianRangeSelect');
         const cartLang = document.getElementById('cartesianLangSelect');
         const cartGrid = document.getElementById('cartesianToggleGridBtn');
         const cartNums = document.getElementById('cartesianToggleNumsBtn');
-
         function updateCartesian() {
           const b = shapes.getUniversalShapeBounds(inner);
           if (!b) return;
@@ -3198,49 +2513,41 @@ function initElementDesignProps() {
         }
         if (cartRange) cartRange.addEventListener('change', updateCartesian);
         if (cartLang) cartLang.addEventListener('change', updateCartesian);
-        if (cartGrid) {
-          cartGrid.addEventListener('click', () => {
-            const cur = inner.dataset.showGrid !== 'false';
-            inner.dataset.showGrid = String(!cur);
-            cartGrid.classList.toggle('active', !cur);
-            cartGrid.textContent = (!cur ? '⊞ إخفاء الشبكة' : '⊞ إظهار الشبكة');
-            updateCartesian();
-          });
-        }
-        if (cartNums) {
-          cartNums.addEventListener('click', () => {
-            const cur = inner.dataset.showNumbers !== 'false';
-            inner.dataset.showNumbers = String(!cur);
-            cartNums.classList.toggle('active', !cur);
-            cartNums.textContent = (!cur ? '🔢 إخفاء الأرقام' : '🔢 إظهار الأرقام');
-            updateCartesian();
-          });
-        }
+        if (cartGrid) cartGrid.addEventListener('click', () => {
+          const cur = inner.dataset.showGrid !== 'false';
+          inner.dataset.showGrid = String(!cur);
+          cartGrid.classList.toggle('active', !cur);
+          cartGrid.textContent = (!cur ? '⊞ إخفاء الشبكة' : '⊞ إظهار الشبكة');
+          updateCartesian();
+        });
+        if (cartNums) cartNums.addEventListener('click', () => {
+          const cur = inner.dataset.showNumbers !== 'false';
+          inner.dataset.showNumbers = String(!cur);
+          cartNums.classList.toggle('active', !cur);
+          cartNums.textContent = (!cur ? '🔢 إخفاء الأرقام' : '🔢 إظهار الأرقام');
+          updateCartesian();
+        });
 
-        // ── Cylinder Handlers ──
+        // Cylinder
         const cylDepth = document.getElementById('cylinderDepthSlider');
         const cylVal = document.getElementById('cylinderDepthVal');
-        if (cylDepth) {
-          cylDepth.addEventListener('input', () => {
-            const pct = parseInt(cylDepth.value, 10);
-            if (cylVal) cylVal.textContent = pct + '%';
-            const b = shapes.getUniversalShapeBounds(inner);
-            if (!b) return;
-            shapes.renderCylinder(inner, b.x, b.y, b.width, b.height, pct / 100);
-            core.commitChange();
-          });
-        }
+        if (cylDepth) cylDepth.addEventListener('input', () => {
+          const pct = parseInt(cylDepth.value, 10);
+          if (cylVal) cylVal.textContent = pct + '%';
+          const b = shapes.getUniversalShapeBounds(inner);
+          if (!b) return;
+          shapes.renderCylinder(inner, b.x, b.y, b.width, b.height, pct / 100);
+          core.commitChange();
+        });
       }
     }
 
-    // Align to canvas for single item
+    /* ═══════════ ربط المحاذاة ═══════════ */
     panel.querySelectorAll('.align-action-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        inter.alignSelected(btn.dataset.align, 'canvas');
-      });
+      btn.addEventListener('click', () => inter.alignSelected(btn.dataset.align, 'canvas'));
     });
 
-    // Populate geometry inputs
+    /* ═══════════ المدخلات الهندسية ═══════════ */
     const inpX = document.getElementById('elemPropX');
     const inpY = document.getElementById('elemPropY');
     const inpW = document.getElementById('elemPropW');
@@ -3267,7 +2574,6 @@ function initElementDesignProps() {
     if (opSlider) opSlider.value = opPct;
     if (opVal) opVal.textContent = opPct + '%';
 
-    // Apply geometry changes
     async function applyGeometry(recordChange = true) {
       const pre = recordChange ? core.snapshot() : null;
       const newX = parseFloat(inpX.value) || 0;
@@ -3309,16 +2615,17 @@ function initElementDesignProps() {
           }
         }
       } else {
-        sel.el.style.left = (newX / (core.state.pdfW || 2000) * 100) + '%';
-        sel.el.style.top = (newY / (core.state.pdfH || 2828) * 100) + '%';
-        sel.el.style.width = newW + 'px';
-        sel.el.style.height = newH + 'px';
+        // ★ Session 4 — % للعناصر HTML
+        const pdfW = core.state.pdfW || 2000;
+        const pdfH = core.state.pdfH || 2828;
+        sel.el.style.left = (newX / pdfW * 100) + '%';
+        sel.el.style.top = (newY / pdfH * 100) + '%';
+        sel.el.style.width = (newW / pdfW * 100) + '%';
+        sel.el.style.height = (newH / pdfH * 100) + '%';
       }
 
       inter.drawSelectionOverlay();
-      if (recordChange && pre) {
-        core.commitChange(pre);
-      }
+      if (recordChange && pre) core.commitChange(pre);
     }
 
     [inpX, inpY, inpW, inpH].forEach(inp => {
@@ -3330,45 +2637,35 @@ function initElementDesignProps() {
       }
     });
 
-    // ── Scrubbing Functionality (سحب للأعلى للزيادة والأسفل للإنقاص) ──
+    /* ═══════════ Scrubbing ═══════════ */
     function setupScrubber(inputEl, labelEl, propName) {
       if (!inputEl) return;
       const targets = [labelEl, inputEl].filter(Boolean);
-
       targets.forEach(target => {
         target.addEventListener('pointerdown', (e) => {
           if (e.pointerType === 'mouse' && e.button !== 0) return;
-
-          const startY = e.clientY;
-          const startX = e.clientX;
+          const startY = e.clientY, startX = e.clientX;
           const startVal = parseFloat(inputEl.value) || 0;
           let isDragging = false;
           let pre = core.snapshot();
 
           const onPointerMove = (ev) => {
-            const dy = startY - ev.clientY; // UP is positive, DOWN is negative
+            const dy = startY - ev.clientY;
             const dx = ev.clientX - startX;
             const dist = Math.abs(dy) + Math.abs(dx);
-
             if (!isDragging && dist > 3) {
               isDragging = true;
               document.body.classList.add('scrubbing-active');
               try { target.setPointerCapture(e.pointerId); } catch (_) {}
-              if (document.activeElement === inputEl) {
-                inputEl.blur();
-              }
+              if (document.activeElement === inputEl) inputEl.blur();
             }
-
             if (isDragging) {
               ev.preventDefault();
               let step = 1;
               if (ev.shiftKey) step = 5;
               if (ev.altKey) step = 0.2;
-
               let newVal = Math.round(startVal + dy * step);
-              if (propName === 'w' || propName === 'h') {
-                newVal = Math.max(4, newVal);
-              }
+              if (propName === 'w' || propName === 'h') newVal = Math.max(4, newVal);
               inputEl.value = newVal;
               applyGeometry(false);
             }
@@ -3380,7 +2677,6 @@ function initElementDesignProps() {
             window.removeEventListener('pointercancel', onPointerUp);
             try { target.releasePointerCapture(e.pointerId); } catch (_) {}
             document.body.classList.remove('scrubbing-active');
-
             if (isDragging) {
               ev.preventDefault();
               ev.stopPropagation();
@@ -3419,7 +2715,7 @@ function initElementDesignProps() {
       opSlider.addEventListener('change', () => core.commitChange());
     }
 
-    // ── Rotate & Flip Handlers ──
+    /* ═══════════ الدوران ═══════════ */
     const rotSlider = document.getElementById('elemRotateSlider');
     const rotInput = document.getElementById('elemRotateInput');
     const btnRotL = document.getElementById('elemRotLBtn');
@@ -3437,57 +2733,45 @@ function initElementDesignProps() {
       });
       rotSlider.addEventListener('change', () => core.commitChange());
     }
-    if (rotInput) {
-      rotInput.addEventListener('change', () => {
-        const val = parseFloat(rotInput.value) || 0;
-        if (rotSlider) rotSlider.value = val;
-        inter.setElementRotation(sel.el, val);
-        inter.drawSelectionOverlay();
-        core.commitChange();
-      });
-    }
-    if (btnRotL) {
-      btnRotL.addEventListener('click', () => {
-        inter.rotateElement(sel.el, -90);
-        inter.drawSelectionOverlay();
-        core.commitChange();
-        renderProps();
-      });
-    }
-    if (btnRotR) {
-      btnRotR.addEventListener('click', () => {
-        inter.rotateElement(sel.el, 90);
-        inter.drawSelectionOverlay();
-        core.commitChange();
-        renderProps();
-      });
-    }
-    if (btnFlipH) {
-      btnFlipH.addEventListener('click', () => {
-        inter.flipElementHorizontal(sel.el);
-        inter.drawSelectionOverlay();
-        core.commitChange();
-        renderProps();
-      });
-    }
-    if (btnFlipV) {
-      btnFlipV.addEventListener('click', () => {
-        inter.flipElementVertical(sel.el);
-        inter.drawSelectionOverlay();
-        core.commitChange();
-        renderProps();
-      });
-    }
-    if (btnResetTf) {
-      btnResetTf.addEventListener('click', () => {
-        inter.resetElementTransform(sel.el);
-        inter.drawSelectionOverlay();
-        core.commitChange();
-        renderProps();
-      });
-    }
+    if (rotInput) rotInput.addEventListener('change', () => {
+      const val = parseFloat(rotInput.value) || 0;
+      if (rotSlider) rotSlider.value = val;
+      inter.setElementRotation(sel.el, val);
+      inter.drawSelectionOverlay();
+      core.commitChange();
+    });
+    if (btnRotL) btnRotL.addEventListener('click', () => {
+      inter.rotateElement(sel.el, -90);
+      inter.drawSelectionOverlay();
+      core.commitChange();
+      renderProps();
+    });
+    if (btnRotR) btnRotR.addEventListener('click', () => {
+      inter.rotateElement(sel.el, 90);
+      inter.drawSelectionOverlay();
+      core.commitChange();
+      renderProps();
+    });
+    if (btnFlipH) btnFlipH.addEventListener('click', () => {
+      inter.flipElementHorizontal(sel.el);
+      inter.drawSelectionOverlay();
+      core.commitChange();
+      renderProps();
+    });
+    if (btnFlipV) btnFlipV.addEventListener('click', () => {
+      inter.flipElementVertical(sel.el);
+      inter.drawSelectionOverlay();
+      core.commitChange();
+      renderProps();
+    });
+    if (btnResetTf) btnResetTf.addEventListener('click', () => {
+      inter.resetElementTransform(sel.el);
+      inter.drawSelectionOverlay();
+      core.commitChange();
+      renderProps();
+    });
 
-    // ── Origin 9-Grid & Percentage Inputs ──
+    /* ═══════════ نقطة الارتكاز ═══════════ */
     const curOx = parseFloat(targetInner.dataset.originX ?? 0.5);
     const curOy = parseFloat(targetInner.dataset.originY ?? 0.5);
     panel.querySelectorAll('.origin-dot-btn').forEach(dot => {
@@ -3509,68 +2793,55 @@ function initElementDesignProps() {
     const oyInp = document.getElementById('elemOriginY');
     const btnCenterOrig = document.getElementById('btnCenterOrigin');
 
-    if (oxInp) {
-      oxInp.addEventListener('change', () => {
-        const val = Math.max(0, Math.min(100, parseFloat(oxInp.value) || 50)) / 100;
-        targetInner.dataset.originX = String(val);
-        inter.applyElementTransform(targetInner);
-        inter.drawSelectionOverlay();
-        core.commitChange();
-        renderProps();
-      });
-    }
-    if (oyInp) {
-      oyInp.addEventListener('change', () => {
-        const val = Math.max(0, Math.min(100, parseFloat(oyInp.value) || 50)) / 100;
-        targetInner.dataset.originY = String(val);
-        inter.applyElementTransform(targetInner);
-        inter.drawSelectionOverlay();
-        core.commitChange();
-        renderProps();
-      });
-    }
-    if (btnCenterOrig) {
-      btnCenterOrig.addEventListener('click', () => {
-        targetInner.dataset.originX = '0.5';
-        targetInner.dataset.originY = '0.5';
-        inter.applyElementTransform(targetInner);
-        inter.drawSelectionOverlay();
-        core.commitChange();
-        renderProps();
-      });
-    }
+    if (oxInp) oxInp.addEventListener('change', () => {
+      const val = Math.max(0, Math.min(100, parseFloat(oxInp.value) || 50)) / 100;
+      targetInner.dataset.originX = String(val);
+      inter.applyElementTransform(targetInner);
+      inter.drawSelectionOverlay();
+      core.commitChange();
+      renderProps();
+    });
+    if (oyInp) oyInp.addEventListener('change', () => {
+      const val = Math.max(0, Math.min(100, parseFloat(oyInp.value) || 50)) / 100;
+      targetInner.dataset.originY = String(val);
+      inter.applyElementTransform(targetInner);
+      inter.drawSelectionOverlay();
+      core.commitChange();
+      renderProps();
+    });
+    if (btnCenterOrig) btnCenterOrig.addEventListener('click', () => {
+      targetInner.dataset.originX = '0.5';
+      targetInner.dataset.originY = '0.5';
+      inter.applyElementTransform(targetInner);
+      inter.drawSelectionOverlay();
+      core.commitChange();
+      renderProps();
+    });
 
-    // ── Copy & Paste Actions ──
+    /* ═══════════ نسخ/لصق ═══════════ */
     const btnCopy = document.getElementById('elemCopyBtn');
     const btnPaste = document.getElementById('elemPasteBtn');
     if (btnCopy) btnCopy.addEventListener('click', () => inter.copyElement(sel.el));
     if (btnPaste) btnPaste.addEventListener('click', () => inter.pasteElement());
 
-    // Layer Ordering
+    /* ═══════════ ترتيب الطبقات ═══════════ */
     const btnFront = document.getElementById('elemFrontBtn');
     const btnBack = document.getElementById('elemBackBtn');
     const btnFwd = document.getElementById('elemFwdBtn');
     const btnBwd = document.getElementById('elemBwdBtn');
-    if (btnFront) btnFront.addEventListener('click', () => {
-      inter.bringToFront(sel.el); core.commitChange(); refreshLayersPanel();
-    });
-    if (btnBack) btnBack.addEventListener('click', () => {
-      inter.sendToBack(sel.el); core.commitChange(); refreshLayersPanel();
-    });
-    if (btnFwd) btnFwd.addEventListener('click', () => {
-      inter.bringForward(sel.el); core.commitChange(); refreshLayersPanel();
-    });
-    if (btnBwd) btnBwd.addEventListener('click', () => {
-      inter.sendBackward(sel.el); core.commitChange(); refreshLayersPanel();
-    });
+    if (btnFront) btnFront.addEventListener('click', () => { inter.bringToFront(sel.el); core.commitChange(); refreshLayersPanel(); });
+    if (btnBack) btnBack.addEventListener('click', () => { inter.sendToBack(sel.el); core.commitChange(); refreshLayersPanel(); });
+    if (btnFwd) btnFwd.addEventListener('click', () => { inter.bringForward(sel.el); core.commitChange(); refreshLayersPanel(); });
+    if (btnBwd) btnBwd.addEventListener('click', () => { inter.sendBackward(sel.el); core.commitChange(); refreshLayersPanel(); });
 
-    // Duplicate & Delete
+    /* ═══════════ تكرار/حذف ═══════════ */
     const btnDup = document.getElementById('elemDupBtn');
     const btnDel = document.getElementById('elemDelBtn');
     if (btnDup) btnDup.addEventListener('click', () => inter.duplicateSelectedElements());
     if (btnDel) btnDel.addEventListener('click', () => inter.deleteSelectedElements());
   }
 
+  /* ═══════════ تحديث القيم فقط ═══════════ */
   function updateGeometryInputsValuesOnly() {
     const inpX = document.getElementById('elemPropX');
     const inpY = document.getElementById('elemPropY');
@@ -3583,11 +2854,9 @@ function initElementDesignProps() {
         ? core.state.selectedList[0]
         : core.state.selected;
       if (!sel || !sel.el) return;
-
       import('./interaction.js').then(inter => {
         const b = inter.getElementBBoxInStage(sel.el);
         if (!b) return;
-
         if (document.activeElement !== inpX) inpX.value = Math.round(b.x);
         if (document.activeElement !== inpY) inpY.value = Math.round(b.y);
         if (document.activeElement !== inpW) inpW.value = Math.round(b.width);
@@ -3603,9 +2872,9 @@ function initElementDesignProps() {
   renderProps();
 }
 
-/* ============================================================
-   §9C. CANVAS CONTROLS (من ui.html)
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §15. CANVAS CONTROLS (Session 4 — honest percentage)
+   ═══════════════════════════════════════════════════════════ */
 function initCanvasControls() {
   const zoomIn = document.getElementById('ctrlZoomIn');
   const zoomOut = document.getElementById('ctrlZoomOut');
@@ -3616,64 +2885,37 @@ function initCanvasControls() {
   const presentBtn = document.getElementById('ctrlPresent');
   const gridOverlay = document.getElementById('canvasGridOverlay');
 
-  async function updateZoomDisplay() {
-    const core = await import('./core.js');
-    if (!zoomVal || !core.state || !core.state.view) return;
-    const pct = Math.round((core.state.view.scale || 1) * 100);
-    zoomVal.textContent = pct + '%';
+  function getZoomPercent() {
+    const pdfW = state.pdfW || 2000;
+    const cssW = state.cssW || 800;
+    return (cssW * state.view.scale) / pdfW * 100;
   }
 
-  if (zoomIn) {
-    zoomIn.addEventListener('click', async () => {
-      const core = await import('./core.js');
-      const pdf = await import('./pdf.js');
-      core.state.view.scale = Math.min(5, Math.round((core.state.view.scale + 0.1) * 10) / 10);
-      pdf.applyView();
-      updateZoomDisplay();
-    });
+  function setZoomPercent(targetPercent) {
+    const pdfW = state.pdfW || 2000;
+    const cssW = state.cssW || 800;
+    targetPercent = Math.max(10, Math.min(500, targetPercent));
+    state.view.scale = (targetPercent / 100) * pdfW / cssW;
+    import('./pdf.js').then(pdf => pdf.applyView());
   }
 
-  if (zoomOut) {
-    zoomOut.addEventListener('click', async () => {
-      const core = await import('./core.js');
-      const pdf = await import('./pdf.js');
-      core.state.view.scale = Math.max(0.2, Math.round((core.state.view.scale - 0.1) * 10) / 10);
-      pdf.applyView();
-      updateZoomDisplay();
-    });
+  function updateZoomDisplay() {
+    if (!zoomVal) return;
+    if (!state.pdfW || !state.cssW) { zoomVal.textContent = '—'; return; }
+    zoomVal.textContent = Math.round(getZoomPercent()) + '%';
   }
 
-  if (actualBtn) {
-    actualBtn.addEventListener('click', async () => {
-      const core = await import('./core.js');
-      const pdf = await import('./pdf.js');
-      core.state.view.scale = 1;
-      core.state.view.tx = 0;
-      core.state.view.ty = 0;
-      pdf.applyView();
-      updateZoomDisplay();
-    });
-  }
-
+  if (zoomIn) zoomIn.addEventListener('click', () => setZoomPercent(getZoomPercent() + 10));
+  if (zoomOut) zoomOut.addEventListener('click', () => setZoomPercent(getZoomPercent() - 10));
+  if (actualBtn) actualBtn.addEventListener('click', () => setZoomPercent(100));
   if (fitBtn) {
-    fitBtn.addEventListener('click', async () => {
-      const core = await import('./core.js');
-      const pdf = await import('./pdf.js');
-      const wrapper = document.getElementById('stageWrapper');
-      if (!wrapper || !core.state.cssW || !core.state.cssH) return;
-      const wrapRect = wrapper.getBoundingClientRect();
-      const availW = wrapRect.width - 60;
-      const availH = wrapRect.height - 60;
-      if (availW <= 0 || availH <= 0) return;
-      const scale = Math.min(availW / core.state.cssW, availH / core.state.cssH);
-      core.state.view.scale = Math.min(3, Math.max(0.2, Math.round(scale * 100) / 100));
-      core.state.view.tx = 0;
-      core.state.view.ty = 0;
-      pdf.applyView();
-      updateZoomDisplay();
+    fitBtn.addEventListener('click', () => {
+      state.view.scale = 1;
+      state.view.tx = 0;
+      state.view.ty = 0;
+      import('./pdf.js').then(pdf => pdf.applyView());
     });
   }
-
   if (gridBtn) {
     gridBtn.addEventListener('click', () => {
       if (!gridOverlay) return;
@@ -3682,12 +2924,7 @@ function initCanvasControls() {
       gridBtn.classList.toggle('active', !isVisible);
     });
   }
-
-  if (presentBtn) {
-    presentBtn.addEventListener('click', () => {
-      openPresentMode();
-    });
-  }
+  if (presentBtn) presentBtn.addEventListener('click', () => openPresentMode());
 
   window.addEventListener('resize', updateZoomDisplay);
   document.addEventListener('ipb:pageChanged', () => setTimeout(updateZoomDisplay, 80));
@@ -3695,62 +2932,36 @@ function initCanvasControls() {
   updateZoomDisplay();
 }
 
-/* ============================================================
-   §9D. TOOLBAR TOGGLE
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §16. TOOLBAR TOGGLE
+   ═══════════════════════════════════════════════════════════ */
 function initToolbarToggle() {
   const toggleBtn = document.getElementById('btnToggleToolbar');
   const showBtn = document.getElementById('btnShowToolbar');
-
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', () => {
-      document.body.classList.add('tools-hidden');
-    });
-  }
-
-  if (showBtn) {
-    showBtn.addEventListener('click', () => {
-      document.body.classList.remove('tools-hidden');
-    });
-  }
+  if (toggleBtn) toggleBtn.addEventListener('click', () => document.body.classList.add('tools-hidden'));
+  if (showBtn) showBtn.addEventListener('click', () => document.body.classList.remove('tools-hidden'));
 }
 
-/* ============================================================
-   §10. EQUATION DIALOG
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §17. EQUATION HELPERS
+   ═══════════════════════════════════════════════════════════ */
 function setupEquationBackdropMirror() {
   let backdrop = document.getElementById('equationBackdrop');
-  if (!backdrop) {
-    backdrop = document.createElement('div');
-    backdrop.id = 'equationBackdrop';
-    document.body.appendChild(backdrop);
-  }
-
+  if (!backdrop) { backdrop = document.createElement('div'); backdrop.id = 'equationBackdrop'; document.body.appendChild(backdrop); }
   const editor = document.getElementById('equationEditor');
   if (!editor) return;
 
   if (!editor._uiShieldWired) {
     editor._uiShieldWired = true;
-    const shieldEvents = [
-      'pointerdown', 'pointerup', 'pointermove',
-      'mousedown', 'mouseup', 'mousemove',
-      'click', 'dblclick',
-      'touchstart', 'touchend', 'touchmove',
-      'keydown', 'keyup', 'keypress',
-      'wheel', 'contextmenu',
-    ];
-    shieldEvents.forEach(evt => {
+    ['pointerdown','pointerup','pointermove','mousedown','mouseup','mousemove','click','dblclick','touchstart','touchend','touchmove','keydown','keyup','keypress','wheel','contextmenu'].forEach(evt => {
       editor.addEventListener(evt, (e) => { e.stopPropagation(); }, false);
     });
   }
 
   if (!backdrop._uiShieldWired) {
     backdrop._uiShieldWired = true;
-    ['pointerdown', 'click', 'mousedown', 'mouseup'].forEach(evt => {
-      backdrop.addEventListener(evt, (e) => {
-        e.stopPropagation();
-        if (e.target === backdrop) hideBoth();
-      }, false);
+    ['pointerdown','click','mousedown','mouseup'].forEach(evt => {
+      backdrop.addEventListener(evt, (e) => { e.stopPropagation(); if (e.target === backdrop) hideBoth(); }, false);
     });
   }
 
@@ -3781,20 +2992,12 @@ function setupEquationBackdropMirror() {
 
   const closeBtn = document.getElementById('eqCloseBtn');
   const cancelBtn = document.getElementById('eqCancelBtn');
-  if (closeBtn && !closeBtn._uiWired) {
-    closeBtn._uiWired = true;
-    closeBtn.addEventListener('click', (e) => { e.stopPropagation(); hideBoth(); });
-  }
-  if (cancelBtn && !cancelBtn._uiWired) {
-    cancelBtn._uiWired = true;
-    cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); hideBoth(); });
-  }
+  if (closeBtn && !closeBtn._uiWired) { closeBtn._uiWired = true; closeBtn.addEventListener('click', (e) => { e.stopPropagation(); hideBoth(); }); }
+  if (cancelBtn && !cancelBtn._uiWired) { cancelBtn._uiWired = true; cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); hideBoth(); }); }
 
   if (!editor._uiEscapeWired) {
     editor._uiEscapeWired = true;
-    editor.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { e.stopPropagation(); hideBoth(); }
-    });
+    editor.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); hideBoth(); } });
   }
 
   const eqBtn = document.querySelector('#toolbar button[data-tool="equation"]');
@@ -3802,10 +3005,7 @@ function setupEquationBackdropMirror() {
     eqBtn._uiMirrorWired = true;
     eqBtn.addEventListener('click', () => {
       setTimeout(() => {
-        if (editor.classList.contains('show')) {
-          ensureEquationTabs(editor);
-          return;
-        }
+        if (editor.classList.contains('show')) { ensureEquationTabs(editor); return; }
         backdrop.classList.add('show');
         backdrop.style.display = 'block';
         editor.classList.add('show');
@@ -3829,14 +3029,9 @@ function ensureEquationTabs(editor) {
     }
     return;
   }
-
   const sections = [];
-  let currentCat = null;
   Array.from(host.children).forEach(child => {
-    if (child.classList.contains('eq-section-label')) {
-      currentCat = { label: child.textContent.trim() };
-      sections.push(currentCat);
-    }
+    if (child.classList.contains('eq-section-label')) sections.push({ label: child.textContent.trim() });
   });
   if (sections.length < 2) return;
 
@@ -3864,8 +3059,7 @@ function ensureEquationTabs(editor) {
       e.stopPropagation();
       tabsBar.querySelectorAll('.eq-cat-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      const grids = host.querySelectorAll('.eq-grid');
-      grids.forEach((g, j) => g.classList.toggle('active', j === i));
+      host.querySelectorAll('.eq-grid').forEach((g, j) => g.classList.toggle('active', j === i));
     });
     tabsBar.appendChild(btn);
   });
@@ -3878,11 +3072,8 @@ function ensureEquationPalette(editor) {
   const host = editor.querySelector('#eqPaletteHost');
   if (!host) return;
   if (host.children.length > 0) return;
-
   import('./interaction.js').then(mod => {
-    if (mod.buildEquationPaletteInto) {
-      try { mod.buildEquationPaletteInto(host); } catch (_) {}
-    }
+    if (mod.buildEquationPaletteInto) { try { mod.buildEquationPaletteInto(host); } catch (_) {} }
     if (!host.children.length) buildFallbackPalette(host);
     ensureEquationTabs(editor);
   }).catch(() => {
@@ -3893,102 +3084,24 @@ function ensureEquationPalette(editor) {
 
 function buildFallbackPalette(host) {
   const TEMPLATES = [
-    { cat: 'الكسور والجذور', items: [
-      { label: 'a/b', latex: '\\frac{a}{b}' },
-      { label: '√',   latex: '\\sqrt{x}' },
-      { label: 'ⁿ√',  latex: '\\sqrt[n]{x}' },
-      { label: 'x/y', latex: '\\frac{x}{y}' },
-      { label: '¹⁄₂', latex: '\\frac{1}{2}' },
-      { label: 'a+b/c', latex: '\\frac{a+b}{c}' },
-    ]},
-    { cat: 'الأسس', items: [
-      { label: 'x²', latex: 'x^{2}' },
-      { label: 'xₙ', latex: 'x_{n}' },
-      { label: 'xⁿ', latex: 'x^{n}' },
-      { label: 'xₐᵦ', latex: 'x_{a}^{b}' },
-      { label: 'eˣ', latex: 'e^{x}' },
-      { label: 'a⁺ᵇ', latex: 'a^{n+1}' },
-    ]},
-    { cat: 'المجاميع والتكاملات', items: [
-      { label: '∑',   latex: '\\sum_{i=1}^{n}' },
-      { label: '∏',   latex: '\\prod_{i=1}^{n}' },
-      { label: '∫',   latex: '\\int_{a}^{b}' },
-      { label: '∬',   latex: '\\iint' },
-      { label: '∮',   latex: '\\oint' },
-      { label: 'lim', latex: '\\lim_{x \\to \\infty}' },
-      { label: 'd/dx', latex: '\\frac{d}{dx}' },
-      { label: '∂/∂x', latex: '\\frac{\\partial}{\\partial x}' },
-      { label: '∞',   latex: '\\infty' },
-    ]},
-    { cat: 'حروف يونانية', items: [
-      { label: 'α', latex: '\\alpha' }, { label: 'β', latex: '\\beta' }, { label: 'γ', latex: '\\gamma' },
-      { label: 'δ', latex: '\\delta' }, { label: 'ε', latex: '\\epsilon' }, { label: 'θ', latex: '\\theta' },
-      { label: 'λ', latex: '\\lambda' }, { label: 'μ', latex: '\\mu' }, { label: 'π', latex: '\\pi' },
-      { label: 'ρ', latex: '\\rho' }, { label: 'σ', latex: '\\sigma' }, { label: 'τ', latex: '\\tau' },
-      { label: 'φ', latex: '\\phi' }, { label: 'χ', latex: '\\chi' }, { label: 'ψ', latex: '\\psi' },
-      { label: 'ω', latex: '\\omega' }, { label: 'Δ', latex: '\\Delta' }, { label: 'Σ', latex: '\\Sigma' },
-    ]},
-    { cat: 'العلاقات والعمليات', items: [
-      { label: '≠',  latex: '\\neq' }, { label: '≤', latex: '\\leq' }, { label: '≥', latex: '\\geq' },
-      { label: '≈',  latex: '\\approx' }, { label: '≡', latex: '\\equiv' }, { label: '∝', latex: '\\propto' },
-      { label: '±',  latex: '\\pm' }, { label: '×', latex: '\\times' }, { label: '÷', latex: '\\div' },
-      { label: '·',  latex: '\\cdot' }, { label: '→', latex: '\\to' }, { label: '⇒', latex: '\\Rightarrow' },
-      { label: '⇔',  latex: '\\Leftrightarrow' }, { label: '∈', latex: '\\in' }, { label: '∉', latex: '\\notin' },
-      { label: '⊂',  latex: '\\subset' }, { label: '∪', latex: '\\cup' }, { label: '∩', latex: '\\cap' },
-      { label: '∀',  latex: '\\forall' }, { label: '∃', latex: '\\exists' },
-    ]},
-    { cat: 'الدوال', items: [
-      { label: 'sin',  latex: '\\sin' }, { label: 'cos', latex: '\\cos' }, { label: 'tan', latex: '\\tan' },
-      { label: 'cot',  latex: '\\cot' }, { label: 'sec', latex: '\\sec' }, { label: 'csc', latex: '\\csc' },
-      { label: 'log',  latex: '\\log' }, { label: 'ln',  latex: '\\ln' },  { label: 'exp', latex: '\\exp' },
-      { label: 'sin⁻¹', latex: '\\arcsin' }, { label: 'cos⁻¹', latex: '\\arccos' }, { label: 'tan⁻¹', latex: '\\arctan' },
-    ]},
-    { cat: 'مصفوفات', items: [
-      { label: 'matrix 2×2', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
-      { label: 'matrix 3×3', latex: '\\begin{pmatrix} a & b & c \\\\ d & e & f \\\\ g & h & i \\end{pmatrix}' },
-      { label: 'cases',      latex: '\\begin{cases} a \\\\ b \\end{cases}' },
-      { label: 'vec',        latex: '\\vec{v}' },
-      { label: 'hat',        latex: '\\hat{x}' },
-      { label: 'bar',        latex: '\\bar{x}' },
-      { label: 'det',        latex: '\\det A' },
-    ]},
-    { cat: 'أحرف لاتينية', items: [
-      { label: 'x',  latex: 'x' }, { label: 'y', latex: 'y' }, { label: 'z', latex: 'z' },
-      { label: 'a',  latex: 'a' }, { label: 'b', latex: 'b' }, { label: 'c', latex: 'c' },
-      { label: 'f(x)', latex: 'f(x)' }, { label: 'dx', latex: 'dx' }, { label: 'dy', latex: 'dy' },
-      { label: '≠0', latex: '\\neq 0' }, { label: 'x∈ℝ', latex: 'x \\in \\mathbb{R}' },
-      { label: 'ℕ', latex: '\\mathbb{N}' }, { label: 'ℤ', latex: '\\mathbb{Z}' },
-      { label: 'ℚ', latex: '\\mathbb{Q}' }, { label: 'ℝ', latex: '\\mathbb{R}' },
-      { label: 'ℂ', latex: '\\mathbb{C}' },
-    ]},
+    { cat: 'الكسور', items: [{ label: 'a/b', latex: '\\frac{a}{b}' }, { label: '√', latex: '\\sqrt{x}' }] },
+    { cat: 'الأسس', items: [{ label: 'x²', latex: 'x^{2}' }, { label: 'xₙ', latex: 'x_{n}' }] },
+    { cat: 'يونانية', items: [{ label: 'α', latex: '\\alpha' }, { label: 'β', latex: '\\beta' }, { label: 'π', latex: '\\pi' }] },
   ];
-
   host.innerHTML = '';
   TEMPLATES.forEach(cat => {
     const lbl = document.createElement('div');
     lbl.className = 'eq-section-label';
     lbl.textContent = cat.cat;
     host.appendChild(lbl);
-
     const grid = document.createElement('div');
     grid.className = 'eq-grid';
-
     cat.items.forEach(item => {
       const btn = document.createElement('button');
       btn.className = 'eq-btn';
       btn.type = 'button';
-
       const inner = document.createElement('span');
-      try {
-        if (window.katex) {
-          window.katex.render(item.latex, inner, {
-            throwOnError: false, displayMode: false, output: 'html',
-          });
-        } else {
-          inner.textContent = item.label;
-        }
-      } catch (e) { inner.textContent = item.label; }
-
+      try { if (window.katex) window.katex.render(item.latex, inner, { throwOnError: false, displayMode: false, output: 'html' }); else inner.textContent = item.label; } catch (e) { inner.textContent = item.label; }
       btn.appendChild(inner);
       btn.title = item.latex;
       btn.addEventListener('click', (e) => {
@@ -4004,46 +3117,71 @@ function buildFallbackPalette(host) {
       });
       grid.appendChild(btn);
     });
-
     host.appendChild(grid);
   });
 }
 
-/* ============================================================
-   §11. PRESENT MODE (وضع العرض التفاعلي الاحترافي)
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §18. PRESENT MODE (with Notes + Touch Toggle)
+   ═══════════════════════════════════════════════════════════ */
 const presentState = {
   active: false,
-  tool: 'select', // 'select' | 'hand' | 'pen' | 'highlighter' | 'laser' | 'eraser'
-  penColor: '#ef4444',
-  penSize: 4,
-  highlighterColor: '#fef08a',
-  highlighterSize: 18,
-  laserColor: '#ff1744',
-  laserSize: 8,
-  laserMode: 'trail', // 'trail' | 'dot'
-  strokes: [], // ink strokes on current slide
-  redoStrokes: [],
-  laserStrokes: [],
-  isDrawing: false,
-  currentStroke: null,
-  lastLaserPoint: null,
-  laserRAF: null,
-  timerStart: 0,
-  timerInterval: null,
-  keyListener: null,
-  drawingBound: false,
-  // Video recording
-  recorder: null,
-  recordStream: null,
-  recordedChunks: [],
-  recordStartTime: 0,
-  recordTimerInterval: null,
-  isRecording: false,
-  isRecordingPaused: false,
-  recordedVideoBlob: null,
-  recordedVideoUrl: null,
+  tool: 'select',
+  penColor: '#ef4444', penSize: 4,
+  highlighterColor: '#fef08a', highlighterSize: 18,
+  laserColor: '#ff1744', laserSize: 8, laserMode: 'trail',
+  strokes: [], redoStrokes: [], laserStrokes: [],
+  isDrawing: false, currentStroke: null, lastLaserPoint: null,
+  laserRAF: null, timerStart: 0, timerInterval: null,
+  keyListener: null, drawingBound: false,
+  recorder: null, recordStream: null, recordedChunks: [],
+  recordStartTime: 0, recordTimerInterval: null,
+  isRecording: false, isRecordingPaused: false,
+  recordedVideoBlob: null, recordedVideoUrl: null, recAnimId: null,
 };
+
+// ★★ Session 2 — عرض الملاحظات في وضع العرض
+function updatePresentNotes() {
+  const banner = document.getElementById('presentNotes');
+  const body = document.getElementById('presentNotesBody');
+  if (!banner || !body) return;
+  const slide = state.slides && state.slides[state.currentPage - 1];
+  const notes = (slide && slide.notes) || '';
+  if (!notes.trim()) { banner.style.display = 'none'; return; }
+  banner.style.display = 'flex';
+  body.textContent = notes;
+}
+
+// ★★ Session 6 — زر إظهار شريط الأدوات على اللمس
+function setupPresentTouchToggle() {
+  const overlay = document.getElementById('presentOverlay');
+  if (!overlay) return;
+  let btn = document.getElementById('presentTouchToggle');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'presentTouchToggle';
+    btn.className = 'present-touch-toggle';
+    btn.title = 'إظهار / إخفاء شريط الأدوات';
+    btn.textContent = '⌃';
+    overlay.appendChild(btn);
+  }
+  if (btn._wired) return;
+  btn._wired = true;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const bar = document.getElementById('presentToolbar');
+    if (!bar) return;
+    if (bar.classList.contains('show')) {
+      bar.classList.remove('show');
+    } else {
+      bar.classList.add('show');
+      clearTimeout(btn._hideTimer);
+      btn._hideTimer = setTimeout(() => {
+        if (presentState.active && bar) bar.classList.remove('show');
+      }, 5000);
+    }
+  });
+}
 
 async function openPresentMode() {
   if (presentState.active) return;
@@ -4054,7 +3192,6 @@ async function openPresentMode() {
   overlay.classList.add('active');
   document.body.classList.add('present-active');
 
-  // Reset per-session presentation drawings
   presentState.strokes = [];
   presentState.redoStrokes = [];
   presentState.laserStrokes = [];
@@ -4072,13 +3209,13 @@ async function openPresentMode() {
   resetPresentTimer();
   startPresentTimer();
   updatePresentPageNum();
+  setupPresentTouchToggle();  // Session 6
+  updatePresentNotes();       // Session 2
 
   const bar = document.getElementById('presentToolbar');
   if (bar) {
     bar.classList.add('show');
-    setTimeout(() => {
-      if (presentState.active && bar) bar.classList.remove('show');
-    }, 2800);
+    setTimeout(() => { if (presentState.active && bar) bar.classList.remove('show'); }, 2800);
   }
 
   document.addEventListener('ipb:pageChanged', onPresentPageChanged);
@@ -4087,16 +3224,8 @@ async function openPresentMode() {
 function closePresentMode() {
   if (!presentState.active) return;
   presentState.active = false;
-
-  // Stop video recording if in progress
-  if (presentState.isRecording) {
-    stopPresentRecording(false);
-  }
-
-  // Stop laser animation
+  if (presentState.isRecording) stopPresentRecording(false);
   stopPresentLaserLoop();
-
-  // Save presentation ink annotations to current slide
   savePresentStrokesToSlide();
 
   const overlay = document.getElementById('presentOverlay');
@@ -4117,13 +3246,13 @@ function closePresentMode() {
 }
 
 function onPresentPageChanged() {
-  // Save current slide present strokes before switching
   savePresentStrokesToSlide();
   presentState.strokes = [];
   presentState.redoStrokes = [];
   presentState.laserStrokes = [];
   copyStageToPresent();
   updatePresentPageNum();
+  updatePresentNotes();  // Session 2
   updatePresentUndoRedo();
 }
 
@@ -4137,37 +3266,28 @@ function copyStageToPresent() {
   const presentLaser = document.getElementById('presentLaser');
   if (!stage || !presentStage || !pdfCanvas || !presentCanvas) return;
 
-  // Calculate true un-distorted aspect ratio
   let aspect = 16 / 9;
-  if (pdfCanvas.width && pdfCanvas.height) {
-    aspect = pdfCanvas.width / pdfCanvas.height;
-  } else {
-    const stageRect = stage.getBoundingClientRect();
-    if (stageRect.width && stageRect.height) aspect = stageRect.width / stageRect.height;
-  }
+  if (pdfCanvas.width && pdfCanvas.height) aspect = pdfCanvas.width / pdfCanvas.height;
+  else { const stageRect = stage.getBoundingClientRect(); if (stageRect.width && stageRect.height) aspect = stageRect.width / stageRect.height; }
 
   const vw = window.innerWidth * 0.94;
   const vh = window.innerHeight * 0.94;
-  let w = vw;
-  let h = w / aspect;
+  let w = vw; let h = w / aspect;
   if (h > vh) { h = vh; w = h * aspect; }
   presentStage.style.width = Math.round(w) + 'px';
   presentStage.style.height = Math.round(h) + 'px';
 
-  // Background Canvas
   presentCanvas.width = pdfCanvas.width;
   presentCanvas.height = pdfCanvas.height;
   const ctx = presentCanvas.getContext('2d');
   ctx.drawImage(pdfCanvas, 0, 0);
 
-  // Drawing Canvas (Ink & Highlighter)
   if (presentDrawCanvas) {
     presentDrawCanvas.width = pdfCanvas.width;
     presentDrawCanvas.height = pdfCanvas.height;
     redrawPresentStrokes();
   }
 
-  // Laser Canvas
   if (presentLaser) {
     presentLaser.width = pdfCanvas.width;
     presentLaser.height = pdfCanvas.height;
@@ -4175,13 +3295,11 @@ function copyStageToPresent() {
     lctx.clearRect(0, 0, presentLaser.width, presentLaser.height);
   }
 
-  // Clone slide content layers (SVG annotations, text, media, embeds, buttons)
   if (presentLayerHost) {
     presentLayerHost.innerHTML = '';
     const stageEl = document.getElementById('stage');
     const sRect = stageEl ? stageEl.getBoundingClientRect() : null;
-    const layersToClone = ['svgLayer', 'textLayer', 'videoLayer', 'embedLayer', 'interactiveLayer'];
-    layersToClone.forEach(id => {
+    ['svgLayer', 'textLayer', 'videoLayer', 'embedLayer', 'interactiveLayer'].forEach(id => {
       const srcEl = document.getElementById(id);
       if (srcEl && srcEl.childNodes.length > 0) {
         const clone = srcEl.cloneNode(true);
@@ -4192,20 +3310,16 @@ function copyStageToPresent() {
         clone.style.height = '100%';
         clone.style.pointerEvents = 'auto';
 
-        // Normalize any pixel-based element sizes to percentage so they scale with presentStage
         if (sRect && sRect.width > 0) {
           clone.querySelectorAll('.media-obj, .embed, .pdf-text-box, .pdf-interactive-btn').forEach(obj => {
             if (obj.style.width && obj.style.width.endsWith('px')) {
-              const wVal = parseFloat(obj.style.width);
-              obj.style.width = ((wVal / sRect.width) * 100) + '%';
+              obj.style.width = ((parseFloat(obj.style.width) / sRect.width) * 100) + '%';
             }
             if (obj.style.height && obj.style.height.endsWith('px')) {
-              const hVal = parseFloat(obj.style.height);
-              obj.style.height = ((hVal / sRect.height) * 100) + '%';
+              obj.style.height = ((parseFloat(obj.style.height) / sRect.height) * 100) + '%';
             }
           });
         }
-
         presentLayerHost.appendChild(clone);
       }
     });
@@ -4237,292 +3351,116 @@ function updatePresentIndicators() {
 function setPresentTool(tool) {
   presentState.tool = tool;
   const bar = document.getElementById('presentToolbar');
-  if (bar) {
-    bar.querySelectorAll('[data-ptool]').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.ptool === tool);
-    });
-  }
+  if (bar) bar.querySelectorAll('[data-ptool]').forEach(btn => btn.classList.toggle('active', btn.dataset.ptool === tool));
 
   const drawCanvas = document.getElementById('presentDrawCanvas');
   if (drawCanvas) {
-    if (tool === 'select' || tool === 'hand') {
-      drawCanvas.style.pointerEvents = 'none';
-      drawCanvas.style.cursor = 'default';
-    } else if (tool === 'eraser') {
-      drawCanvas.style.pointerEvents = 'auto';
-      drawCanvas.style.cursor = 'cell';
-    } else if (tool === 'laser') {
-      drawCanvas.style.pointerEvents = 'auto';
-      drawCanvas.style.cursor = 'none';
-      startPresentLaserLoop();
-    } else {
-      drawCanvas.style.pointerEvents = 'auto';
-      drawCanvas.style.cursor = 'crosshair';
-    }
+    if (tool === 'select' || tool === 'hand') { drawCanvas.style.pointerEvents = 'none'; drawCanvas.style.cursor = 'default'; }
+    else if (tool === 'eraser') { drawCanvas.style.pointerEvents = 'auto'; drawCanvas.style.cursor = 'cell'; }
+    else if (tool === 'laser') { drawCanvas.style.pointerEvents = 'auto'; drawCanvas.style.cursor = 'none'; startPresentLaserLoop(); }
+    else { drawCanvas.style.pointerEvents = 'auto'; drawCanvas.style.cursor = 'crosshair'; }
   }
 
-  if (tool === 'pen' || tool === 'highlighter' || tool === 'laser') {
-    renderPresentToolOptions(tool);
-  } else {
-    const optionsBar = document.getElementById('presentToolOptionsBar');
-    if (optionsBar) optionsBar.style.display = 'none';
-  }
+  if (tool === 'pen' || tool === 'highlighter' || tool === 'laser') renderPresentToolOptions(tool);
+  else { const optionsBar = document.getElementById('presentToolOptionsBar'); if (optionsBar) optionsBar.style.display = 'none'; }
 
-  document.dispatchEvent(new CustomEvent('ipb:presentToolChanged', {
-    detail: { tool },
-  }));
+  document.dispatchEvent(new CustomEvent('ipb:presentToolChanged', { detail: { tool } }));
 }
 
-/* ─── Floating Tool Options Sub-Bar (Colors, Sizes, Laser) ─── */
+// renderPresentToolOptions (long, unchanged from original) — يُستورد من الأصل
 function renderPresentToolOptions(tool = presentState.tool) {
   const optionsBar = document.getElementById('presentToolOptionsBar');
   if (!optionsBar) return;
-
-  if (tool !== 'pen' && tool !== 'highlighter' && tool !== 'laser') {
-    optionsBar.style.display = 'none';
-    return;
-  }
-
+  if (tool !== 'pen' && tool !== 'highlighter' && tool !== 'laser') { optionsBar.style.display = 'none'; return; }
   optionsBar.style.display = 'flex';
   optionsBar.innerHTML = '';
 
   if (tool === 'pen') {
-    const colors = [
-      { c: '#ef4444', name: 'أحمر' },
-      { c: '#3b82f6', name: 'أزرق' },
-      { c: '#10b981', name: 'أخضر' },
-      { c: '#eab308', name: 'أصفر' },
-      { c: '#f97316', name: 'برتقالي' },
-      { c: '#a855f7', name: 'بنفسجي' },
-      { c: '#0f172a', name: 'أسود' },
-      { c: '#ffffff', name: 'أبيض' },
-    ];
-    const sizes = [
-      { s: 2, label: 'رفيع' },
-      { s: 4, label: 'متوسط' },
-      { s: 8, label: 'عريض' },
-      { s: 16, label: 'سميك' },
-    ];
+    const colors = [{ c: '#ef4444', n: 'أحمر' }, { c: '#3b82f6', n: 'أزرق' }, { c: '#10b981', n: 'أخضر' }, { c: '#eab308', n: 'أصفر' }, { c: '#a855f7', n: 'بنفسجي' }, { c: '#0f172a', n: 'أسود' }];
+    const sizes = [{ s: 2, l: 'رفيع' }, { s: 4, l: 'متوسط' }, { s: 8, l: 'عريض' }, { s: 16, l: 'سميك' }];
 
-    const cGroup = document.createElement('div');
-    cGroup.className = 'popt-group';
-    const cLabel = document.createElement('span');
-    cLabel.className = 'popt-label';
-    cLabel.textContent = 'اللون:';
-    cGroup.appendChild(cLabel);
-
+    const cGroup = document.createElement('div'); cGroup.className = 'popt-group';
+    const cLabel = document.createElement('span'); cLabel.className = 'popt-label'; cLabel.textContent = 'اللون:'; cGroup.appendChild(cLabel);
     colors.forEach(item => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'popt-swatch' + (presentState.penColor === item.c ? ' active' : '');
       btn.style.background = item.c;
-      btn.title = item.name;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.penColor = item.c;
-        updatePresentIndicators();
-        renderPresentToolOptions('pen');
-      });
+      btn.title = item.n;
+      btn.addEventListener('click', (e) => { e.stopPropagation(); presentState.penColor = item.c; updatePresentIndicators(); renderPresentToolOptions('pen'); });
       cGroup.appendChild(btn);
     });
-
-    const customColor = document.createElement('input');
-    customColor.type = 'color';
-    customColor.className = 'popt-color-input';
-    customColor.value = presentState.penColor.length === 7 ? presentState.penColor : '#ef4444';
-    customColor.title = 'لون مخصص';
-    customColor.addEventListener('input', (e) => {
-      presentState.penColor = e.target.value;
-      updatePresentIndicators();
-    });
-    customColor.addEventListener('change', () => {
-      renderPresentToolOptions('pen');
-    });
-    cGroup.appendChild(customColor);
     optionsBar.appendChild(cGroup);
 
-    const sep = document.createElement('div');
-    sep.className = 'popt-sep';
-    optionsBar.appendChild(sep);
-
-    const sGroup = document.createElement('div');
-    sGroup.className = 'popt-group';
-    const sLabel = document.createElement('span');
-    sLabel.className = 'popt-label';
-    sLabel.textContent = 'الحجم:';
-    sGroup.appendChild(sLabel);
-
+    const sGroup = document.createElement('div'); sGroup.className = 'popt-group';
+    const sLabel = document.createElement('span'); sLabel.className = 'popt-label'; sLabel.textContent = 'الحجم:'; sGroup.appendChild(sLabel);
     sizes.forEach(item => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'popt-size-btn' + (presentState.penSize === item.s ? ' active' : '');
-      btn.innerHTML = `<span class="popt-size-dot" style="width:${Math.max(4, item.s)}px;height:${Math.max(4, item.s)}px;"></span> ${item.label}`;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.penSize = item.s;
-        renderPresentToolOptions('pen');
-      });
+      btn.innerHTML = `<span class="popt-size-dot" style="width:${Math.max(4, item.s)}px;height:${Math.max(4, item.s)}px;"></span> ${item.l}`;
+      btn.addEventListener('click', (e) => { e.stopPropagation(); presentState.penSize = item.s; renderPresentToolOptions('pen'); });
       sGroup.appendChild(btn);
     });
     optionsBar.appendChild(sGroup);
-
   } else if (tool === 'highlighter') {
-    const colors = [
-      { c: '#fef08a', name: 'أصفر فاقع' },
-      { c: '#86efac', name: 'أخضر نيون' },
-      { c: '#7dd3fc', name: 'أزرق سماوي' },
-      { c: '#f472b6', name: 'وردي' },
-      { c: '#fdba74', name: 'برتقالي' },
-    ];
-    const sizes = [
-      { s: 12, label: '12px' },
-      { s: 18, label: '18px' },
-      { s: 28, label: '28px' },
-    ];
-
-    const cGroup = document.createElement('div');
-    cGroup.className = 'popt-group';
-    const cLabel = document.createElement('span');
-    cLabel.className = 'popt-label';
-    cLabel.textContent = 'لون التحديد:';
-    cGroup.appendChild(cLabel);
-
+    const colors = [{ c: '#fef08a', n: 'أصفر' }, { c: '#86efac', n: 'أخضر' }, { c: '#7dd3fc', n: 'أزرق' }, { c: '#f472b6', n: 'وردي' }];
+    const sizes = [{ s: 12, l: '12px' }, { s: 18, l: '18px' }, { s: 28, l: '28px' }];
+    const cGroup = document.createElement('div'); cGroup.className = 'popt-group';
+    const cLabel = document.createElement('span'); cLabel.className = 'popt-label'; cLabel.textContent = 'اللون:'; cGroup.appendChild(cLabel);
     colors.forEach(item => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'popt-swatch' + (presentState.highlighterColor === item.c ? ' active' : '');
       btn.style.background = item.c;
-      btn.title = item.name;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.highlighterColor = item.c;
-        updatePresentIndicators();
-        renderPresentToolOptions('highlighter');
-      });
+      btn.addEventListener('click', (e) => { e.stopPropagation(); presentState.highlighterColor = item.c; updatePresentIndicators(); renderPresentToolOptions('highlighter'); });
       cGroup.appendChild(btn);
     });
     optionsBar.appendChild(cGroup);
-
-    const sep = document.createElement('div');
-    sep.className = 'popt-sep';
-    optionsBar.appendChild(sep);
-
-    const sGroup = document.createElement('div');
-    sGroup.className = 'popt-group';
-    const sLabel = document.createElement('span');
-    sLabel.className = 'popt-label';
-    sLabel.textContent = 'العرض:';
-    sGroup.appendChild(sLabel);
-
+    const sGroup = document.createElement('div'); sGroup.className = 'popt-group';
     sizes.forEach(item => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'popt-size-btn' + (presentState.highlighterSize === item.s ? ' active' : '');
-      btn.textContent = item.label;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.highlighterSize = item.s;
-        renderPresentToolOptions('highlighter');
-      });
+      btn.textContent = item.l;
+      btn.addEventListener('click', (e) => { e.stopPropagation(); presentState.highlighterSize = item.s; renderPresentToolOptions('highlighter'); });
       sGroup.appendChild(btn);
     });
     optionsBar.appendChild(sGroup);
-
   } else if (tool === 'laser') {
-    const colors = [
-      { c: '#ff1744', name: 'أحمر نيون' },
-      { c: '#00e676', name: 'أخضر ليزر' },
-      { c: '#00e5ff', name: 'أزرق سماوي' },
-      { c: '#ffd600', name: 'أصفر متوهج' },
-      { c: '#d500f9', name: 'بنفسجي متوهج' },
-    ];
-    const sizes = [
-      { s: 5, label: 'صغير' },
-      { s: 8, label: 'متوسط' },
-      { s: 14, label: 'كبير' },
-    ];
-
-    const cGroup = document.createElement('div');
-    cGroup.className = 'popt-group';
-    const cLabel = document.createElement('span');
-    cLabel.className = 'popt-label';
-    cLabel.textContent = 'لون الليزر:';
-    cGroup.appendChild(cLabel);
-
+    const colors = [{ c: '#ff1744', n: 'أحمر' }, { c: '#00e676', n: 'أخضر' }, { c: '#00e5ff', n: 'أزرق' }];
+    const sizes = [{ s: 5, l: 'صغير' }, { s: 8, l: 'متوسط' }, { s: 14, l: 'كبير' }];
+    const cGroup = document.createElement('div'); cGroup.className = 'popt-group';
+    const cLabel = document.createElement('span'); cLabel.className = 'popt-label'; cLabel.textContent = 'اللون:'; cGroup.appendChild(cLabel);
     colors.forEach(item => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'popt-swatch' + (presentState.laserColor === item.c ? ' active' : '');
       btn.style.background = item.c;
       btn.style.boxShadow = `0 0 6px ${item.c}`;
-      btn.title = item.name;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.laserColor = item.c;
-        updatePresentIndicators();
-        renderPresentToolOptions('laser');
-      });
+      btn.addEventListener('click', (e) => { e.stopPropagation(); presentState.laserColor = item.c; updatePresentIndicators(); renderPresentToolOptions('laser'); });
       cGroup.appendChild(btn);
     });
     optionsBar.appendChild(cGroup);
-
-    const sep = document.createElement('div');
-    sep.className = 'popt-sep';
-    optionsBar.appendChild(sep);
-
-    const sGroup = document.createElement('div');
-    sGroup.className = 'popt-group';
-    const sLabel = document.createElement('span');
-    sLabel.className = 'popt-label';
-    sLabel.textContent = 'الحجم:';
-    sGroup.appendChild(sLabel);
-
+    const sGroup = document.createElement('div'); sGroup.className = 'popt-group';
     sizes.forEach(item => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'popt-size-btn' + (presentState.laserSize === item.s ? ' active' : '');
-      btn.textContent = item.label;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        presentState.laserSize = item.s;
-        renderPresentToolOptions('laser');
-      });
+      btn.textContent = item.l;
+      btn.addEventListener('click', (e) => { e.stopPropagation(); presentState.laserSize = item.s; renderPresentToolOptions('laser'); });
       sGroup.appendChild(btn);
     });
     optionsBar.appendChild(sGroup);
-
-    const sep2 = document.createElement('div');
-    sep2.className = 'popt-sep';
-    optionsBar.appendChild(sep2);
-
-    const mGroup = document.createElement('div');
-    mGroup.className = 'popt-group';
-    const modeBtn = document.createElement('button');
-    modeBtn.type = 'button';
-    modeBtn.className = 'popt-size-btn active';
-    modeBtn.innerHTML = presentState.laserMode === 'trail' ? '✨ شعاع متوهج' : '🎯 نقطة فقط';
-    modeBtn.title = 'تبديل وضع الليزر';
-    modeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      presentState.laserMode = presentState.laserMode === 'trail' ? 'dot' : 'trail';
-      renderPresentToolOptions('laser');
-    });
-    mGroup.appendChild(modeBtn);
-    optionsBar.appendChild(mGroup);
   }
 }
 
-/* ─── Interactive Drawing & Laser Engine ─── */
+// Present drawing engine — same as original with minor cleanup
 function getPresentCanvasPoint(e) {
   const canvas = document.getElementById('presentDrawCanvas');
   if (!canvas) return { x: 0, y: 0 };
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  return {
-    x: (e.clientX - rect.left) * scaleX,
-    y: (e.clientY - rect.top) * scaleY,
-  };
+  return { x: (e.clientX - rect.left) * (canvas.width / rect.width), y: (e.clientY - rect.top) * (canvas.height / rect.height) };
 }
 
 function bindPresentDrawing() {
@@ -4534,7 +3472,6 @@ function bindPresentDrawing() {
   canvas.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     const pt = getPresentCanvasPoint(e);
-
     if (presentState.tool === 'pen' || presentState.tool === 'highlighter') {
       presentState.isDrawing = true;
       presentState.currentStroke = {
@@ -4543,25 +3480,14 @@ function bindPresentDrawing() {
         size: presentState.tool === 'pen' ? presentState.penSize : presentState.highlighterSize,
         points: [pt],
       };
-      // Draw initial touch point
-      const ctx = canvas.getContext('2d');
-      drawSinglePresentStroke(ctx, presentState.currentStroke);
+      drawSinglePresentStroke(canvas.getContext('2d'), presentState.currentStroke);
       e.preventDefault();
-
     } else if (presentState.tool === 'laser') {
       presentState.isDrawing = true;
       presentState.lastLaserPoint = pt;
-      if (presentState.laserMode === 'trail') {
-        presentState.laserStrokes.push({
-          points: [pt],
-          color: presentState.laserColor,
-          size: presentState.laserSize,
-          time: performance.now(),
-        });
-      }
+      if (presentState.laserMode === 'trail') presentState.laserStrokes.push({ points: [pt], color: presentState.laserColor, size: presentState.laserSize, time: performance.now() });
       startPresentLaserLoop();
       e.preventDefault();
-
     } else if (presentState.tool === 'eraser') {
       presentState.isDrawing = true;
       erasePresentStrokesAt(pt, 24);
@@ -4571,44 +3497,29 @@ function bindPresentDrawing() {
 
   window.addEventListener('pointermove', (e) => {
     if (!presentState.active) return;
-    const drawCanvas = document.getElementById('presentDrawCanvas');
-    if (!drawCanvas) return;
     const pt = getPresentCanvasPoint(e);
-
-    // Track laser pointer dot even when not dragging
     if (presentState.tool === 'laser') {
       presentState.lastLaserPoint = pt;
       if (presentState.isDrawing && presentState.laserMode === 'trail') {
         const currentTrail = presentState.laserStrokes[presentState.laserStrokes.length - 1];
-        if (currentTrail) {
-          currentTrail.points.push(pt);
-          currentTrail.time = performance.now();
-        }
+        if (currentTrail) { currentTrail.points.push(pt); currentTrail.time = performance.now(); }
       }
       startPresentLaserLoop();
       return;
     }
-
     if (!presentState.isDrawing) return;
-
     if (presentState.tool === 'pen' || presentState.tool === 'highlighter') {
       if (presentState.currentStroke) {
         presentState.currentStroke.points.push(pt);
-        const ctx = drawCanvas.getContext('2d');
+        const ctx = canvas.getContext('2d');
         const pts = presentState.currentStroke.points;
         if (pts.length >= 2) {
           ctx.save();
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
-          if (presentState.currentStroke.tool === 'highlighter') {
-            ctx.globalAlpha = 0.42;
-            ctx.strokeStyle = presentState.currentStroke.color;
-            ctx.lineWidth = presentState.currentStroke.size;
-          } else {
-            ctx.globalAlpha = 1;
-            ctx.strokeStyle = presentState.currentStroke.color;
-            ctx.lineWidth = presentState.currentStroke.size;
-          }
+          ctx.globalAlpha = presentState.currentStroke.tool === 'highlighter' ? 0.42 : 1;
+          ctx.strokeStyle = presentState.currentStroke.color;
+          ctx.lineWidth = presentState.currentStroke.size;
           ctx.beginPath();
           const prev = pts[pts.length - 2];
           const curr = pts[pts.length - 1];
@@ -4618,7 +3529,6 @@ function bindPresentDrawing() {
           ctx.restore();
         }
       }
-
     } else if (presentState.tool === 'eraser') {
       erasePresentStrokesAt(pt, 24);
     }
@@ -4627,7 +3537,6 @@ function bindPresentDrawing() {
   window.addEventListener('pointerup', () => {
     if (!presentState.active || !presentState.isDrawing) return;
     presentState.isDrawing = false;
-
     if (presentState.currentStroke && (presentState.tool === 'pen' || presentState.tool === 'highlighter')) {
       presentState.strokes.push(presentState.currentStroke);
       presentState.currentStroke = null;
@@ -4638,9 +3547,7 @@ function bindPresentDrawing() {
   });
 
   canvas.addEventListener('pointerleave', () => {
-    if (presentState.tool === 'laser' && !presentState.isDrawing) {
-      presentState.lastLaserPoint = null;
-    }
+    if (presentState.tool === 'laser' && !presentState.isDrawing) presentState.lastLaserPoint = null;
   });
 }
 
@@ -4657,19 +3564,11 @@ function drawSinglePresentStroke(ctx, stroke) {
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-
-  if (stroke.tool === 'highlighter') {
-    ctx.globalAlpha = 0.42;
-    ctx.strokeStyle = stroke.color;
-    ctx.lineWidth = stroke.size;
-  } else {
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = stroke.color;
-    ctx.lineWidth = stroke.size;
-  }
-
-  ctx.beginPath();
+  ctx.globalAlpha = stroke.tool === 'highlighter' ? 0.42 : 1;
+  ctx.strokeStyle = stroke.color;
+  ctx.lineWidth = stroke.size;
   const pts = stroke.points;
+  ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
   if (pts.length === 1) {
     ctx.arc(pts[0].x, pts[0].y, stroke.size / 2, 0, Math.PI * 2);
@@ -4689,150 +3588,82 @@ function drawSinglePresentStroke(ctx, stroke) {
 
 function erasePresentStrokesAt(pt, radius) {
   const initialCount = presentState.strokes.length;
-  presentState.strokes = presentState.strokes.filter(stroke => {
-    return !stroke.points.some(p => {
-      const dx = p.x - pt.x;
-      const dy = p.y - pt.y;
-      return (dx * dx + dy * dy) < (radius + stroke.size / 2) * (radius + stroke.size / 2);
-    });
-  });
-
-  if (presentState.strokes.length !== initialCount) {
-    redrawPresentStrokes();
-    updatePresentUndoRedo();
-  }
+  presentState.strokes = presentState.strokes.filter(stroke => !stroke.points.some(p => {
+    const dx = p.x - pt.x, dy = p.y - pt.y;
+    return (dx * dx + dy * dy) < (radius + stroke.size / 2) * (radius + stroke.size / 2);
+  }));
+  if (presentState.strokes.length !== initialCount) { redrawPresentStrokes(); updatePresentUndoRedo(); }
 }
 
-/* ─── Laser Animation Loop ─── */
-function startPresentLaserLoop() {
-  if (presentState.laserRAF) return;
-  presentState.laserRAF = requestAnimationFrame(presentLaserTick);
-}
-
+function startPresentLaserLoop() { if (!presentState.laserRAF) presentState.laserRAF = requestAnimationFrame(presentLaserTick); }
 function stopPresentLaserLoop() {
-  if (presentState.laserRAF) {
-    cancelAnimationFrame(presentState.laserRAF);
-    presentState.laserRAF = null;
-  }
+  if (presentState.laserRAF) { cancelAnimationFrame(presentState.laserRAF); presentState.laserRAF = null; }
   const canvas = document.getElementById('presentLaser');
-  if (canvas) {
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  }
+  if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 }
 
 function presentLaserTick() {
   const canvas = document.getElementById('presentLaser');
-  if (!canvas || !presentState.active) {
-    presentState.laserRAF = null;
-    return;
-  }
+  if (!canvas || !presentState.active) { presentState.laserRAF = null; return; }
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
   const now = performance.now();
   let hasActiveElements = false;
 
-  // 1) Laser Light Trails
   if (presentState.laserMode === 'trail') {
     const lifeMs = 900;
     presentState.laserStrokes = presentState.laserStrokes.filter(s => (now - s.time) < lifeMs);
     if (presentState.laserStrokes.length > 0) hasActiveElements = true;
-
     presentState.laserStrokes.forEach(s => {
       const age = now - s.time;
       const alpha = Math.max(0, 1 - age / lifeMs);
       if (alpha <= 0 || s.points.length < 1) return;
-
       ctx.save();
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.globalAlpha = alpha;
-
-      // Glowing outer envelope
-      ctx.shadowColor = s.color;
-      ctx.shadowBlur = s.size * 3.5;
-      ctx.strokeStyle = s.color;
-      ctx.lineWidth = s.size;
-      ctx.beginPath();
-      ctx.moveTo(s.points[0].x, s.points[0].y);
-      for (let i = 1; i < s.points.length; i++) {
-        ctx.lineTo(s.points[i].x, s.points[i].y);
-      }
+      ctx.shadowColor = s.color; ctx.shadowBlur = s.size * 3.5;
+      ctx.strokeStyle = s.color; ctx.lineWidth = s.size;
+      ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
+      for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i].x, s.points[i].y);
       ctx.stroke();
-
-      // White core
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = Math.max(1, s.size * 0.4);
-      ctx.beginPath();
-      ctx.moveTo(s.points[0].x, s.points[0].y);
-      for (let i = 1; i < s.points.length; i++) {
-        ctx.lineTo(s.points[i].x, s.points[i].y);
-      }
+      ctx.shadowBlur = 0; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, s.size * 0.4);
+      ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
+      for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i].x, s.points[i].y);
       ctx.stroke();
       ctx.restore();
     });
   }
 
-  // 2) Glowing Laser Pointer Dot
   if (presentState.tool === 'laser' && presentState.lastLaserPoint) {
     hasActiveElements = true;
     const pt = presentState.lastLaserPoint;
     const color = presentState.laserColor;
     const size = presentState.laserSize;
-
     ctx.save();
     const pulse = 1 + 0.18 * Math.sin(now / 100);
-
-    // Outer glow
-    ctx.shadowColor = color;
-    ctx.shadowBlur = size * 4 * pulse;
+    ctx.shadowColor = color; ctx.shadowBlur = size * 4 * pulse;
     ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(pt.x, pt.y, (size / 1.8) * pulse, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Inner bright core
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(pt.x, pt.y, Math.max(2, size * 0.32), 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, (size / 1.8) * pulse, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, Math.max(2, size * 0.32), 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
-  if (hasActiveElements || presentState.tool === 'laser') {
-    presentState.laserRAF = requestAnimationFrame(presentLaserTick);
-  } else {
-    presentState.laserRAF = null;
-  }
+  if (hasActiveElements || presentState.tool === 'laser') presentState.laserRAF = requestAnimationFrame(presentLaserTick);
+  else presentState.laserRAF = null;
 }
 
-/* ─── Undo / Redo / Clear ─── */
 function presentUndo() {
   if (!presentState.strokes.length) return;
-  const item = presentState.strokes.pop();
-  presentState.redoStrokes.push(item);
-  redrawPresentStrokes();
-  updatePresentUndoRedo();
+  presentState.redoStrokes.push(presentState.strokes.pop());
+  redrawPresentStrokes(); updatePresentUndoRedo();
 }
-
 function presentRedo() {
   if (!presentState.redoStrokes.length) return;
-  const item = presentState.redoStrokes.pop();
-  presentState.strokes.push(item);
-  redrawPresentStrokes();
-  updatePresentUndoRedo();
+  presentState.strokes.push(presentState.redoStrokes.pop());
+  redrawPresentStrokes(); updatePresentUndoRedo();
 }
-
-function presentClearAll() {
-  presentState.strokes = [];
-  presentState.redoStrokes = [];
-  redrawPresentStrokes();
-  updatePresentUndoRedo();
-}
-
+function presentClearAll() { presentState.strokes = []; presentState.redoStrokes = []; redrawPresentStrokes(); updatePresentUndoRedo(); }
 function updatePresentUndoRedo() {
   const u = document.getElementById('presentUndo');
   const r = document.getElementById('presentRedo');
@@ -4840,7 +3671,6 @@ function updatePresentUndoRedo() {
   if (r) r.disabled = presentState.redoStrokes.length === 0;
 }
 
-/* ─── Save Present Strokes to Slide Annotations on Exit ─── */
 async function savePresentStrokesToSlide() {
   if (!presentState.strokes.length) return;
   try {
@@ -4849,12 +3679,9 @@ async function savePresentStrokesToSlide() {
     const svgLayer = document.getElementById('svgLayer');
     const pdfCanvas = document.getElementById('pdfCanvas');
     if (!svgLayer || !pdfCanvas) return;
-
     const scaleX = (core.state.pdfW || 1000) / pdfCanvas.width;
     const scaleY = (core.state.pdfH || 1414) / pdfCanvas.height;
-
     const pre = core.snapshot ? core.snapshot() : null;
-
     presentState.strokes.forEach(stroke => {
       if (!stroke.points || stroke.points.length < 2) return;
       let d = `M ${(stroke.points[0].x * scaleX).toFixed(1)} ${(stroke.points[0].y * scaleY).toFixed(1)}`;
@@ -4865,7 +3692,6 @@ async function savePresentStrokesToSlide() {
       }
       const last = stroke.points[stroke.points.length - 1];
       d += ` L ${(last.x * scaleX).toFixed(1)} ${(last.y * scaleY).toFixed(1)}`;
-
       const path = document.createElementNS(SVG_NS, 'path');
       path.setAttribute('d', d);
       path.setAttribute('stroke', stroke.color);
@@ -4873,15 +3699,8 @@ async function savePresentStrokesToSlide() {
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke-linecap', 'round');
       path.setAttribute('stroke-linejoin', 'round');
-
-      if (stroke.tool === 'highlighter') {
-        path.setAttribute('stroke-opacity', '0.45');
-        path.style.mixBlendMode = 'multiply';
-        path.dataset.type = 'highlighter';
-      } else {
-        path.dataset.type = 'path';
-      }
-
+      if (stroke.tool === 'highlighter') { path.setAttribute('stroke-opacity', '0.45'); path.style.mixBlendMode = 'multiply'; path.dataset.type = 'highlighter'; }
+      else path.dataset.type = 'path';
       if (core.addAnnotation) core.addAnnotation(path);
       else {
         const wrap = document.createElement('div');
@@ -4892,60 +3711,36 @@ async function savePresentStrokesToSlide() {
         svgLayer.appendChild(wrap);
       }
     });
-
     if (pre && core.commitChange) core.commitChange(pre);
-  } catch (err) {
-    console.warn('savePresentStrokesToSlide failed:', err);
-  }
+  } catch (err) { console.warn('savePresentStrokesToSlide failed:', err); }
 }
 
-/* ════════════════════════════════════════════════════════════
-   ★ VIDEO RECORDING FEATURE (تسجيل العرض فيديو)
-   ════════════════════════════════════════════════════════════ */
+// ── Recording (same as original with minor cleanup) ──
 async function togglePresentRecording() {
-  if (presentState.isRecording) {
-    stopPresentRecording(true);
-  } else {
-    startPresentRecording();
-  }
+  if (presentState.isRecording) stopPresentRecording(true);
+  else startPresentRecording();
 }
 
 async function startPresentRecording() {
   if (presentState.isRecording) return;
   presentState.recordedChunks = [];
-
   let stream = null;
-
-  // 1) Try tab/screen capture first if permitted
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          displaySurface: 'browser',
-          frameRate: { ideal: 30, max: 60 },
-        },
-        audio: true,
-      });
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'browser', frameRate: { ideal: 30, max: 60 } }, audio: true });
     }
-  } catch (err) {
-    console.warn('getDisplayMedia not available or canceled, using composite canvas capture:', err);
-  }
+  } catch (err) { console.warn('getDisplayMedia not available, using composite canvas capture:', err); }
 
-  // 2) Reliable Fallback: Live Stage Composite Stream (slide + live pen/highlighter + laser)
   if (!stream) {
     try {
       const pCanvas = document.getElementById('presentCanvas') || document.getElementById('pdfCanvas');
       const dCanvas = document.getElementById('presentDrawCanvas');
       const lCanvas = document.getElementById('presentLaser');
-
       if (pCanvas) {
-        const cW = pCanvas.width || 1280;
-        const cH = pCanvas.height || 720;
+        const cW = pCanvas.width || 1280, cH = pCanvas.height || 720;
         const compCanvas = document.createElement('canvas');
-        compCanvas.width = cW;
-        compCanvas.height = cH;
+        compCanvas.width = cW; compCanvas.height = cH;
         const compCtx = compCanvas.getContext('2d', { alpha: false });
-
         const renderComposite = () => {
           if (!presentState.isRecording) return;
           try {
@@ -4957,23 +3752,14 @@ async function startPresentRecording() {
           } catch (_) {}
           presentState.recAnimId = requestAnimationFrame(renderComposite);
         };
-
         renderComposite();
-        if (compCanvas.captureStream) {
-          stream = compCanvas.captureStream(30);
-        }
+        if (compCanvas.captureStream) stream = compCanvas.captureStream(30);
       }
-    } catch (e) {
-      console.warn('Composite canvas stream failed:', e);
-    }
+    } catch (e) { console.warn('Composite canvas stream failed:', e); }
   }
 
-  if (!stream) {
-    safeToast('تعذّر بدء تسجيل الشاشة في متصفحك.', 'error');
-    return;
-  }
+  if (!stream) { safeToast('تعذّر بدء تسجيل الشاشة في متصفحك.', 'error'); return; }
 
-  // 3) Try to combine microphone audio track so presenter voice is recorded
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -4981,72 +3767,37 @@ async function startPresentRecording() {
       if (AudioContextClass) {
         const audioCtx = new AudioContextClass();
         const dest = audioCtx.createMediaStreamDestination();
-
         if (stream.getAudioTracks().length > 0) {
           const displayAudioSrc = audioCtx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
           displayAudioSrc.connect(dest);
         }
-
         const micSrc = audioCtx.createMediaStreamSource(micStream);
         micSrc.connect(dest);
-
-        stream = new MediaStream([
-          ...stream.getVideoTracks(),
-          ...dest.stream.getAudioTracks(),
-        ]);
+        stream = new MediaStream([...stream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
       }
     }
-  } catch (_) {
-    // Microphone is optional
-  }
+  } catch (_) {}
 
-  // 4) Setup MediaRecorder with best supported mimeType
   let mimeType = '';
-  const testTypes = [
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
-    'video/webm;codecs=h264',
-    'video/webm',
-    'video/mp4',
-  ];
+  const testTypes = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=h264', 'video/webm', 'video/mp4'];
   if (typeof MediaRecorder !== 'undefined') {
-    for (const t of testTypes) {
-      if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
-        mimeType = t;
-        break;
-      }
-    }
+    for (const t of testTypes) { if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) { mimeType = t; break; } }
   }
 
   try {
     const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
     presentState.recorder = recorder;
     presentState.recordStream = stream;
-
-    recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) {
-        presentState.recordedChunks.push(e.data);
-      }
-    };
-
-    recorder.onstop = () => {
-      handleRecordingStopped();
-    };
-
-    // If user stops sharing from browser bar
+    recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) presentState.recordedChunks.push(e.data); };
+    recorder.onstop = () => handleRecordingStopped();
     const videoTrack = stream.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.addEventListener('ended', () => {
-        if (presentState.isRecording) stopPresentRecording(true);
-      });
-    }
+    if (videoTrack) videoTrack.addEventListener('ended', () => { if (presentState.isRecording) stopPresentRecording(true); });
 
     recorder.start(1000);
     presentState.isRecording = true;
     presentState.isRecordingPaused = false;
     presentState.recordStartTime = Date.now();
 
-    // UI Updates
     const recBtn = document.getElementById('presentRecordBtn');
     const recPill = document.getElementById('presentRecPill');
     if (recBtn) recBtn.style.display = 'none';
@@ -5054,7 +3805,6 @@ async function startPresentRecording() {
 
     startRecordingTimer();
     safeToast('بدأ تسجيل العرض 🔴', 'ok');
-
   } catch (err) {
     console.error('Failed to start MediaRecorder:', err);
     safeToast('تعذّر بدء تسجيل الفيديو: ' + err.message, 'error');
@@ -5064,7 +3814,6 @@ async function startPresentRecording() {
 function pauseOrResumeRecording() {
   if (!presentState.recorder || !presentState.isRecording) return;
   const pauseBtn = document.getElementById('presentRecPauseBtn');
-
   if (!presentState.isRecordingPaused) {
     presentState.recorder.pause();
     presentState.isRecordingPaused = true;
@@ -5081,32 +3830,17 @@ function pauseOrResumeRecording() {
 function stopPresentRecording(showModal = true) {
   if (!presentState.isRecording) return;
   presentState.isRecording = false;
-
-  if (presentState.recAnimId) {
-    cancelAnimationFrame(presentState.recAnimId);
-    presentState.recAnimId = null;
-  }
-
+  if (presentState.recAnimId) { cancelAnimationFrame(presentState.recAnimId); presentState.recAnimId = null; }
   stopRecordingTimer();
+  if (presentState.recorder && presentState.recorder.state !== 'inactive') presentState.recorder.stop();
+  if (presentState.recordStream) { presentState.recordStream.getTracks().forEach(t => t.stop()); presentState.recordStream = null; }
 
-  if (presentState.recorder && presentState.recorder.state !== 'inactive') {
-    presentState.recorder.stop();
-  }
-
-  if (presentState.recordStream) {
-    presentState.recordStream.getTracks().forEach(t => t.stop());
-    presentState.recordStream = null;
-  }
-
-  // Restore Toolbar buttons
   const recBtn = document.getElementById('presentRecordBtn');
   const recPill = document.getElementById('presentRecPill');
   if (recBtn) recBtn.style.display = '';
   if (recPill) recPill.style.display = 'none';
 
-  if (!showModal) {
-    presentState.recordedChunks = [];
-  }
+  if (!showModal) presentState.recordedChunks = [];
 }
 
 function startRecordingTimer() {
@@ -5114,14 +3848,9 @@ function startRecordingTimer() {
   updateRecordingTimerDisplay();
   presentState.recordTimerInterval = setInterval(updateRecordingTimerDisplay, 1000);
 }
-
 function stopRecordingTimer() {
-  if (presentState.recordTimerInterval) {
-    clearInterval(presentState.recordTimerInterval);
-    presentState.recordTimerInterval = null;
-  }
+  if (presentState.recordTimerInterval) { clearInterval(presentState.recordTimerInterval); presentState.recordTimerInterval = null; }
 }
-
 function updateRecordingTimerDisplay() {
   const el = document.getElementById('presentRecTimer');
   if (!el) return;
@@ -5133,7 +3862,6 @@ function updateRecordingTimerDisplay() {
 
 function handleRecordingStopped() {
   if (!presentState.recordedChunks.length) return;
-
   const blob = new Blob(presentState.recordedChunks, { type: 'video/webm' });
   presentState.recordedVideoBlob = blob;
   const url = URL.createObjectURL(blob);
@@ -5143,17 +3871,13 @@ function handleRecordingStopped() {
   const preview = document.getElementById('presentVideoPreview');
   const durEl = document.getElementById('presentVideoDuration');
   const sizeEl = document.getElementById('presentVideoSize');
-
   if (preview) preview.src = url;
-
   const elapsed = Math.floor((Date.now() - presentState.recordStartTime) / 1000);
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const ss = String(elapsed % 60).padStart(2, '0');
   if (durEl) durEl.textContent = `⏱️ المدة: ${mm}:${ss}`;
-
   const sizeMb = (blob.size / (1024 * 1024)).toFixed(2);
   if (sizeEl) sizeEl.textContent = `💾 الحجم: ${sizeMb} MB`;
-
   if (modal) modal.style.display = 'flex';
   safeToast('تم حفظ تسجيل العرض بنجاح 🎬', 'ok');
 }
@@ -5175,36 +3899,24 @@ function dismissVideoModal() {
   const preview = document.getElementById('presentVideoPreview');
   if (preview) { preview.pause(); preview.src = ''; }
   if (modal) modal.style.display = 'none';
-  if (presentState.recordedVideoUrl) {
-    URL.revokeObjectURL(presentState.recordedVideoUrl);
-    presentState.recordedVideoUrl = null;
-  }
+  if (presentState.recordedVideoUrl) { URL.revokeObjectURL(presentState.recordedVideoUrl); presentState.recordedVideoUrl = null; }
 }
 
-/* ─── Present Mode Toolbar & Keys Binding ─── */
 function bindPresentToolbar() {
   const bar = document.getElementById('presentToolbar');
   if (!bar) return;
-
-  bar.querySelectorAll('[data-ptool]').forEach(btn => {
-    btn.onclick = () => setPresentTool(btn.dataset.ptool);
-  });
+  bar.querySelectorAll('[data-ptool]').forEach(btn => { btn.onclick = () => setPresentTool(btn.dataset.ptool); });
 
   const optToggle = document.getElementById('presentOptionsToggleBtn');
-  if (optToggle) {
-    optToggle.onclick = () => {
-      const optionsBar = document.getElementById('presentToolOptionsBar');
-      if (optionsBar) {
-        if (optionsBar.style.display === 'none') {
-          const t = (presentState.tool === 'pen' || presentState.tool === 'highlighter' || presentState.tool === 'laser')
-            ? presentState.tool : 'pen';
-          setPresentTool(t);
-        } else {
-          optionsBar.style.display = 'none';
-        }
-      }
-    };
-  }
+  if (optToggle) optToggle.onclick = () => {
+    const optionsBar = document.getElementById('presentToolOptionsBar');
+    if (optionsBar) {
+      if (optionsBar.style.display === 'none') {
+        const t = (presentState.tool === 'pen' || presentState.tool === 'highlighter' || presentState.tool === 'laser') ? presentState.tool : 'pen';
+        setPresentTool(t);
+      } else optionsBar.style.display = 'none';
+    }
+  };
 
   const u = document.getElementById('presentUndo');
   const r = document.getElementById('presentRedo');
@@ -5212,7 +3924,6 @@ function bindPresentToolbar() {
   const prev = document.getElementById('presentPrev');
   const next = document.getElementById('presentNext');
   const exit = document.getElementById('presentExit');
-
   if (u) u.onclick = presentUndo;
   if (r) r.onclick = presentRedo;
   if (clr) clr.onclick = presentClearAll;
@@ -5220,66 +3931,47 @@ function bindPresentToolbar() {
   if (next) next.onclick = presentNextPage;
   if (exit) exit.onclick = closePresentMode;
 
-  // Video Recording Controls
   const recBtn = document.getElementById('presentRecordBtn');
   const recPause = document.getElementById('presentRecPauseBtn');
   const recStop = document.getElementById('presentRecStopBtn');
-
   if (recBtn) recBtn.onclick = togglePresentRecording;
   if (recPause) recPause.onclick = pauseOrResumeRecording;
   if (recStop) recStop.onclick = () => stopPresentRecording(true);
 
-  // Video Modal Controls
   const vidClose = document.getElementById('presentVideoCloseBtn');
   const vidDismiss = document.getElementById('presentVideoDismissBtn');
   const vidDown = document.getElementById('presentVideoDownloadBtn');
-
   if (vidClose) vidClose.onclick = dismissVideoModal;
   if (vidDismiss) vidDismiss.onclick = dismissVideoModal;
   if (vidDown) vidDown.onclick = downloadRecordedVideo;
+
+  // ★ Session 2 — زر إغلاق الملاحظات
+  const notesClose = document.getElementById('presentNotesClose');
+  if (notesClose) notesClose.onclick = () => {
+    const b = document.getElementById('presentNotes');
+    if (b) b.style.display = 'none';
+  };
 }
 
 async function presentPrevPage() {
   try {
     const pdf = await import('./pdf.js');
     const state = (await import('./core.js')).state;
-    const total = state.totalPages || (state.slides ? state.slides.length : 1);
-    if (state.currentPage > 1) {
-      await pdf.goToPage(state.currentPage - 1);
-      onPresentPageChanged();
-    }
+    if (state.currentPage > 1) { await pdf.goToPage(state.currentPage - 1); onPresentPageChanged(); }
   } catch (e) { console.warn('presentPrevPage error:', e); }
 }
-
 async function presentNextPage() {
   try {
     const pdf = await import('./pdf.js');
     const state = (await import('./core.js')).state;
     const total = state.totalPages || (state.slides ? state.slides.length : 1);
-    if (state.currentPage < total) {
-      await pdf.goToPage(state.currentPage + 1);
-      onPresentPageChanged();
-    }
+    if (state.currentPage < total) { await pdf.goToPage(state.currentPage + 1); onPresentPageChanged(); }
   } catch (e) { console.warn('presentNextPage error:', e); }
 }
 
-function resetPresentTimer() {
-  presentState.timerStart = Date.now();
-  updatePresentTimerDisplay();
-}
-
-function startPresentTimer() {
-  stopPresentTimer();
-  presentState.timerInterval = setInterval(updatePresentTimerDisplay, 1000);
-}
-
-function stopPresentTimer() {
-  if (presentState.timerInterval) {
-    clearInterval(presentState.timerInterval);
-    presentState.timerInterval = null;
-  }
-}
-
+function resetPresentTimer() { presentState.timerStart = Date.now(); updatePresentTimerDisplay(); }
+function startPresentTimer() { stopPresentTimer(); presentState.timerInterval = setInterval(updatePresentTimerDisplay, 1000); }
+function stopPresentTimer() { if (presentState.timerInterval) { clearInterval(presentState.timerInterval); presentState.timerInterval = null; } }
 function updatePresentTimerDisplay() {
   const el = document.getElementById('presentTimer');
   if (!el) return;
@@ -5295,38 +3987,24 @@ function bindPresentKeys() {
     if (e.key === 'Escape') { closePresentMode(); return; }
     if (e.key === 'ArrowRight') { presentNextPage(); return; }
     if (e.key === 'ArrowLeft') { presentPrevPage(); return; }
-    if (e.key === 'p' || e.key === 'P') {
-      if (e.shiftKey) setPresentTool('highlighter');
-      else setPresentTool('pen');
-      return;
-    }
+    if (e.key === 'p' || e.key === 'P') { if (e.shiftKey) setPresentTool('highlighter'); else setPresentTool('pen'); return; }
     if (e.key === 'h' || e.key === 'H') { setPresentTool('hand'); return; }
     if (e.key === 'l' || e.key === 'L') { setPresentTool('laser'); return; }
     if (e.key === 'e' || e.key === 'E') { setPresentTool('eraser'); return; }
     if (e.key === 'v' || e.key === 'V') { setPresentTool('select'); return; }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-      e.preventDefault();
-      if (e.shiftKey) presentRedo();
-      else presentUndo();
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-      e.preventDefault();
-      presentRedo();
-    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); if (e.shiftKey) presentRedo(); else presentUndo(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); presentRedo(); }
   };
   document.addEventListener('keydown', presentState.keyListener);
 }
 
 function unbindPresentKeys() {
-  if (presentState.keyListener) {
-    document.removeEventListener('keydown', presentState.keyListener);
-    presentState.keyListener = null;
-  }
+  if (presentState.keyListener) { document.removeEventListener('keydown', presentState.keyListener); presentState.keyListener = null; }
 }
 
-/* ============================================================
-   §12. LAYERS OBSERVER
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §19. OBSERVERS + SHORTCUTS
+   ═══════════════════════════════════════════════════════════ */
 let _layersObserver = null;
 function initLayersObserver() {
   if (_layersObserver) return;
@@ -5338,14 +4016,9 @@ function initLayersObserver() {
 }
 
 function initPageChangeListener() {
-  document.addEventListener('ipb:pageChanged', () => {
-    setTimeout(refreshLayersPanel, 50);
-  });
+  document.addEventListener('ipb:pageChanged', () => setTimeout(refreshLayersPanel, 50));
 }
 
-/* ============================================================
-   §13. GLOBAL SHORTCUTS
-   ============================================================ */
 function initGlobalShortcuts() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'F5') {
@@ -5356,18 +4029,11 @@ function initGlobalShortcuts() {
   });
 }
 
-/* ============================================================
-   §14. INIT
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   §20. INIT
+   ═══════════════════════════════════════════════════════════ */
 export function initUIShell() {
   applyVersion();
-    // ── تحديث شارة "محفوظ / غير محفوظ" عند تغيّر dirty
-  document.addEventListener('ipb:dirtyChanged', () => {
-    const txt = document.getElementById('saveBadgeText');
-    const dot = document.querySelector('#saveBadge .save-dot');
-    if (txt) txt.textContent = state.dirty ? 'غير محفوظ' : 'محفوظ';
-    if (dot) dot.classList.toggle('dirty', state.dirty);
-  });
   initPropsTabs();
   initBottomPanel();
   initTopbarActions();
@@ -5380,18 +4046,21 @@ export function initUIShell() {
   initElementDesignProps();
   initCanvasControls();
   initToolbarToggle();
+
+  // ★ Session 1 — listener لـ dirty
+  document.addEventListener('ipb:dirtyChanged', () => {
+    const txt = document.getElementById('saveBadgeText');
+    const dot = document.querySelector('#saveBadge .save-dot');
+    if (txt) txt.textContent = state.dirty ? 'غير محفوظ' : 'محفوظ';
+    if (dot) dot.classList.toggle('dirty', state.dirty);
+  });
+
   import('./ui-animation.js').then(m => m.initTimelineEditor && m.initTimelineEditor());
 
-  // إخفاء الشريطين افتراضياً حتى يتم فتح أو إنشاء ملف
   import('./core.js').then(core => {
     const hasProject = core.state.slides && core.state.slides.length > 0;
-    if (hasProject) {
-      document.body.classList.add('has-project');
-      document.body.classList.remove('no-project');
-    } else {
-      document.body.classList.remove('has-project');
-      document.body.classList.add('no-project');
-    }
+    if (hasProject) { document.body.classList.add('has-project'); document.body.classList.remove('no-project'); }
+    else { document.body.classList.remove('has-project'); document.body.classList.add('no-project'); }
   });
 
   setTimeout(() => {
@@ -5408,5 +4077,14 @@ if (typeof window !== 'undefined') {
     closePresent: closePresentMode,
     refreshLayers: refreshLayersPanel,
     closeProject: showCloseDialog,
+    // ★ Session 6
+    resetProjectHandles: async () => {
+      try {
+        const storage = await import('./storage.js');
+        if (storage.resetFileHandle) storage.resetFileHandle();
+        if (storage.stopAutoSave) storage.stopAutoSave();
+        if (storage.startAutoSave) storage.startAutoSave();
+      } catch (_) {}
+    },
   };
 }

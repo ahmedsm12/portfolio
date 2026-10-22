@@ -7,6 +7,8 @@
  *  ★ يُظهر الشريطين الجانبيين عند إنشاء المشروع
  * ============================================================ */
 
+import { toast } from './core.js';
+
 /* ─── وحدات القياس ─── */
 const UNIT_FACTORS = {
   px: 1,
@@ -488,7 +490,7 @@ async function createProjectFromDialog() {
   const h = parseFloat(npState.height) || 0;
 
   if (w <= 0 || h <= 0) {
-    alert('الرجاء إدخال أبعاد صالحة');
+    toast('الرجاء إدخال أبعاد صالحة', 'warn');
     return;
   }
 
@@ -496,11 +498,11 @@ async function createProjectFromDialog() {
   const pxH = toPx(h, npState.unit);
 
   if (pxW < 100 || pxH < 100) {
-    alert('الأبعاد صغيرة جداً. الحد الأدنى 100 بكسل');
+    toast('الأبعاد صغيرة جداً. الحد الأدنى 100 بكسل', 'warn');
     return;
   }
   if (pxW > 20000 || pxH > 20000) {
-    alert('الأبعاد كبيرة جداً. الحد الأقصى 20000 بكسل');
+    toast('الأبعاد كبيرة جداً. الحد الأقصى 20000 بكسل', 'warn');
     return;
   }
 
@@ -522,6 +524,7 @@ async function createProjectFromDialog() {
     core.state.slides = [{
       id: core.uid(),
       bg: { type: 'blank', color: npState.bg },
+      notes: '',
     }];
     core.state.totalPages = 1;
     core.state.currentPage = 1;
@@ -537,7 +540,7 @@ async function createProjectFromDialog() {
         zOrder: [],
       },
     };
-    core.state.history = {};
+    core.state.history = { past: [], future: [] };
     core.state.pageCache.clear();
     core.state.thumbCache.clear();
 
@@ -565,16 +568,11 @@ async function createProjectFromDialog() {
 
     closeDialog();
 
-    try {
-      const utils = await import('./core.js');
-      if (utils.toast) {
-        utils.toast('تم إنشاء المشروع ✨ ' + pxW + '×' + pxH + ' px', 'ok');
-      }
-    } catch (_) {}
+    toast('تم إنشاء المشروع ✨ ' + pxW + '×' + pxH + ' px', 'ok');
 
   } catch (err) {
     console.error(err);
-    alert('تعذّر إنشاء المشروع: ' + err.message);
+    toast('تعذّر إنشاء المشروع: ' + err.message, 'error');
   }
 }
 

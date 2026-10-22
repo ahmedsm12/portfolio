@@ -11,7 +11,7 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    // ★★★ الإضافة الحاسمة: اكتشاف مسبق للحزم المُستوردة عبر dynamic imports
+    // ★ اكتشاف مسبق للحزم المُستوردة عبر dynamic imports
     optimizeDeps: {
       include: [
         'gsap',

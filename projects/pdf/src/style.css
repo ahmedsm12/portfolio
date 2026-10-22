@@ -275,6 +275,8 @@ html,body{
   position:relative;background:#fff;
   box-shadow:0 20px 60px rgba(0,0,0,.7);overflow:visible;
   touch-action:none;border-radius:4px;transform-origin:0 0;
+  container-type: inline-size;
+  container-name: stage;
 }
 
 #stage.empty{
@@ -512,7 +514,7 @@ html,body{
 .pdf-text-box{
   position:absolute;pointer-events:none;display:flex;flex-direction:column;
   min-width:40px;min-height:24px;border:1px solid transparent;
-  border-radius:4px;padding:4px 6px;
+  border-radius:4px;padding:0;
   transition:border-color .15s,background .15s;box-sizing:border-box;
 }
 .pdf-text-box.selected{border-color:#4a7eff;background:rgba(74,126,255,.05)}

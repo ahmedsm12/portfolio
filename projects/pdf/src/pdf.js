@@ -3,9 +3,11 @@
  * ============================================================
  *  ★ disableFontFace: true → رسم دقيق للحروف
  *  ★ thumbnail: يلتقط من نسخة clone خارج الشاشة
- *  ★ fit-contain للصور المصغرة
  *  ★ أيقونة + تحت آخر thumbnail لإضافة شريحة جديدة
- *  ★ سحب وإفلات (Drag & Drop) لإعادة ترتيب الشرائح بلحظية وسلاسة
+ *  ★ سحب وإفلات (Drag & Drop) لإعادة ترتيب الشرائح
+ *  ★ clearDirty() بعد التحميل (Session 1)
+ *  ★ applyView يبث viewChanged (Session 4)
+ *  ★ toast بدل alert (Session 6)
  * ============================================================ */
 
 import {
@@ -90,6 +92,8 @@ export function applyView() {
   const { scale, tx, ty } = state.view;
   if (scale === 1 && tx === 0 && ty === 0) stage.style.transform = '';
   else stage.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  // ★ إشعار اللوحة لتحديث النسبة (Session 4)
+  document.dispatchEvent(new CustomEvent('ipb:viewChanged'));
 }
 
 /* ============================================================
@@ -301,7 +305,7 @@ export async function renderPage(pageNum) {
     loadPageState(pageNum);
     updatePageIndicator();
     updateUndoButtonsSafe();
-    
+
     if (emptyState) {
       emptyState.style.display = 'none';
       emptyState.style.backgroundColor = 'transparent';
@@ -312,7 +316,6 @@ export async function renderPage(pageNum) {
     document.body.classList.add('has-project');
     document.body.classList.remove('no-project');
 
-    // ★ تحديث فوري وسريع للـ thumbnail مباشرة من كانفاس الصفحة
     updateThumbnailFromStage(pageNum);
 
     setTimeout(() => { captureStageThumbnail(pageNum).catch(() => {}); }, 60);
@@ -543,7 +546,6 @@ export async function captureStageThumbnail(pageNum) {
 
     clonedStage.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
 
-    // ★★★ نسخ بيانات الكانفاس الحقيقي إلى النسخة المستنسخة لأن cloneNode لا ينسخ محتوى الكانفاس! ★★★
     const origCanvases = stageEl.querySelectorAll('canvas');
     const clonedCanvases = clonedStage.querySelectorAll('canvas');
     origCanvases.forEach((orig, idx) => {
@@ -660,13 +662,23 @@ function _shiftCachesAfterDelete(atIdx) {
   state.pageCache = newPages;
 }
 
+/* § helper — تصفير التاريخ بأمان */
+function _resetHistory() {
+  if (state.history) {
+    state.history.past = [];
+    state.history.future = [];
+  } else {
+    state.history = { past: [], future: [] };
+  }
+}
+
 /* ============================================================
    §9. LOAD PDF / IMAGE
    ============================================================ */
 export function initSlidesFromPdf(numPages) {
   state.slides = [];
   for (let i = 1; i <= numPages; i++) {
-    state.slides.push({ id: uid(), bg: { type: 'pdf', page: i } });
+    state.slides.push({ id: uid(), bg: { type: 'pdf', page: i }, notes: '' });
   }
   state.totalPages = state.slides.length;
 }
@@ -703,7 +715,7 @@ export async function loadPdfFile(file, opts = {}) {
 
     if (!opts.keepPages) {
       state.pages = {};
-      state.history = {};
+      _resetHistory();
       state.currentPage = 1;
       state.selected = null;
       initSlidesFromPdf(doc.numPages);
@@ -722,11 +734,11 @@ export async function loadPdfFile(file, opts = {}) {
       await renderPage(state.currentPage || 1);
       preloadAllPages(token);
     }
-	clearDirty();
+    clearDirty();
   } catch (err) {
     console.error(err);
     setLoading(false);
-    alert('تعذّر فتح PDF: ' + err.message);
+    toast('تعذّر فتح PDF: ' + err.message, 'error');
     throw err;
   }
 }
@@ -745,9 +757,9 @@ export async function loadImageFile(file, opts = {}) {
 
     if (!opts.keepPages) {
       state.pages = {};
-      state.history = {};
+      _resetHistory();
       state.currentPage = 1;
-      state.slides = [{ id: uid(), bg: { type: 'blank' } }];
+      state.slides = [{ id: uid(), bg: { type: 'blank' }, notes: '' }];
       state.totalPages = 1;
     }
 
@@ -756,10 +768,10 @@ export async function loadImageFile(file, opts = {}) {
 
     renderThumbnails();
     if (!opts.skipRender) await renderPage(1);
-	clearDirty(); 
+    clearDirty();
   } catch (err) {
     console.error(err);
-    alert(err.message);
+    toast('تعذّر تحميل الصورة: ' + err.message, 'error');
     throw err;
   } finally {
     setLoading(false);
@@ -872,7 +884,7 @@ export function initSidebar() {
 }
 
 /* ============================================================
-   §12. THUMBNAILS UI + DRAG & DROP REORDER + ADD SLIDE BUTTON
+   §12. THUMBNAILS UI + DRAG & DROP
    ============================================================ */
 let draggedThumbPage = null;
 
@@ -886,7 +898,6 @@ export function renderThumbnails() {
     return;
   }
 
-  /* ═══ 1) بناء عناصر الشرائح ═══ */
   for (let i = 1; i <= state.totalPages; i++) {
     const item = document.createElement('div');
     item.className = 'thumb-item loading';
@@ -920,7 +931,6 @@ export function renderThumbnails() {
     num.className = 'thumb-num';
     num.textContent = String(i);
 
-    /* مقبض سحب اختياري */
     const dragGrip = document.createElement('div');
     dragGrip.className = 'thumb-drag-grip';
     dragGrip.title = 'اسحب لإعادة الترتيب';
@@ -932,7 +942,6 @@ export function renderThumbnails() {
     item.appendChild(num);
     item.appendChild(dragGrip);
 
-    /* ─── Navigation onClick ─── */
     item.addEventListener('click', (e) => {
       if (item.classList.contains('was-dragged')) {
         item.classList.remove('was-dragged');
@@ -947,9 +956,6 @@ export function renderThumbnails() {
       showSlideContextMenu(e, i);
     });
 
-    /* ══════════════════════════════════════════════════════
-       ★★★ خاصية السحب والإفلات لإعادة ترتيب الشرائح
-       ══════════════════════════════════════════════════════ */
     item.addEventListener('dragstart', (e) => {
       draggedThumbPage = i;
       e.dataTransfer.setData('text/plain', String(i));
@@ -1031,7 +1037,6 @@ export function renderThumbnails() {
     if (i === state.currentPage) item.classList.add('active');
   }
 
-  /* ═══ 2) زر إشارة زائد تحت آخر thumbnail لإضافة شريحة جديدة ═══ */
   const addSlideBtn = document.createElement('button');
   addSlideBtn.type = 'button';
   addSlideBtn.className = 'thumb-add-btn';
@@ -1052,7 +1057,7 @@ export function renderThumbnails() {
 }
 
 /* ============================================================
-   §12b. REORDER SLIDE — تحديث لحظي وسلس لترتيب الشرائح
+   §12b. REORDER SLIDE
    ============================================================ */
 export async function reorderSlide(fromPage, toPage) {
   if (fromPage < 1 || fromPage > state.totalPages || toPage < 1 || toPage > state.totalPages || fromPage === toPage) {
@@ -1065,15 +1070,12 @@ export async function reorderSlide(fromPage, toPage) {
   const total = state.totalPages;
   const order = Array.from({ length: total }, (_, idx) => idx + 1);
 
-  // تحديث مصفوفة الترتيب
   const [movedOldIndex] = order.splice(fromPage - 1, 1);
   order.splice(toPage - 1, 0, movedOldIndex);
 
-  // تحديث slides
   const [movedSlide] = state.slides.splice(fromPage - 1, 1);
   state.slides.splice(toPage - 1, 0, movedSlide);
 
-  // تحديث pages
   const newPages = {};
   for (let newPos = 1; newPos <= total; newPos++) {
     const origPageNum = order[newPos - 1];
@@ -1083,17 +1085,8 @@ export async function reorderSlide(fromPage, toPage) {
   }
   state.pages = newPages;
 
-  // تحديث history
-  const newHistory = {};
-  for (let newPos = 1; newPos <= total; newPos++) {
-    const origPageNum = order[newPos - 1];
-    if (state.history[origPageNum]) {
-      newHistory[newPos] = state.history[origPageNum];
-    }
-  }
-  state.history = newHistory;
+  _resetHistory();
 
-  // تحديث pageCache
   const newPageCache = new Map();
   for (let newPos = 1; newPos <= total; newPos++) {
     const origPageNum = order[newPos - 1];
@@ -1103,7 +1096,6 @@ export async function reorderSlide(fromPage, toPage) {
   }
   state.pageCache = newPageCache;
 
-  // تحديث thumbCache
   const newThumbCache = new Map();
   for (let newPos = 1; newPos <= total; newPos++) {
     const origPageNum = order[newPos - 1];
@@ -1113,12 +1105,10 @@ export async function reorderSlide(fromPage, toPage) {
   }
   state.thumbCache = newThumbCache;
 
-  // تحديث الصفحة الحالية
   const oldCurrentPage = state.currentPage;
   const newCurrentPos = order.indexOf(oldCurrentPage) + 1;
   state.currentPage = newCurrentPos > 0 ? newCurrentPos : toPage;
 
-  // تحديث الواجهة فوراً
   renderThumbnails();
   updatePageIndicator();
   updateUndoButtonsSafe();
@@ -1242,7 +1232,7 @@ export async function cutSlide(idx) {
     else if (i > idx) newPages[i - 1] = state.pages[i];
   }
   state.pages = newPages;
-  state.history = {};
+  _resetHistory();
   _shiftCachesAfterDelete(idx);
   state.totalPages = state.slides.length;
   renderThumbnails();
@@ -1293,7 +1283,7 @@ export async function pasteSlide(idx) {
   }
 
   state.pages = newPages;
-  state.history = {};
+  _resetHistory();
   state.totalPages = state.slides.length;
   renderThumbnails();
   state.currentPage = idx + 1;
@@ -1307,7 +1297,7 @@ export async function newBlankSlide(idx) {
   savePageNow();
   const insertAt = idx;
   _shiftCachesAfterInsert(idx, 1);
-  state.slides.splice(insertAt, 0, { id: uid(), bg: { type: 'blank' } });
+  state.slides.splice(insertAt, 0, { id: uid(), bg: { type: 'blank' }, notes: '' });
 
   const newPages = {};
   for (let i = 1; i <= idx; i++) newPages[i] = state.pages[i];
@@ -1319,7 +1309,7 @@ export async function newBlankSlide(idx) {
   }
 
   state.pages = newPages;
-  state.history = {};
+  _resetHistory();
   state.totalPages = state.slides.length;
 
   document.body.classList.add('has-project');
@@ -1343,6 +1333,7 @@ export async function duplicateSlide(idx) {
   const clone = JSON.parse(JSON.stringify(data));
   const insertAt = idx;
   _shiftCachesAfterInsert(idx, 1);
+  // ★ النسخ يحافظ على notes
   state.slides.splice(insertAt, 0, { ...slide, id: uid() });
 
   const newPages = {};
@@ -1353,7 +1344,7 @@ export async function duplicateSlide(idx) {
   }
 
   state.pages = newPages;
-  state.history = {};
+  _resetHistory();
   state.totalPages = state.slides.length;
   renderThumbnails();
   state.currentPage = idx + 1;
@@ -1378,7 +1369,7 @@ export async function deleteSlide(idx) {
   }
 
   state.pages = newPages;
-  state.history = {};
+  _resetHistory();
   _shiftCachesAfterDelete(idx);
   state.totalPages = state.slides.length;
   renderThumbnails();

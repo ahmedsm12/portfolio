@@ -1,11 +1,13 @@
 /* ============================================================
  * interaction.js — الأحداث والرسم والتحديد والأدوات العائمة
  * ============================================================
- *  ★ نظام z-index موحّد لكل العناصر
- *  ★ SVG annotations ملفوفة في wrappers لدعم z-index
- *  ★ selection overlay في SVG منفصل
- *  ★ حركة حرة للعناصر (بلا قيود)
- *  ★ الرسم يعمل فوق الصور والفيديو والـ embed
+ *  ★ z-index موحّد
+ *  ★ selection overlay يدور مع العنصر (Session 3)
+ *  ★ resize يحترم الدوران (Session 3)
+ *  ★ أوزان cqw للنصوص (Session 4)
+ *  ★ Space+Drag, Alt+Drag, Shift constraint (Session 5)
+ *  ★ النقرة المزدوجة للتحرير (Session 5)
+ *  ★ Undo للكتابة (Session 1)
  * ============================================================ */
 
 import {
@@ -15,8 +17,8 @@ import {
   textContextToolbar, shapeContextToolbar, equationEditor,
   state, mediaBlobs, clipboard,
   uid, toast, hexToRgba, escapeXml, renderTextWithMath,
-  commitChange, snapshot, savePageNow,
-  markDirty,
+  commitChange, snapshot, savePageNow, markDirty,
+  normalizeDim,
   serializeSvgElement, deserializeSvgElement, serializeText,
   serializeButton, serializeMedia, serializeEmbed,
   distToSegment, distToEllipse, getTranslate,
@@ -36,6 +38,8 @@ import {
   renderCircuitComponent,
   renderCartesianPlane,
   calculateBlockArrowPath,
+  computeRotatedResize,
+  applyResizedBox,
 } from './shapes.js';
 
 /* ============================================================
@@ -330,8 +334,15 @@ export function resizeSvg(el, handle, startPt, orig, p) {
     height: orig.height || 50,
     origPoints: orig.origPoints,
     x0: orig.x0, y0: orig.y0, cx: orig.cx, cy: orig.cy, x1: orig.x1, y1: orig.y1,
-    x1Line: orig.x1, y1Line: orig.y1, x2Line: orig.x2, y2Line: orig.y2,
   };
+
+  // ★ إذا كان مُدوَّراً — مسار حساب خاص (Session 3)
+  const rot = parseFloat(el.dataset.rotation) || 0;
+  if (rot !== 0) {
+    const nb = computeRotatedResize(el, handle, origBox, startPt, p);
+    applyResizedBox(el, nb.x, nb.y, nb.width, nb.height);
+    return;
+  }
 
   resizeUniversalShape(el, handle, origBox, startPt, p);
 }
@@ -405,7 +416,7 @@ function getSmoothedPoints(points, level) {
 }
 
 /* ============================================================
-   §5. ANNOTATION CREATION (with wrappers)
+   §5. ANNOTATION CREATION
    ============================================================ */
 export function createAnnotWrapper(innerEl) {
   const wrap = document.createElementNS(SVG_NS, 'svg');
@@ -476,27 +487,6 @@ function buildPathFromPoints(points, kind) {
 
 export function createShapeElement(kind, customState, p) {
   return createShapeElementFromShapes(kind, customState || state, p || { x: 0, y: 0 });
-}
-
-function _legacyCreateShape(kind) {
-  const tag = kind === 'circle' ? 'ellipse' : (kind === 'arrow' ? 'line' : kind);
-  const el = document.createElementNS(SVG_NS, tag);
-  el.setAttribute('stroke', state.shapeStroke);
-  el.setAttribute('stroke-width', state.shapeSize);
-  if (tag !== 'line') {
-    el.setAttribute('fill', (kind === 'line' || state.shapeFillNone) ? 'none' : state.shapeFill);
-  } else {
-    el.setAttribute('fill', 'none');
-    el.setAttribute('stroke-linecap', state.shapeLineCap);
-    if (state.shapeLineStart === 'arrow') el.setAttribute('marker-start', 'url(#arrow-start-normal)');
-    else if (state.shapeLineStart === 'arrow-hollow') el.setAttribute('marker-start', 'url(#arrow-start-hollow)');
-    if (state.shapeLineEnd === 'arrow') el.setAttribute('marker-end', 'url(#arrow-end-normal)');
-    else if (state.shapeLineEnd === 'arrow-hollow') el.setAttribute('marker-end', 'url(#arrow-end-hollow)');
-    else if (state.shapeLineEnd === 'circle') el.setAttribute('marker-end', 'url(#circle-end)');
-    else if (state.shapeLineEnd === 'square') el.setAttribute('marker-end', 'url(#square-end)');
-  }
-  el.classList.add('annot');
-  return el;
 }
 
 /* ============================================================
@@ -784,7 +774,7 @@ function laserAdd(p) {
 function laserEnd() { currentLaserStroke = null; laserLastActivity = performance.now(); }
 
 /* ============================================================
-   §8. SELECTION & MULTI-SELECTION
+   §8. SELECTION
    ============================================================ */
 export function deselect() {
   if (state.selectedList && state.selectedList.length > 0) {
@@ -868,7 +858,6 @@ export function selectTextBox(el, additive = false) {
   addToSelection({ kind: 'text', el }, additive);
 }
 
-// استماع لاختيار الطبقة من الشريط السفلي
 if (typeof document !== 'undefined') {
   document.addEventListener('ipb:selectLayer', (e) => {
     const { el, kind } = e.detail || {};
@@ -987,7 +976,7 @@ export function drawSelectionOverlay(target) {
   g.setAttribute('class', 'selection-overlay');
   const hs = Math.max(6, (state.pdfW || 2000) / 140);
 
-  // إذا كان خطاً مستقيماً واحداً
+  // الخط المستقيم
   if (selectedItems.length === 1 && selectedItems[0].kind === 'svg' && selectedItems[0].el.tagName === 'line') {
     const el = selectedItems[0].el;
     const x1 = +el.getAttribute('x1'), y1 = +el.getAttribute('y1');
@@ -1005,11 +994,21 @@ export function drawSelectionOverlay(target) {
       c.dataset.handle = name;
       g.appendChild(c);
     });
+
+    const lineRot = parseFloat(el.dataset.rotation) || 0;
+    if (lineRot !== 0) {
+      const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+      const rotG = document.createElementNS(SVG_NS, 'g');
+      rotG.setAttribute('transform', `rotate(${lineRot}, ${cx}, ${cy})`);
+      while (g.firstChild) rotG.appendChild(g.firstChild);
+      g.appendChild(rotG);
+    }
+
     selectionSvg.appendChild(g);
     return;
   }
 
-  // إذا كان منحنى واحداً (Curve) — إظهار نقاط البداية والنهاية ونقطة التحكم بالانحناء
+  // المنحنى
   if (selectedItems.length === 1 && selectedItems[0].kind === 'svg' && selectedItems[0].el.dataset.type === 'curve') {
     const el = selectedItems[0].el;
     const x0 = parseFloat(el.dataset.x0) || 0;
@@ -1019,7 +1018,6 @@ export function drawSelectionOverlay(target) {
     const x1 = parseFloat(el.dataset.x1) || (x0 + 100);
     const y1 = parseFloat(el.dataset.y1) || y0;
 
-    // خطوط إرشادية منقطة إلى نقطة الانحناء
     const gLine1 = document.createElementNS(SVG_NS, 'line');
     gLine1.setAttribute('x1', x0); gLine1.setAttribute('y1', y0);
     gLine1.setAttribute('x2', cx); gLine1.setAttribute('y2', cy);
@@ -1036,7 +1034,6 @@ export function drawSelectionOverlay(target) {
     gLine2.setAttribute('stroke-dasharray', '3 3');
     g.appendChild(gLine2);
 
-    // مقبض نقطة البداية
     const cStart = document.createElementNS(SVG_NS, 'circle');
     cStart.setAttribute('cx', x0); cStart.setAttribute('cy', y0);
     cStart.setAttribute('r', hs);
@@ -1045,7 +1042,6 @@ export function drawSelectionOverlay(target) {
     cStart.setAttribute('style', 'fill:#3b82f6;stroke:#fff;stroke-width:2');
     g.appendChild(cStart);
 
-    // مقبض نقطة النهاية
     const cEnd = document.createElementNS(SVG_NS, 'circle');
     cEnd.setAttribute('cx', x1); cEnd.setAttribute('cy', y1);
     cEnd.setAttribute('r', hs);
@@ -1054,7 +1050,6 @@ export function drawSelectionOverlay(target) {
     cEnd.setAttribute('style', 'fill:#3b82f6;stroke:#fff;stroke-width:2');
     g.appendChild(cEnd);
 
-    // مقبض نقطة التحكم بالانحناء (بلون ذهبي برتقالي)
     const cCtrl = document.createElementNS(SVG_NS, 'circle');
     cCtrl.setAttribute('cx', cx); cCtrl.setAttribute('cy', cy);
     cCtrl.setAttribute('r', hs * 1.25);
@@ -1062,8 +1057,12 @@ export function drawSelectionOverlay(target) {
     cCtrl.dataset.handle = 'curve-ctrl';
     cCtrl.setAttribute('style', 'fill:#f59e0b;stroke:#fff;stroke-width:2.5');
     g.appendChild(cCtrl);
+
+    selectionSvg.appendChild(g);
+    return;
   }
 
+  // الحالة العامة
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
   selectedItems.forEach(item => {
@@ -1101,7 +1100,7 @@ export function drawSelectionOverlay(target) {
   rect.setAttribute('class', 'selection-outline');
   g.appendChild(rect);
 
-  // إذا كان مستطيلاً واحداً — إضافة مقبض استدارة الزوايا (Radius Handle)
+  // مقبض استدارة الزوايا
   if (selectedItems.length === 1 && selectedItems[0].kind === 'svg' && selectedItems[0].el.tagName && selectedItems[0].el.tagName.toLowerCase() === 'rect') {
     const curRx = parseFloat(selectedItems[0].el.getAttribute('rx') || '0');
     const radHandleX = Math.min(minX + width / 2, minX + Math.max(14, curRx));
@@ -1117,7 +1116,7 @@ export function drawSelectionOverlay(target) {
     g.appendChild(radHandle);
   }
 
-  // 8 مقَابض كاملة للتكبير والتصغير من الزوايا الأربع وجميع الأطراف
+  // 8 مقابض
   const pts = {
     nw: [minX, minY],
     ne: [minX + width, minY],
@@ -1129,10 +1128,8 @@ export function drawSelectionOverlay(target) {
     e:  [minX + width, minY + height / 2],
   };
   Object.keys(pts).forEach(k => {
-    // مقبض لمس شفاف واسع لسهولة الإمساك والسحب بدقة
     const hit = document.createElementNS(SVG_NS, 'circle');
-    hit.setAttribute('cx', pts[k][0]);
-    hit.setAttribute('cy', pts[k][1]);
+    hit.setAttribute('cx', pts[k][0]); hit.setAttribute('cy', pts[k][1]);
     hit.setAttribute('r', hs * 2.2);
     hit.setAttribute('fill', 'transparent');
     hit.setAttribute('class', 'handle ' + k);
@@ -1140,10 +1137,8 @@ export function drawSelectionOverlay(target) {
     hit.setAttribute('style', 'pointer-events: auto !important;');
     g.appendChild(hit);
 
-    // المقبض المرئي
     const c = document.createElementNS(SVG_NS, 'circle');
-    c.setAttribute('cx', pts[k][0]);
-    c.setAttribute('cy', pts[k][1]);
+    c.setAttribute('cx', pts[k][0]); c.setAttribute('cy', pts[k][1]);
     c.setAttribute('r', hs);
     c.setAttribute('class', 'handle ' + k);
     c.dataset.handle = k;
@@ -1151,7 +1146,7 @@ export function drawSelectionOverlay(target) {
     g.appendChild(c);
   });
 
-  // مقبض الدوران الدائري بالأعلى مع خط توصيل أنيق (PowerPoint / Figma Rotate Handle)
+  // مقبض الدوران
   const rotDist = Math.max(22, hs * 2.8);
   const rotLine = document.createElementNS(SVG_NS, 'line');
   rotLine.setAttribute('x1', minX + width / 2);
@@ -1162,11 +1157,12 @@ export function drawSelectionOverlay(target) {
   rotLine.setAttribute('stroke-width', '1.5');
   g.appendChild(rotLine);
 
-  // مقبض نقطة الارتكاز (Origin Pivot Handle)
+  // نقطة الارتكاز
   if (selectedItems.length === 1) {
     const item = selectedItems[0];
-    const ox = parseFloat(item.el.dataset.originX ?? 0.5);
-    const oy = parseFloat(item.el.dataset.originY ?? 0.5);
+    const target = item.kind === 'svg' ? (item.el.querySelector('[data-annot]') || item.el) : item.el;
+    const ox = parseFloat(target.dataset.originX ?? 0.5);
+    const oy = parseFloat(target.dataset.originY ?? 0.5);
     const pivotX = minX + width * (isNaN(ox) ? 0.5 : ox);
     const pivotY = minY + height * (isNaN(oy) ? 0.5 : oy);
 
@@ -1177,8 +1173,7 @@ export function drawSelectionOverlay(target) {
     originG.style.pointerEvents = 'auto';
 
     const oCircle = document.createElementNS(SVG_NS, 'circle');
-    oCircle.setAttribute('cx', pivotX);
-    oCircle.setAttribute('cy', pivotY);
+    oCircle.setAttribute('cx', pivotX); oCircle.setAttribute('cy', pivotY);
     oCircle.setAttribute('r', hs * 1.15);
     oCircle.setAttribute('fill', 'rgba(16, 185, 129, 0.35)');
     oCircle.setAttribute('stroke', '#10b981');
@@ -1186,24 +1181,37 @@ export function drawSelectionOverlay(target) {
     originG.appendChild(oCircle);
 
     const lineH = document.createElementNS(SVG_NS, 'line');
-    lineH.setAttribute('x1', pivotX - hs * 1.5);
-    lineH.setAttribute('y1', pivotY);
-    lineH.setAttribute('x2', pivotX + hs * 1.5);
-    lineH.setAttribute('y2', pivotY);
+    lineH.setAttribute('x1', pivotX - hs * 1.5); lineH.setAttribute('y1', pivotY);
+    lineH.setAttribute('x2', pivotX + hs * 1.5); lineH.setAttribute('y2', pivotY);
     lineH.setAttribute('stroke', '#10b981');
     lineH.setAttribute('stroke-width', '1.6');
     originG.appendChild(lineH);
 
     const lineV = document.createElementNS(SVG_NS, 'line');
-    lineV.setAttribute('x1', pivotX);
-    lineV.setAttribute('y1', pivotY - hs * 1.5);
-    lineV.setAttribute('x2', pivotX);
-    lineV.setAttribute('y2', pivotY + hs * 1.5);
+    lineV.setAttribute('x1', pivotX); lineV.setAttribute('y1', pivotY - hs * 1.5);
+    lineV.setAttribute('x2', pivotX); lineV.setAttribute('y2', pivotY + hs * 1.5);
     lineV.setAttribute('stroke', '#10b981');
     lineV.setAttribute('stroke-width', '1.6');
     originG.appendChild(lineV);
 
     g.appendChild(originG);
+  }
+
+  // ★ اللف حول نقطة الارتكاز إذا كان مُدوَّراً (Session 3)
+  if (selectedItems.length === 1) {
+    const item = selectedItems[0];
+    const target = item.kind === 'svg' ? (item.el.querySelector('[data-annot]') || item.el) : item.el;
+    const rot = parseFloat(target.dataset.rotation) || 0;
+    if (rot !== 0) {
+      const ox = parseFloat(target.dataset.originX ?? 0.5);
+      const oy = parseFloat(target.dataset.originY ?? 0.5);
+      const pivotX = minX + width * (isNaN(ox) ? 0.5 : ox);
+      const pivotY = minY + height * (isNaN(oy) ? 0.5 : oy);
+      const rotG = document.createElementNS(SVG_NS, 'g');
+      rotG.setAttribute('transform', `rotate(${rot}, ${pivotX}, ${pivotY})`);
+      while (g.firstChild) rotG.appendChild(g.firstChild);
+      g.appendChild(rotG);
+    }
   }
 
   selectionSvg.appendChild(g);
@@ -1488,7 +1496,12 @@ export function applyElementDelta(item, dx, dy) {
    §9. TEXT BOX
    ============================================================ */
 export function applyTextStyles(el) {
-  el.style.fontSize = (el.dataset.fontSize || '20') + 'px';
+  const fontSize = parseFloat(el.dataset.fontSize) || 20;
+  const refCssW = parseFloat(el.dataset.fontSizeRefCssW) || 800;
+  const cqw = (fontSize / refCssW) * 100;
+
+  el.style.fontSize = cqw + 'cqw';
+  el.style.lineHeight = '1.35';
   el.style.fontFamily = el.dataset.fontFamily || 'Cairo, system-ui';
   el.style.fontWeight = el.dataset.fontWeight || 'normal';
   el.style.fontStyle = el.dataset.fontStyle || 'normal';
@@ -1497,11 +1510,12 @@ export function applyTextStyles(el) {
   el.style.direction = el.dataset.dir || 'rtl';
   if (el.dataset.bg && el.dataset.bg !== 'none' && el.dataset.bg !== 'transparent') {
     el.style.backgroundColor = el.dataset.bg;
-    el.style.padding = '8px 14px';
-    el.style.borderRadius = (el.dataset.radius || '8') + 'px';
+    el.style.padding = '0.4em 0.7em';
+    el.style.borderRadius = '0.4em';
   } else {
     el.style.backgroundColor = 'transparent';
-    el.style.padding = '2px 4px';
+    el.style.padding = '0.1em 0.2em';
+    el.style.borderRadius = '0.2em';
   }
 }
 
@@ -1516,14 +1530,15 @@ export function addTextBox(spec, save, z) {
   el.className = 'pdf-text-box' + (s.isEquation ? ' equation' : '');
   el.dataset.textId = s.textId;
   el.dataset.text = s.text || '';
-  el.style.left = s.x;
-  el.style.top = s.y;
-  el.style.width = s.w;
-  el.style.height = (s.h && s.h !== 'auto') ? s.h : 'auto';
+  el.style.left = normalizeDim(s.x, 'w');
+  el.style.top = normalizeDim(s.y, 'h');
+  el.style.width = normalizeDim(s.w, 'w');
+  el.style.height = (s.h && s.h !== 'auto') ? normalizeDim(s.h, 'h') : 'auto';
   el.style.zIndex = String(
     z != null ? z : (s.z ? parseInt(s.z, 10) : getNextZIndex())
   );
   el.dataset.fontSize = String(s.fontSize);
+  el.dataset.fontSizeRefCssW = String(s.fontSizeRefCssW || state.cssW || 800);
   el.dataset.fontFamily = s.fontFamily;
   el.dataset.fontWeight = s.fontWeight;
   el.dataset.fontStyle = s.fontStyle;
@@ -1559,8 +1574,7 @@ export function addTextBox(spec, save, z) {
     if (state.tool === 'select') {
       if (e.target.classList.contains('pdf-text-resize')) return;
       const isAlreadySelected = (state.selectedList || []).some(it => it.el === el);
-      
-      // On mobile touch: if already selected, start editing on tap!
+
       if (e.pointerType === 'touch' && isAlreadySelected && !e.shiftKey) {
         e.stopPropagation();
         startEditTextBox(el);
@@ -1571,7 +1585,7 @@ export function addTextBox(spec, save, z) {
         e.preventDefault();
       }
       e.stopPropagation();
-      
+
       if (e.shiftKey) {
         selectTextBox(el, true);
       } else if (!isAlreadySelected) {
@@ -1585,7 +1599,7 @@ export function addTextBox(spec, save, z) {
         startEditTextBox(el);
       }
     } else if (state.tool === 'hand') {
-      return; // Bubble to stage for hand canvas panning
+      return;
     }
   });
 
@@ -1597,15 +1611,10 @@ export function addTextBox(spec, save, z) {
   body.addEventListener('click', e => {
     if (el.classList.contains('editing')) {
       e.stopPropagation();
-      return;
     }
-    if (state.tool === 'select' || state.tool === 'text') {
-      e.stopPropagation();
-      startEditTextBox(el);
-    }
+    // ★ نقرة واحدة = تحديد فقط (Session 5) — التحرير عبر dblclick
   });
 
-  // Mobile double-tap & click-to-edit support
   let lastTapTime = 0;
   el.addEventListener('touchend', (e) => {
     const now = Date.now();
@@ -1626,7 +1635,6 @@ export function addTextBox(spec, save, z) {
     else startEditTextBox(el);
   });
 
-  // If text tool is active, a single tap enters edit mode immediately
   el.addEventListener('click', e => {
     if (state.tool === 'text' && !el.classList.contains('editing')) {
       e.stopPropagation();
@@ -1667,7 +1675,12 @@ export function startTextDrag(el, e, mode) {
   })) : null;
 
   function onMove(ev) {
-    const dx = ev.clientX - sX, dy = ev.clientY - sY;
+    let dx = ev.clientX - sX, dy = ev.clientY - sY;
+    // Shift constraint
+    if (ev.shiftKey && mode === 'move') {
+      if (Math.abs(dx) > Math.abs(dy)) dy = 0;
+      else dx = 0;
+    }
     if (mode === 'move') {
       if (isMulti && multiOrigs) {
         const sx = (state.pdfW || 2000) / sr.width;
@@ -1698,7 +1711,7 @@ export function startTextDrag(el, e, mode) {
       }
     } else {
       const nw = Math.max(60, sW + dx);
-      el.style.width = nw + 'px';
+      el.style.width = (nw / sr.width * 100) + '%';
     }
     drawSelectionOverlay();
     document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
@@ -1717,7 +1730,7 @@ export function startTextDrag(el, e, mode) {
 }
 
 function startEditTextBox(el) {
-  // ── لقطة قبل التحرير — تُستخدم لاحقاً في undo ──
+  // ★ لقطة قبل التحرير (Session 1)
   el._editPre = snapshot();
   el._editOriginalText = el.dataset.text || '';
   el._editOriginalHtml = el.dataset.html || '';
@@ -1741,7 +1754,6 @@ function startEditTextBox(el) {
     sel.addRange(range);
   } catch (_) {}
 
-  // Save selection range inside contenteditable so clicking color swatches or toolbars can style selected text
   const saveRange = () => {
     try {
       const sel = window.getSelection();
@@ -1756,9 +1768,7 @@ function startEditTextBox(el) {
 
   let cleanupOutsideListener = null;
   const onOutsidePointerDown = (ev) => {
-    // If clicking inside the text box or its children, stay in editing mode
     if (el.contains(ev.target) || body.contains(ev.target)) return;
-    // If clicking toolbars, properties panel, swatches, inputs, or buttons, don't finish
     if (ev.target && ev.target.closest && (
         ev.target.closest('#textContextToolbar') ||
         ev.target.closest('#propsRight') ||
@@ -1814,16 +1824,12 @@ function finishEdit(el) {
   if (!raw) el.classList.add('placeholder-empty');
   savePageNow();
 
-  // ★ إدخال تعديل النص في سجل التراجع + markDirty
+  // ★ الكتابة تدخل سجل التراجع (Session 1)
   if (el._editPre) {
     const textChanged = raw !== (el._editOriginalText || '');
     const htmlChanged = (el.dataset.html || '') !== (el._editOriginalHtml || '');
     if (textChanged || htmlChanged) {
       commitChange(el._editPre);
-    } else {
-      markDirty(); // قد لا يكون تغيّر شيء، لكن امنع فقدان علامة "dirty" الصامتة
-      // في الواقع: لو لم يتغير شيء، لا حاجة لـ markDirty، لكن الاحتياط أفضل
-      // يمكن حذف markDirty هنا إذا كانت مقايضة "لا تغيير = لا dirty" مطلوبة
     }
     el._editPre = null;
     el._editOriginalText = null;
@@ -1964,7 +1970,7 @@ export function bindEquationEditor() {
 }
 
 /* ============================================================
-   §11. FLOATING TOOLBARS (تم استبدالها بلوحة الخصائص بالكامل)
+   §11. FLOATING TOOLBARS
    ============================================================ */
 function ensureDeleteBtn() {
   if (_floatingDeleteBtn) {
@@ -1975,7 +1981,6 @@ function ensureDeleteBtn() {
 }
 
 function showDeleteBtnFor(el) {
-  // تم إلغاء الدائرة الحمراء نهائياً كما طلب المستخدم
   hideDeleteBtn();
 }
 function hideDeleteBtn() {
@@ -2004,104 +2009,31 @@ export function hideFloatingToolbars() {
 }
 
 export function updateFloatingToolbarPosition() {
-  // لا توجد أشرطة عائمة فوق العناصر بعد الآن
   hideFloatingToolbars();
 }
 
 export function showFloatingToolbarForSelection() {
-  // جميع الخصائص تم توجيهها للوحة الخصائص والتصميم في الشريط الجانبي
   hideFloatingToolbars();
 }
 
 /* ============================================================
-   §12. TEXT CONTEXT TOOLBAR
+   §12. TEXT CONTEXT TOOLBAR (legacy — hidden via CSS)
    ============================================================ */
 function showTextContextToolbar(el) {
   if (!textContextToolbar) return;
-  const isEq = el.dataset.isEquation === 'true';
-  const align = el.dataset.align || 'right';
-  const dir = el.dataset.dir || 'rtl';
-  const fontFam = el.dataset.fontFamily || 'system-ui';
-  const fontSize = parseInt(el.dataset.fontSize || '20', 10);
-  const isBold = el.dataset.fontWeight === 'bold';
-  const isItalic = el.dataset.fontStyle === 'italic';
-  const color = el.dataset.color || '#1e3a8a';
-  const allFonts = [...new Set([...(window.__localFonts || []), ...getDefaultFonts()])];
-  const fontOptions = allFonts.map(f =>
-    `<option value="${escapeXml(f)}" ${f === fontFam ? 'selected' : ''}>${escapeXml(f)}</option>`
-  ).join('');
-
-  const fixedColors = ['#000000', '#e11d48', '#2563eb', '#22c55e'];
-  let swatches = fixedColors.map(c =>
-    `<button type="button" class="ctx-swatch ${c === color ? 'active' : ''}" data-act="color" data-val="${c}" title="${c}"><span class="ctx-swatch-inner" style="background:${c}"></span></button>`
-  ).join('');
-
-  const customSlots = state.customTextColors || [null, null];
-  swatches += customSlots.map((c, i) => {
-    if (c) {
-      return `<button type="button" class="ctx-swatch ${c === color ? 'active' : ''}" data-act="color" data-val="${c}" title="${c}"><span class="ctx-swatch-inner" style="background:${c}"></span></button>`;
-    }
-    return `<label class="ctx-color-picker" title="لون مخصص"><input type="color" data-act="customColor" data-slot="${i}" value="${color || '#000000'}"></label>`;
-  }).join('');
-
-  textContextToolbar.innerHTML = `
-    ${!isEq ? `
-      <button type="button" class="ctx-btn ${align==='right'?'active':''}" data-act="align" data-val="right" title="يمين">⇥</button>
-      <button type="button" class="ctx-btn ${align==='center'?'active':''}" data-act="align" data-val="center" title="وسط">↔</button>
-      <button type="button" class="ctx-btn ${align==='left'?'active':''}" data-act="align" data-val="left" title="يسار">⇤</button>
-      <button type="button" class="ctx-btn ${align==='justify'?'active':''}" data-act="align" data-val="justify" title="justify">≡</button>
-      <div class="ctx-sep-v"></div>
-      <button type="button" class="ctx-btn ${dir==='rtl'?'active':''}" data-act="dir" data-val="rtl" title="RTL">RTL</button>
-      <button type="button" class="ctx-btn ${dir==='ltr'?'active':''}" data-act="dir" data-val="ltr" title="LTR">LTR</button>
-      <div class="ctx-sep-v"></div>
-      <select class="ctx-select" data-act="font" title="نوع الخط">${fontOptions}</select>
-    ` : `
-      <span style="font-size:11px;color:#8a94a6;padding:0 6px;font-weight:700">معادلة LTR</span>
-      <div class="ctx-sep-v"></div>
-    `}
-    <button type="button" class="ctx-btn" data-act="sizeMinus" title="تصغير">−</button>
-    <input type="number" class="ctx-num" data-act="sizeInput" value="${fontSize}" min="6" max="200">
-    <button type="button" class="ctx-btn" data-act="sizePlus" title="تكبير">+</button>
-    <div class="ctx-sep-v"></div>
-    ${!isEq ? `
-      <button type="button" class="ctx-btn ${isBold?'active':''}" data-act="bold" style="font-weight:900">B</button>
-      <button type="button" class="ctx-btn ${isItalic?'active':''}" data-act="italic" style="font-style:italic">I</button>
-      <div class="ctx-sep-v"></div>
-    ` : ''}
-    ${swatches}
-    <div class="ctx-sep-v"></div>
-    <button type="button" class="ctx-btn" data-act="copy" title="نسخ">📋</button>
-    <button type="button" class="ctx-btn danger" data-act="delete" title="حذف">🗑️</button>
-  `;
   textContextToolbar.classList.add('show');
-  positionToolbar(textContextToolbar, el);
-  showDeleteBtnFor(el);
-  bindTextContextToolbarEvents(el);
 }
 
 function updateTextContextToolbarState(el) {
-  if (!el || !el.parentNode || !textContextToolbar) return;
-  const align = el.dataset.align || 'right';
-  const dir = el.dataset.dir || 'rtl';
-  const isBold = el.dataset.fontWeight === 'bold';
-  const isItalic = el.dataset.fontStyle === 'italic';
-  const color = el.dataset.color || '#1e3a8a';
-  const fontSize = parseInt(el.dataset.fontSize || '20', 10);
-
-  textContextToolbar.querySelectorAll('[data-act="align"]').forEach(b => b.classList.toggle('active', b.dataset.val === align));
-  textContextToolbar.querySelectorAll('[data-act="dir"]').forEach(b => b.classList.toggle('active', b.dataset.val === dir));
-  const boldBtn = textContextToolbar.querySelector('[data-act="bold"]');
-  if (boldBtn) boldBtn.classList.toggle('active', isBold);
-  const italicBtn = textContextToolbar.querySelector('[data-act="italic"]');
-  if (italicBtn) italicBtn.classList.toggle('active', isItalic);
-  const sizeInput = textContextToolbar.querySelector('[data-act="sizeInput"]');
-  if (sizeInput && document.activeElement !== sizeInput) sizeInput.value = fontSize;
-  textContextToolbar.querySelectorAll('[data-act="color"]').forEach(b => b.classList.toggle('active', b.dataset.val === color));
+  // no-op
 }
 
 function applyTextChange(el, key, value) {
   const pre = snapshot();
   el.dataset[key] = value;
+  if (key === 'fontSize') {
+    el.dataset.fontSizeRefCssW = String(state.cssW || 800);
+  }
   applyTextStyles(el);
   savePageNow();
   commitChange(pre);
@@ -2109,141 +2041,7 @@ function applyTextChange(el, key, value) {
 }
 
 function bindTextContextToolbarEvents(el) {
-  if (!textContextToolbar) return;
-  textContextToolbar.querySelectorAll('[data-act]').forEach(ctrl => {
-    const act = ctrl.dataset.act;
-
-    if (act === 'sizeInput') {
-      ctrl.addEventListener('change', () => {
-        let v = parseInt(ctrl.value, 10);
-        if (isNaN(v)) v = 20;
-        v = Math.max(6, Math.min(200, v));
-        ctrl.value = v;
-        applyTextChange(el, 'fontSize', String(v));
-      });
-      ctrl.addEventListener('pointerdown', e => e.stopPropagation());
-      return;
-    }
-    if (act === 'font') {
-      ctrl.addEventListener('change', () => applyTextChange(el, 'fontFamily', ctrl.value));
-      ctrl.addEventListener('pointerdown', e => e.stopPropagation());
-      return;
-    }
-    // Prevent buttons from stealing focus/selection from the text body
-    if (act !== 'sizeInput' && act !== 'font') {
-      ctrl.addEventListener('pointerdown', e => {
-        e.preventDefault();
-        e.stopPropagation();
-      });
-    }
-
-    if (act === 'customColor') {
-      ctrl.addEventListener('input', () => {
-        const c = ctrl.value;
-        const slot = parseInt(ctrl.dataset.slot, 10);
-        if (!state.customTextColors) state.customTextColors = [null, null];
-        state.customTextColors[slot] = c;
-        const body = el.querySelector('.pdf-text-body');
-        if (window.__savedTextRange && body) {
-          try {
-            body.focus();
-            const s = window.getSelection();
-            s.removeAllRanges();
-            s.addRange(window.__savedTextRange);
-          } catch (_) {}
-        }
-        const sel = window.getSelection();
-        if (body && sel && sel.rangeCount > 0 && !sel.isCollapsed && body.contains(sel.anchorNode)) {
-          document.execCommand('styleWithCSS', false, true);
-          document.execCommand('foreColor', false, c);
-          el.dataset.html = body.innerHTML;
-          savePageNow();
-        } else {
-          applyTextChange(el, 'color', c);
-        }
-        showTextContextToolbar(el);
-      });
-      ctrl.addEventListener('pointerdown', e => e.stopPropagation());
-      ctrl.addEventListener('click', e => e.stopPropagation());
-      return;
-    }
-    if (act === 'delete') {
-      ctrl.addEventListener('click', e => {
-        e.stopPropagation();
-        const pre = snapshot();
-        el.remove();
-        state.selected = null;
-        hideFloatingToolbars();
-        commitChange(pre);
-      });
-      return;
-    }
-    if (act === 'copy') {
-      ctrl.addEventListener('click', e => {
-        e.stopPropagation();
-        copyElement(el);
-      });
-      return;
-    }
-    ctrl.addEventListener('click', e => {
-      e.stopPropagation();
-      if (act === 'color') {
-        const c = ctrl.dataset.val;
-        const body = el.querySelector('.pdf-text-body');
-        if (window.__savedTextRange && body) {
-          try {
-            body.focus();
-            const s = window.getSelection();
-            s.removeAllRanges();
-            s.addRange(window.__savedTextRange);
-          } catch (_) {}
-        }
-        const sel = window.getSelection();
-        if (body && sel && sel.rangeCount > 0 && !sel.isCollapsed && body.contains(sel.anchorNode)) {
-          document.execCommand('styleWithCSS', false, true);
-          document.execCommand('foreColor', false, c);
-          el.dataset.html = body.innerHTML;
-          savePageNow();
-        } else {
-          applyTextChange(el, 'color', c);
-          updateTextContextToolbarState(el);
-        }
-      }
-      else if (act === 'align') { applyTextChange(el, 'align', ctrl.dataset.val); updateTextContextToolbarState(el); }
-      else if (act === 'dir') { applyTextChange(el, 'dir', ctrl.dataset.val); updateTextContextToolbarState(el); }
-      else if (act === 'sizeMinus') {
-        const cur = parseInt(el.dataset.fontSize || '20', 10);
-        applyTextChange(el, 'fontSize', String(Math.max(6, cur - 2)));
-        updateTextContextToolbarState(el);
-      } else if (act === 'sizePlus') {
-        const cur = parseInt(el.dataset.fontSize || '20', 10);
-        applyTextChange(el, 'fontSize', String(Math.min(200, cur + 2)));
-        updateTextContextToolbarState(el);
-      } else if (act === 'bold') {
-        const body = el.querySelector('.pdf-text-body');
-        const sel = window.getSelection();
-        if (body && sel && sel.rangeCount > 0 && !sel.isCollapsed && body.contains(sel.anchorNode)) {
-          document.execCommand('bold', false, null);
-          el.dataset.html = body.innerHTML;
-          savePageNow();
-          return;
-        }
-        applyTextChange(el, 'fontWeight', el.dataset.fontWeight === 'bold' ? 'normal' : 'bold');
-        updateTextContextToolbarState(el);
-      } else if (act === 'italic') {
-        const body = el.querySelector('.pdf-text-body');
-        const sel = window.getSelection();
-        if (body && sel && sel.rangeCount > 0 && !sel.isCollapsed && body.contains(sel.anchorNode)) {
-          document.execCommand('italic', false, null);
-          el.dataset.html = body.innerHTML;
-          savePageNow();
-          return;
-        }
-        applyTextChange(el, 'fontStyle', el.dataset.fontStyle === 'italic' ? 'normal' : 'italic');
-        updateTextContextToolbarState(el);
-      }
-    });
-  });
+  // no-op
 }
 
 function getDefaultFonts() {
@@ -2253,100 +2051,11 @@ function getDefaultFonts() {
 }
 
 /* ============================================================
-   §13. SHAPE CONTEXT TOOLBAR
+   §13. SHAPE CONTEXT TOOLBAR (legacy — hidden)
    ============================================================ */
 function showShapeContextToolbar(el) {
   if (!shapeContextToolbar) return;
-  const tag = el.tagName;
-  const stroke = el.getAttribute('stroke') || '#000';
-  const fill = el.getAttribute('fill') || 'none';
-  const sw = parseFloat(el.getAttribute('stroke-width') || '3');
-  const hasFill = fill !== 'none' && fill !== 'transparent';
-  const isLine = tag === 'line';
-
-  const curMarkerStart = el.getAttribute('marker-start') || '';
-  const curMarkerEnd = el.getAttribute('marker-end') || '';
-  const curCap = el.getAttribute('stroke-linecap') || 'round';
-
-  const startV = (() => {
-    if (!curMarkerStart) return 'none';
-    if (curMarkerStart.includes('arrow-start-normal')) return 'arrow';
-    if (curMarkerStart.includes('arrow-start-hollow')) return 'arrow-hollow';
-    return 'none';
-  })();
-  const endV = (() => {
-    if (!curMarkerEnd) return 'none';
-    if (curMarkerEnd.includes('arrow-end-normal')) return 'arrow';
-    if (curMarkerEnd.includes('arrow-end-hollow')) return 'arrow-hollow';
-    if (curMarkerEnd.includes('circle-end')) return 'circle';
-    if (curMarkerEnd.includes('square-end')) return 'square';
-    return 'none';
-  })();
-
-  const strokeSwatches = ['#000000','#e11d48','#2563eb','#22c55e','#eab308','#dc2626'].map(c =>
-    `<button type="button" class="ctx-swatch ${c===stroke?'active':''}" data-act="strokeColor" data-val="${c}" title="${c}"><span class="ctx-swatch-inner" style="background:${c}"></span></button>`
-  ).join('');
-  const fillSwatches = ['#ffffff','#000000','#4a7eff','#e11d48','#22c55e','#eab308'].map(c =>
-    `<button type="button" class="ctx-swatch ${c===fill?'active':''}" data-act="fillColor" data-val="${c}" title="${c}"><span class="ctx-swatch-inner" style="background:${c}"></span></button>`
-  ).join('');
-
-  let html = '';
-  html += `<span style="font-size:10px;color:#8a94a6;padding:0 4px;font-weight:700">الحدود</span>`;
-  html += strokeSwatches;
-  html += `<label class="ctx-color-picker" title="لون الحدود"><input type="color" data-act="customStroke" value="${stroke}"></label>`;
-  html += `<div class="ctx-sep-v"></div>`;
-
-  if (!isLine) {
-    html += `<span style="font-size:10px;color:#8a94a6;padding:0 4px;font-weight:700">التعبئة</span>`;
-    html += `<button type="button" class="ctx-swatch ${!hasFill?'active':''}" data-act="fillNone" title="بدون تعبئة"><span class="ctx-swatch-inner" style="background-image:linear-gradient(45deg,#666 25%,transparent 25%),linear-gradient(-45deg,#666 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#666 75%),linear-gradient(-45deg,transparent 75%,#666 75%);background-size:6px 6px;background-color:#fff"></span></button>`;
-    html += fillSwatches;
-    html += `<label class="ctx-color-picker" title="لون التعبئة"><input type="color" data-act="customFill" value="${hasFill?fill:'#ffffff'}"></label>`;
-    html += `<div class="ctx-sep-v"></div>`;
-  }
-
-  html += `<span style="font-size:10px;color:#8a94a6;padding:0 4px;font-weight:700">السماكة</span>`;
-  html += `<button type="button" class="ctx-btn" data-act="swMinus">−</button>`;
-  html += `<input type="number" class="ctx-num" data-act="swInput" value="${sw}" min="1" max="30" step="0.5">`;
-  html += `<button type="button" class="ctx-btn" data-act="swPlus">+</button>`;
-
-  if (isLine) {
-    html += `<div class="ctx-sep-v"></div>`;
-    html += `<span style="font-size:10px;color:#8a94a6;padding:0 4px;font-weight:700">البداية</span>`;
-    html += `<select class="ctx-select" data-act="markerStart" style="max-width:90px">
-      <option value="none" ${startV==='none'?'selected':''}>بدون</option>
-      <option value="arrow" ${startV==='arrow'?'selected':''}>◄ سهم</option>
-      <option value="arrow-hollow" ${startV==='arrow-hollow'?'selected':''}>◁ سهم مفرغ</option>
-    </select>`;
-    html += `<span style="font-size:10px;color:#8a94a6;padding:0 4px;font-weight:700">النهاية</span>`;
-    html += `<select class="ctx-select" data-act="markerEnd" style="max-width:90px">
-      <option value="none" ${endV==='none'?'selected':''}>بدون</option>
-      <option value="arrow" ${endV==='arrow'?'selected':''}>► سهم</option>
-      <option value="arrow-hollow" ${endV==='arrow-hollow'?'selected':''}>▷ سهم مفرغ</option>
-      <option value="circle" ${endV==='circle'?'selected':''}>● دائرة</option>
-      <option value="square" ${endV==='square'?'selected':''}>■ مربع</option>
-    </select>`;
-    html += `<span style="font-size:10px;color:#8a94a6;padding:0 4px;font-weight:700">شكل الطرف</span>`;
-    html += `<select class="ctx-select" data-act="lineCap" style="max-width:90px">
-      <option value="round" ${curCap==='round'?'selected':''}>دائري</option>
-      <option value="square" ${curCap==='square'?'selected':''}>مربع</option>
-      <option value="butt" ${curCap==='butt'?'selected':''}>مسطح</option>
-    </select>`;
-  }
-
-  html += `<div class="ctx-sep-v"></div>`;
-  html += `<button type="button" class="ctx-btn" data-act="copy" title="نسخ (Ctrl+C)">📋</button>`;
-  html += `<button type="button" class="ctx-btn" data-act="rotL" title="تدوير 90° لليسار">↶</button>`;
-  html += `<button type="button" class="ctx-btn" data-act="rotR" title="تدوير 90° لليمين">↷</button>`;
-  html += `<button type="button" class="ctx-btn" data-act="flipH" title="عكس أفقي">↔</button>`;
-  html += `<button type="button" class="ctx-btn" data-act="flipV" title="عكس رأسي">↕</button>`;
-  html += `<div class="ctx-sep-v"></div>`;
-  html += `<button type="button" class="ctx-btn danger" data-act="delete" title="حذف">🗑️</button>`;
-
-  shapeContextToolbar.innerHTML = html;
   shapeContextToolbar.classList.add('show');
-  positionToolbar(shapeContextToolbar, el);
-  showDeleteBtnFor(el);
-  bindShapeContextToolbarEvents(el);
 }
 
 function applyShapeChange(el, key, val) {
@@ -2354,109 +2063,16 @@ function applyShapeChange(el, key, val) {
   if (key === 'stroke') el.setAttribute('stroke', val);
   else if (key === 'fill') el.setAttribute('fill', val);
   else if (key === 'strokeWidth') el.setAttribute('stroke-width', val);
-  else if (key === 'lineCap') el.setAttribute('stroke-linecap', val);
-  else if (key === 'markerStart') {
-    if (val === 'none') el.removeAttribute('marker-start');
-    else el.setAttribute('marker-start', `url(#arrow-start-${val === 'arrow-hollow' ? 'hollow' : 'normal'})`);
-  } else if (key === 'markerEnd') {
-    if (val === 'none') el.removeAttribute('marker-end');
-    else if (val === 'circle') el.setAttribute('marker-end', 'url(#circle-end)');
-    else if (val === 'square') el.setAttribute('marker-end', 'url(#square-end)');
-    else el.setAttribute('marker-end', `url(#arrow-end-${val === 'arrow-hollow' ? 'hollow' : 'normal'})`);
-  }
   savePageNow();
   commitChange(pre);
 }
 
 function bindShapeContextToolbarEvents(el) {
-  if (!shapeContextToolbar) return;
-  shapeContextToolbar.querySelectorAll('[data-act]').forEach(ctrl => {
-    const act = ctrl.dataset.act;
-    if (act === 'customStroke') {
-      ctrl.addEventListener('input', () => { applyShapeChange(el, 'stroke', ctrl.value); showShapeContextToolbar(el); });
-      return;
-    }
-    if (act === 'customFill') {
-      ctrl.addEventListener('input', () => { applyShapeChange(el, 'fill', ctrl.value); showShapeContextToolbar(el); });
-      return;
-    }
-    if (act === 'swInput') {
-      ctrl.addEventListener('change', () => {
-        let v = parseFloat(ctrl.value);
-        if (isNaN(v)) v = 3;
-        v = Math.max(.5, Math.min(30, v));
-        ctrl.value = v;
-        applyShapeChange(el, 'strokeWidth', String(v));
-      });
-      return;
-    }
-    if (act === 'markerStart') { ctrl.addEventListener('change', () => applyShapeChange(el, 'markerStart', ctrl.value)); return; }
-    if (act === 'markerEnd')   { ctrl.addEventListener('change', () => applyShapeChange(el, 'markerEnd', ctrl.value)); return; }
-    if (act === 'lineCap')     { ctrl.addEventListener('change', () => applyShapeChange(el, 'lineCap', ctrl.value)); return; }
-
-    ctrl.addEventListener('click', () => {
-      if (act === 'copy') {
-        copyElement(el);
-        return;
-      }
-      if (act === 'rotL') {
-        const pre = snapshot();
-        rotateElement(el, -90);
-        commitChange(pre);
-        drawSelectionOverlay();
-        document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
-        return;
-      }
-      if (act === 'rotR') {
-        const pre = snapshot();
-        rotateElement(el, 90);
-        commitChange(pre);
-        drawSelectionOverlay();
-        document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
-        return;
-      }
-      if (act === 'flipH') {
-        const pre = snapshot();
-        flipElementHorizontal(el);
-        commitChange(pre);
-        drawSelectionOverlay();
-        document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
-        return;
-      }
-      if (act === 'flipV') {
-        const pre = snapshot();
-        flipElementVertical(el);
-        commitChange(pre);
-        drawSelectionOverlay();
-        document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
-        return;
-      }
-      if (act === 'delete') {
-        const pre = snapshot();
-        const wrap = el.closest('.annot-wrapper');
-        (wrap || el).remove();
-        state.selected = null;
-        hideFloatingToolbars();
-        commitChange(pre);
-        return;
-      }
-      if (act === 'strokeColor') applyShapeChange(el, 'stroke', ctrl.dataset.val);
-      else if (act === 'fillColor') applyShapeChange(el, 'fill', ctrl.dataset.val);
-      else if (act === 'fillNone') applyShapeChange(el, 'fill', 'none');
-      else if (act === 'swMinus') {
-        const cur = parseFloat(el.getAttribute('stroke-width') || '3');
-        applyShapeChange(el, 'strokeWidth', String(Math.max(.5, cur - 1)));
-      } else if (act === 'swPlus') {
-        const cur = parseFloat(el.getAttribute('stroke-width') || '3');
-        applyShapeChange(el, 'strokeWidth', String(Math.min(30, cur + 1)));
-      }
-      showShapeContextToolbar(el);
-    });
-  });
+  // no-op
 }
 
 /* ============================================================
-   §14. ELEMENT HOOKS (for elements.js)
+   §14. ELEMENT HOOKS
    ============================================================ */
 export function startEmbedDrag(el, e, mode) {
   const sr = stage.getBoundingClientRect();
@@ -2478,7 +2094,11 @@ export function startEmbedDrag(el, e, mode) {
   })) : null;
 
   function onMove(ev) {
-    const dx = ev.clientX - sX, dy = ev.clientY - sY;
+    let dx = ev.clientX - sX, dy = ev.clientY - sY;
+    if (ev.shiftKey && mode === 'move') {
+      if (Math.abs(dx) > Math.abs(dy)) dy = 0;
+      else dx = 0;
+    }
     if (mode === 'move') {
       if (isMulti && multiOrigs) {
         const sx = (state.pdfW || 2000) / sr.width;
@@ -2549,7 +2169,11 @@ export function startMediaDrag(el, e, mode) {
   })) : null;
 
   function onMove(ev) {
-    const dx = ev.clientX - sX, dy = ev.clientY - sY;
+    let dx = ev.clientX - sX, dy = ev.clientY - sY;
+    if (ev.shiftKey && mode === 'move') {
+      if (Math.abs(dx) > Math.abs(dy)) dy = 0;
+      else dx = 0;
+    }
     if (mode === 'move') {
       if (isMulti && multiOrigs) {
         const sx = (state.pdfW || 2000) / sr.width;
@@ -2621,8 +2245,12 @@ export function startButtonDrag(el, e, mode) {
   })) : null;
 
   function onMove(ev) {
-    const dx = ev.clientX - sX, dy = ev.clientY - sY;
+    let dx = ev.clientX - sX, dy = ev.clientY - sY;
     if (!moved && Math.hypot(dx, dy) > 3) moved = true;
+    if (ev.shiftKey && mode === 'move') {
+      if (Math.abs(dx) > Math.abs(dy)) dy = 0;
+      else dx = 0;
+    }
     if (mode === 'move') {
       if (isMulti && multiOrigs) {
         const sx = (state.pdfW || 2000) / sr.width;
@@ -2652,10 +2280,11 @@ export function startButtonDrag(el, e, mode) {
         el.style.top = (nt / sr.height * 100) + '%';
       }
     } else {
+      // resize — % (Session 4)
       const nw = Math.max(40, sW + dx);
       const nh = Math.max(24, sH + dy);
-      el.style.width = nw + 'px';
-      el.style.height = nh + 'px';
+      el.style.width = (nw / sr.width * 100) + '%';
+      el.style.height = (nh / sr.height * 100) + '%';
     }
     drawSelectionOverlay();
     document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
@@ -2754,6 +2383,16 @@ export function applySnapshotImpl(s) {
     const all = getAllZElements();
     assignZIndexesInOrder(all);
   }
+
+  // ★ استعادة الدوران/الانعكاس لكل العناصر التي تحمله (Session 3)
+  document.querySelectorAll('#textLayer .pdf-text-box, #interactiveLayer .pdf-interactive-btn, #videoLayer .media-obj, #svgLayer [data-annot]').forEach(el => {
+    const rot = parseFloat(el.dataset.rotation) || 0;
+    const flipH = el.dataset.flipH === 'true';
+    const flipV = el.dataset.flipV === 'true';
+    if (rot !== 0 || flipH || flipV) {
+      applyElementTransform(el, { rotation: rot, flipH, flipV });
+    }
+  });
 }
 
 /* ============================================================
@@ -2772,6 +2411,13 @@ export function loadPageState(pageNum) {
   if (interactiveLayer) interactiveLayer.innerHTML = '';
   const s = state.pages[pageNum];
   if (s) applySnapshotImpl(s);
+
+  // ★ استعادة ملاحظات الشريحة الجديدة (Session 2)
+  const notesEl = document.getElementById('notesTextarea');
+  if (notesEl) {
+    const slide = state.slides && state.slides[pageNum - 1];
+    notesEl.value = (slide && slide.notes) || '';
+  }
 }
 
 export function updateUndoButtonsSafe() {
@@ -2787,9 +2433,14 @@ export function updatePasteBtnState() {
 }
 
 function offsetPct(p, delta) {
-  const n = parseFloat(p);
-  if (isNaN(n)) return p;
-  return (n + delta) + '%';
+  if (!p) return p;
+  if (typeof p !== 'string') return p;
+  if (p.endsWith('%')) {
+    const n = parseFloat(p);
+    if (isNaN(n)) return p;
+    return (n + delta) + '%';
+  }
+  return p;
 }
 
 export function applyElementTransform(el, options = {}) {
@@ -2886,30 +2537,35 @@ export function copyElement(el) {
   toast('تم نسخ العنصر 📋', 'ok');
 }
 
-export function pasteElement() {
+export function pasteElement(inPlace = false) {
   if (!clipboard.element) { toast('لا يوجد شيء في الحافظة للصق', 'warn'); return; }
   const data = clipboard.element.data;
   const pre = snapshot();
   let newEl = null;
+  const offPx = 30;
+
+  const ax = (v) => inPlace ? v : offsetPct(v, 3);
 
   if (data.kind === 'text') {
-    newEl = addTextBox({ ...data, textId: uid(), x: offsetPct(data.x, 3), y: offsetPct(data.y, 3), z: undefined }, false);
+    newEl = addTextBox({ ...data, textId: uid(), x: ax(data.x), y: ax(data.y), z: undefined }, false);
   } else if (data.kind === 'svg') {
     const inner = deserializeSvgElement({ ...data, dataId: uid() });
-    if (data.tag === 'line') {
-      inner.setAttribute('x1', +inner.getAttribute('x1') + 30);
-      inner.setAttribute('y1', +inner.getAttribute('y1') + 30);
-      inner.setAttribute('x2', +inner.getAttribute('x2') + 30);
-      inner.setAttribute('y2', +inner.getAttribute('y2') + 30);
-    } else if (data.tag === 'rect') {
-      inner.setAttribute('x', +inner.getAttribute('x') + 30);
-      inner.setAttribute('y', +inner.getAttribute('y') + 30);
-    } else if (data.tag === 'ellipse') {
-      inner.setAttribute('cx', +inner.getAttribute('cx') + 30);
-      inner.setAttribute('cy', +inner.getAttribute('cy') + 30);
-    } else {
-      const curT = inner.getAttribute('transform') || '';
-      inner.setAttribute('transform', (curT ? curT + ' ' : '') + 'translate(30, 30)');
+    if (!inPlace) {
+      if (data.tag === 'line') {
+        inner.setAttribute('x1', +inner.getAttribute('x1') + offPx);
+        inner.setAttribute('y1', +inner.getAttribute('y1') + offPx);
+        inner.setAttribute('x2', +inner.getAttribute('x2') + offPx);
+        inner.setAttribute('y2', +inner.getAttribute('y2') + offPx);
+      } else if (data.tag === 'rect') {
+        inner.setAttribute('x', +inner.getAttribute('x') + offPx);
+        inner.setAttribute('y', +inner.getAttribute('y') + offPx);
+      } else if (data.tag === 'ellipse') {
+        inner.setAttribute('cx', +inner.getAttribute('cx') + offPx);
+        inner.setAttribute('cy', +inner.getAttribute('cy') + offPx);
+      } else {
+        const curT = inner.getAttribute('transform') || '';
+        inner.setAttribute('transform', (curT ? curT + ' ' : '') + `translate(${offPx}, ${offPx})`);
+      }
     }
     if (data.dataset && (data.dataset.rotation || data.dataset.flipH || data.dataset.flipV)) {
       applyElementTransform(inner, {
@@ -2922,11 +2578,11 @@ export function pasteElement() {
     if (svgLayer) svgLayer.appendChild(wrap);
     newEl = inner;
   } else if (data.kind === 'button') {
-    newEl = addButtonElement({ ...data, btnId: uid(), x: offsetPct(data.x, 3), y: offsetPct(data.y, 3), z: undefined }, false);
+    newEl = addButtonElement({ ...data, btnId: uid(), x: ax(data.x), y: ax(data.y), z: undefined }, false);
   } else if (data.kind === 'media') {
-    newEl = addMediaElement(uid(), data.url, data.title, data.mediaType, offsetPct(data.x, 3), offsetPct(data.y, 3), data.w, data.h, false);
+    newEl = addMediaElement(uid(), data.url, data.title, data.mediaType, ax(data.x), ax(data.y), data.w, data.h, false);
   } else if (data.kind === 'embed') {
-    newEl = addEmbedElement(data.url, offsetPct(data.x, 3), offsetPct(data.y, 3), data.w, data.h, false);
+    newEl = addEmbedElement(data.url, ax(data.x), ax(data.y), data.w, data.h, false);
   }
   commitChange(pre);
 
@@ -2938,6 +2594,25 @@ export function pasteElement() {
     else if (data.kind === 'embed') selectEmbed(newEl);
   }
   toast('تم لصق العنصر 📄', 'ok');
+}
+
+/* ============================================================
+   § helper — anchorForHandleClient (Session 4)
+   ============================================================ */
+function anchorForHandleClient(handle, box) {
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  switch (handle) {
+    case 'se': return { x: box.x, y: box.y };
+    case 'nw': return { x: box.x + box.width, y: box.y + box.height };
+    case 'ne': return { x: box.x, y: box.y + box.height };
+    case 'sw': return { x: box.x + box.width, y: box.y };
+    case 'n':  return { x: cx, y: box.y + box.height };
+    case 's':  return { x: cx, y: box.y };
+    case 'e':  return { x: box.x, y: cy };
+    case 'w':  return { x: box.x + box.width, y: cy };
+    default:   return { x: cx, y: cy };
+  }
 }
 
 /* ============================================================
@@ -3001,9 +2676,23 @@ function cancelInteraction() {
 
 export function initPointerEvents() {
   if (!stage) return;
+
   stage.addEventListener('pointerdown', e => {
     if (!state.pdfW) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    // ★ Space+Drag = Pan مؤقت (Session 5)
+    if (state._spaceHeld) {
+      try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+      stage.classList.add('dragging');
+      interaction = {
+        type: 'pan',
+        startX: e.clientX, startY: e.clientY,
+        startTx: state.view.tx, startTy: state.view.ty,
+      };
+      e.preventDefault();
+      return;
+    }
 
     const isDrawingTool = (
       state.tool === 'pen' ||
@@ -3051,6 +2740,74 @@ export function initPointerEvents() {
     }
 
     if (tool === 'select') {
+      // ★ Alt+Drag = تكرار بالسحب (Session 5)
+      if (e.altKey && !e.shiftKey) {
+        const annot = e.target.closest && e.target.closest('#svgLayer [data-annot]');
+        const txtBox = e.target.closest && e.target.closest('.pdf-text-box');
+        const mediaEl = e.target.closest && e.target.closest('.media-obj');
+        const btnEl = e.target.closest && e.target.closest('.pdf-interactive-btn');
+        const embedEl = e.target.closest && e.target.closest('.embed');
+        const target = annot || txtBox || mediaEl || btnEl || embedEl;
+
+        if (target && !target.classList.contains('handle')) {
+          e.preventDefault(); e.stopPropagation();
+
+          let kind = 'svg';
+          if (txtBox) kind = 'text';
+          else if (mediaEl) kind = 'media';
+          else if (btnEl) kind = 'button';
+          else if (embedEl) kind = 'embed';
+
+          let origGeom = null;
+          let origStyle = null;
+          if (kind === 'svg') origGeom = captureSvgGeom(target);
+          else origStyle = {
+            left: target.style.left, top: target.style.top,
+            width: target.style.width, height: target.style.height,
+          };
+
+          state.selectedList = [{ kind, el: target }];
+          state.selected = state.selectedList[0];
+          state.selectedList.forEach(it => it.el.classList.add('selected'));
+          drawSelectionOverlay();
+          duplicateSelectedElements();
+
+          // إعادة الموضع الأصلي (duplicateSelectedElements يُزيح بـ 24px)
+          const newEl = (state.selectedList[0] || {}).el;
+          if (newEl) {
+            if (kind === 'svg' && origGeom) {
+              applyResizedBox(newEl,
+                origGeom.x || 0, origGeom.y || 0,
+                origGeom.width || 0, origGeom.height || 0);
+            } else if (origStyle) {
+              newEl.style.left = origStyle.left;
+              newEl.style.top = origStyle.top;
+              if (origStyle.width) newEl.style.width = origStyle.width;
+              if (origStyle.height) newEl.style.height = origStyle.height;
+            }
+            drawSelectionOverlay();
+          }
+
+          const startPt = getStagePoint(e);
+          interaction = {
+            type: 'moveMulti',
+            start: startPt,
+            origs: state.selectedList.map(it => ({
+              item: it,
+              kind: it.kind,
+              svgOrig: it.kind === 'svg' ? captureSvgGeom(it.el) : null,
+              left: parseFloat(it.el.style.left) || 0,
+              top: parseFloat(it.el.style.top) || 0,
+              isLeftPct: String(it.el.style.left).includes('%'),
+              isTopPct: String(it.el.style.top).includes('%'),
+            })),
+            pre: snapshot(),
+          };
+          try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+          return;
+        }
+      }
+
       const handle = e.target.closest && e.target.closest('#selectionSvg .handle');
       if (handle && (state.selected || (state.selectedList && state.selectedList.length > 0))) {
         const selItem = (state.selectedList && state.selectedList.length > 0) ? state.selectedList[0] : state.selected;
@@ -3099,7 +2856,7 @@ export function initPointerEvents() {
           e.preventDefault();
           return;
         } else {
-          // Universal 8-handle resizing for HTML elements (media, text, button, embed)
+          // 8-handle resize for HTML elements
           const sr = stage.getBoundingClientRect();
           const er = selItem.el.getBoundingClientRect();
           const isLeftPct = String(selItem.el.style.left).includes('%');
@@ -3282,8 +3039,13 @@ export function initPointerEvents() {
       return;
     }
     if (interaction.type === 'moveMulti' || interaction.type === 'moveSvg') {
-      const dx = p.x - interaction.start.x;
-      const dy = p.y - interaction.start.y;
+      let dx = p.x - interaction.start.x;
+      let dy = p.y - interaction.start.y;
+      // ★ Shift constraint (Session 5)
+      if (e.shiftKey) {
+        if (Math.abs(dx) > Math.abs(dy)) dy = 0;
+        else dx = 0;
+      }
       if (interaction.origs) {
         interaction.origs.forEach(o => {
           if (o.kind === 'svg') {
@@ -3315,9 +3077,23 @@ export function initPointerEvents() {
       return;
     }
     if (interaction.type === 'resizeHtml') {
-      const dx = p.x - interaction.startPt.x;
-      const dy = p.y - interaction.startPt.y;
       const h = interaction.handle;
+      const el = interaction.el;
+      const rot = parseFloat(el.dataset.rotation) || 0;
+
+      let dx = p.x - interaction.startPt.x;
+      let dy = p.y - interaction.startPt.y;
+
+      // rotate delta into local frame if rotated
+      if (rot !== 0) {
+        const rad = -rot * Math.PI / 180;
+        const cos = Math.cos(rad), sin = Math.sin(rad);
+        const ndx = dx * cos - dy * sin;
+        const ndy = dx * sin + dy * cos;
+        dx = ndx;
+        dy = ndy;
+      }
+
       let newW = interaction.origW;
       let newH = interaction.origH;
       let newLeftPct = interaction.origLeftPct;
@@ -3353,18 +3129,55 @@ export function initPointerEvents() {
         newW = Math.max(30, interaction.origW + dx);
       }
 
-      interaction.el.style.left = newLeftPct + '%';
-      interaction.el.style.top = newTopPct + '%';
-      const sr = stage.getBoundingClientRect();
-      const cssW = (newW / pdfW) * sr.width;
-      const cssH = (newH / pdfH) * sr.height;
-      interaction.el.style.width = Math.round(cssW) + 'px';
-      if (interaction.kind !== 'text' || interaction.el.style.height) {
-        interaction.el.style.height = Math.round(cssH) + 'px';
+      // anchor preservation for rotated elements
+      if (rot !== 0) {
+        const ox = parseFloat(el.dataset.originX ?? 0.5);
+        const oy = parseFloat(el.dataset.originY ?? 0.5);
+        const origLeftPx = interaction.origLeftPct * pdfW / 100;
+        const origTopPx = interaction.origTopPct * pdfH / 100;
+        const pivot0 = { x: origLeftPx + ox * interaction.origW, y: origTopPx + oy * interaction.origH };
+        const pivot1 = { x: newLeftPct * pdfW / 100 + ox * newW, y: newTopPct * pdfH / 100 + oy * newH };
+
+        const anchor_old = anchorForHandleClient(h, {
+          x: origLeftPx, y: origTopPx,
+          width: interaction.origW, height: interaction.origH,
+        });
+        const anchor_new = anchorForHandleClient(h, {
+          x: newLeftPct * pdfW / 100, y: newTopPct * pdfH / 100,
+          width: newW, height: newH,
+        });
+
+        const rad = rot * Math.PI / 180;
+        const cos = Math.cos(rad), sin = Math.sin(rad);
+        const ax0 = anchor_old.x - pivot0.x, ay0 = anchor_old.y - pivot0.y;
+        const screenAnchor = {
+          x: pivot0.x + ax0 * cos - ay0 * sin,
+          y: pivot0.y + ax0 * sin + ay0 * cos,
+        };
+
+        const radN = -rot * Math.PI / 180;
+        const cosN = Math.cos(radN), sinN = Math.sin(radN);
+        const ax1 = screenAnchor.x - pivot1.x, ay1 = screenAnchor.y - pivot1.y;
+        const anchor_target = {
+          x: pivot1.x + ax1 * cosN - ay1 * sinN,
+          y: pivot1.y + ax1 * sinN + ay1 * cosN,
+        };
+
+        const shiftX = (anchor_target.x - anchor_new.x) / pdfW * 100;
+        const shiftY = (anchor_target.y - anchor_new.y) / pdfH * 100;
+        newLeftPct += shiftX;
+        newTopPct += shiftY;
       }
 
-      drawSelectionOverlay(interaction.el);
-      document.dispatchEvent(new CustomEvent('ipb:elementTransformed', { detail: { el: interaction.el } }));
+      el.style.left = newLeftPct + '%';
+      el.style.top = newTopPct + '%';
+      el.style.width = (newW / pdfW * 100) + '%';
+      if (interaction.kind !== 'text' || (el.style.height && el.style.height !== 'auto')) {
+        el.style.height = (newH / pdfH * 100) + '%';
+      }
+
+      drawSelectionOverlay(el);
+      document.dispatchEvent(new CustomEvent('ipb:elementTransformed', { detail: { el } }));
       return;
     }
     if (interaction.type === 'dragOrigin') {
@@ -3462,16 +3275,6 @@ export function initPointerEvents() {
       }
       return;
     }
-    if (inter.type === 'rotate') {
-      commitChange(inter.pre);
-      drawSelectionOverlay();
-      document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
-      return;
-    }
-    if (inter.type === 'moveSvg' || inter.type === 'resizeSvg') {
-      commitChange(inter.pre);
-      document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
-    }
   });
 
   stage.addEventListener('pointercancel', e => {
@@ -3484,7 +3287,6 @@ export function initPointerEvents() {
     }
   });
 
-  // ضمان استمرار وإتمام السحب خارج الكانفاس بدون أي فقدان أو تجمد
   window.addEventListener('pointerup', e => {
     if (!interaction) return;
     if (interaction.type === 'moveMulti' || interaction.type === 'moveSvg' || interaction.type === 'resizeSvg' || interaction.type === 'rotate' || interaction.type === 'marquee') {
@@ -3506,7 +3308,7 @@ export function registerApplySnapshot() {
 }
 
 /* ============================================================
-   §20. KEYBOARD
+   §20. UNDO/REDO ACTIONS
    ============================================================ */
 export async function undoAction() {
   const core = await import('./core.js');

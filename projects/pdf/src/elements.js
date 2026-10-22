@@ -1,8 +1,9 @@
 /* ============================================================
  * elements.js — مصانع العناصر (embed / media / button)
  * ============================================================
- *  ★ media: بلا إطار، بلا شريط عنوان — كالأشكال تماماً
- *  ★ دعم z-index لكل عنصر
+ *  ★ media: بلا إطار، بلا شريط عنوان
+ *  ★ الأزرار بوحدات cqw + em (Session 4)
+ *  ★ حفظ الدوران للأزرار (Session 3)
  * ============================================================ */
 
 import {
@@ -14,6 +15,7 @@ import {
   toast,
   commitChange, snapshot, savePageNow,
   serializeButton,
+  normalizeDim,
   embedLayer, videoLayer, interactiveLayer, stage,
 } from './core.js';
 
@@ -33,7 +35,7 @@ function getNextElemZ() {
 }
 
 /* ============================================================
-   §1. EMBED (iframe)
+   §1. EMBED
    ============================================================ */
 export function addEmbedElement(url, x, y, w, h, save, z) {
   const el = document.createElement('div');
@@ -112,7 +114,7 @@ export function addEmbedElement(url, x, y, w, h, save, z) {
 }
 
 /* ============================================================
-   §2. MEDIA — بلا إطار، بلا شريط — كالأشكال
+   §2. MEDIA
    ============================================================ */
 export function addMediaElement(mediaId, url, title, mediaType, x, y, w, h, save, z) {
   const el = document.createElement('div');
@@ -247,13 +249,44 @@ export const BUTTON_DEFAULTS = {
 };
 
 export function applyButtonStyles(el) {
+  const fontSize = parseFloat(el.dataset.fontSize) || 18;
+  const refCssW = parseFloat(el.dataset.fontSizeRefCssW) || 800;
+  const cqw = (fontSize / refCssW) * 100;
+
+  const borderRadiusPx = parseFloat(el.dataset.borderRadius);
+  const brPx = isNaN(borderRadiusPx) ? 12 : borderRadiusPx;
+  const brEm = brPx / fontSize;
+
   el.style.background = hexToRgba(el.dataset.fillColor, parseFloat(el.dataset.fillOpacity));
-  el.style.border = `1.5px solid ${hexToRgba(el.dataset.borderColor, parseFloat(el.dataset.borderOpacity))}`;
+  el.style.border = `0.08em solid ${hexToRgba(el.dataset.borderColor, parseFloat(el.dataset.borderOpacity))}`;
   el.style.color = el.dataset.textColor;
-  el.style.fontSize = (el.dataset.fontSize || '18') + 'px';
-  el.style.borderRadius = (el.dataset.borderRadius || '12') + 'px';
+  el.style.fontSize = cqw + 'cqw';
+  el.style.borderRadius = brEm + 'em';
+  el.style.padding = '0.35em 0.8em';
   if (el.dataset.isLtr === 'true') el.style.direction = 'ltr';
   else el.style.direction = '';
+}
+
+function applyButtonRotation(el, s) {
+  if (!s.rotation && !s.flipH && !s.flipV) return;
+  const ox = parseFloat(s.originX ?? 0.5);
+  const oy = parseFloat(s.originY ?? 0.5);
+  el.dataset.rotation = String(s.rotation || 0);
+  el.dataset.originX = String(ox);
+  el.dataset.originY = String(oy);
+  el.dataset.flipH = String(!!s.flipH);
+  el.dataset.flipV = String(!!s.flipV);
+
+  let tf = '';
+  if (s.rotation) tf += `rotate(${s.rotation}deg)`;
+  if (s.flipH || s.flipV) {
+    const sx = s.flipH ? -1 : 1;
+    const sy = s.flipV ? -1 : 1;
+    if (tf) tf += ' ';
+    tf += `scale(${sx}, ${sy})`;
+  }
+  el.style.transformOrigin = `${ox * 100}% ${oy * 100}%`;
+  el.style.transform = tf;
 }
 
 export function addButtonElement(spec, save, z) {
@@ -272,14 +305,15 @@ export function addButtonElement(spec, save, z) {
   el.dataset.borderOpacity = String(s.borderOpacity);
   el.dataset.textColor = s.textColor;
   el.dataset.fontSize = String(s.fontSize);
+  el.dataset.fontSizeRefCssW = String(s.fontSizeRefCssW || state.cssW || 800);
   el.dataset.borderRadius = String(s.borderRadius);
   el.dataset.isCorrect = (s.isCorrect === true || s.isCorrect === 'true') ? 'true' : 'false';
   el.dataset.isLtr = (s.isLtr === true || s.isLtr === 'true') ? 'true' : 'false';
 
-  el.style.left = s.x || '35%';
-  el.style.top = s.y || '35%';
-  el.style.width = s.w || BUTTON_DEFAULTS.w;
-  el.style.height = s.h || BUTTON_DEFAULTS.h;
+  el.style.left = normalizeDim(s.x || '35%', 'w');
+  el.style.top = normalizeDim(s.y || '35%', 'h');
+  el.style.width = normalizeDim(s.w || BUTTON_DEFAULTS.w, 'w');
+  el.style.height = normalizeDim(s.h || BUTTON_DEFAULTS.h, 'h');
 
   const span = document.createElement('span');
   span.className = 'pdf-interactive-btn-text';
@@ -291,10 +325,11 @@ export function addButtonElement(spec, save, z) {
   el.appendChild(resize);
 
   applyButtonStyles(el);
+  applyButtonRotation(el, s);
 
   el.addEventListener('pointerdown', e => {
     if (state.tool === 'hand') {
-      return; // Allow to bubble to stage for canvas panning
+      return;
     } else if (state.tool === 'select') {
       e.preventDefault(); e.stopPropagation();
       try { el.setPointerCapture(e.pointerId); } catch (_) {}
@@ -477,8 +512,8 @@ export function openButtonDialog(existingSpec, existingEl) {
       existingEl.dataset.borderRadius = String(spec.borderRadius);
       existingEl.dataset.isCorrect = spec.isCorrect ? 'true' : 'false';
       existingEl.dataset.isLtr = spec.isLtr ? 'true' : 'false';
-      existingEl.style.width = spec.w;
-      existingEl.style.height = spec.h;
+      existingEl.style.width = normalizeDim(spec.w, 'w');
+      existingEl.style.height = normalizeDim(spec.h, 'h');
       const span = existingEl.querySelector('.pdf-interactive-btn-text');
       if (span) renderTextWithMath(span, spec.text);
       applyButtonStyles(existingEl);
@@ -607,4 +642,92 @@ export function openEmbedDialog() {
     if (e.key === 'Enter') submit();
     if (e.key === 'Escape') close();
   });
+}
+
+/* ============================================================
+   §7. START BUTTON DRAG (with % resize — Session 4)
+   ============================================================ */
+export function startButtonDrag(el, e, mode) {
+  const sr = stage.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  const sX = e.clientX, sY = e.clientY;
+  const sL = er.left - sr.left, sT = er.top - sr.top;
+  const sW = er.width, sH = er.height;
+  const pre = snapshot();
+  let moved = false;
+
+  const isMulti = state.selectedList && state.selectedList.length > 1 && state.selectedList.some(it => it.el === el);
+  const multiOrigs = isMulti ? state.selectedList.map(it => ({
+    item: it,
+    kind: it.kind,
+    svgOrig: it.kind === 'svg' ? (window.__INTERACTION__ && window.__INTERACTION__.captureSvgGeom ? window.__INTERACTION__.captureSvgGeom(it.el) : null) : null,
+    left: parseFloat(it.el.style.left) || 0,
+    top: parseFloat(it.el.style.top) || 0,
+    isLeftPct: String(it.el.style.left).includes('%'),
+    isTopPct: String(it.el.style.top).includes('%'),
+  })) : null;
+
+  function onMove(ev) {
+    let dx = ev.clientX - sX, dy = ev.clientY - sY;
+    if (!moved && Math.hypot(dx, dy) > 3) moved = true;
+
+    // Shift constraint
+    if (ev.shiftKey && mode === 'move') {
+      if (Math.abs(dx) > Math.abs(dy)) dy = 0;
+      else dx = 0;
+    }
+
+    if (mode === 'move') {
+      if (isMulti && multiOrigs) {
+        const sx = (state.pdfW || 2000) / sr.width;
+        const sy = (state.pdfH || 2828) / sr.height;
+        const stageDx = dx * sx;
+        const stageDy = dy * sy;
+        multiOrigs.forEach(o => {
+          if (o.kind === 'svg' && o.svgOrig) {
+            const inter = window.__INTERACTION__;
+            if (inter && inter.applySvgGeom) inter.applySvgGeom(o.item.el, o.svgOrig, stageDx, stageDy);
+          } else {
+            if (o.isLeftPct) {
+              o.item.el.style.left = (o.left + (stageDx / (state.pdfW || 2000) * 100)) + '%';
+            } else {
+              o.item.el.style.left = (o.left + stageDx) + 'px';
+            }
+            if (o.isTopPct) {
+              o.item.el.style.top = (o.top + (stageDy / (state.pdfH || 2828) * 100)) + '%';
+            } else {
+              o.item.el.style.top = (o.top + stageDy) + 'px';
+            }
+          }
+        });
+      } else {
+        const nl = sL + dx;
+        const nt = sT + dy;
+        el.style.left = (nl / sr.width * 100) + '%';
+        el.style.top = (nt / sr.height * 100) + '%';
+      }
+    } else {
+      // resize — percentages (Session 4)
+      const nw = Math.max(40, sW + dx);
+      const nh = Math.max(24, sH + dy);
+      el.style.width = (nw / sr.width * 100) + '%';
+      el.style.height = (nh / sr.height * 100) + '%';
+    }
+
+    const inter = window.__INTERACTION__;
+    if (inter && inter.drawSelectionOverlay) inter.drawSelectionOverlay();
+    document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
+  }
+  function onUp() {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
+    if (moved) commitChange(pre);
+    const inter = window.__INTERACTION__;
+    if (inter && inter.drawSelectionOverlay) inter.drawSelectionOverlay();
+    document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
+  }
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
 }

@@ -15,6 +15,24 @@
 <link rel="stylesheet" href="src/shell.css">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
+
+<!-- ═══════════════════ IMPORT MAP — لحل المكتبات عبر CDN ═══════════════════ -->
+<!--
+  يخبر المتصفح كيف يحوّل "gsap" أو "@google/genai" إلى URL حقيقي.
+  يعمل حتى لو لم يعمل Vite optimizer.
+  يجب أن يكون في <head> وقبل أول <script type="module">.
+-->
+<script type="importmap">
+{
+  "imports": {
+    "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/index.js",
+    "gsap/MotionPathPlugin": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/MotionPathPlugin.js",
+    "gsap/": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/",
+    "flubber": "https://cdn.jsdelivr.net/npm/flubber@0.4.2/build/flubber.min.js",
+    "@google/genai": "https://cdn.jsdelivr.net/npm/@google/genai@2.4.0/+esm"
+  }
+}
+</script>
 </head>
 <body class="no-project">
 
@@ -201,7 +219,7 @@
     </div>
   </div>
 
-  <!-- ═══════════════════ CANVAS CONTROLS (من ui.html) ═══════════════════ -->
+  <!-- ═══════════════════ CANVAS CONTROLS ═══════════════════ -->
   <div class="canvas-controls" id="canvasControls">
     <button id="ctrlZoomOut" title="تصغير (−)">−</button>
     <span class="zoom-val" id="ctrlZoomVal">100%</span>
@@ -386,6 +404,15 @@
     <button id="presentExit" title="خروج (Esc)">✕</button>
   </div>
 
+  <!-- ★ ملاحظات المحاضر — تظهر في وضع العرض -->
+  <div id="presentNotes" class="present-notes-banner" style="display:none;">
+    <div class="present-notes-header">
+      <span>📝 ملاحظات المحاضر</span>
+      <button id="presentNotesClose" title="إخفاء">✕</button>
+    </div>
+    <div id="presentNotesBody" class="present-notes-body"></div>
+  </div>
+
   <div id="presentHint">
     <kbd>Esc</kbd> للخروج • <kbd>←</kbd> <kbd>→</kbd> للتنقل • <kbd>P</kbd> قلم • <kbd>L</kbd> ليزر • <kbd>E</kbd> ممحاة
   </div>
@@ -416,23 +443,7 @@
 </div>
 
 <input type="file" id="fileInput" accept="application/pdf,image/*,.actpdf" style="display:none">
-<!-- ═══════════════════ IMPORT MAP — لحل المكتبات عبر CDN ═══════════════════ -->
-<!--
-  يخبر المتصفح كيف يحوّل "gsap" أو "@google/genai" إلى URL حقيقي.
-  يعمل حتى لو لم يعمل Vite optimizer.
-  يجب أن يكون في <head> وقبل أول <script type="module">.
--->
-<script type="importmap">
-{
-  "imports": {
-    "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/index.js",
-    "gsap/MotionPathPlugin": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/MotionPathPlugin.js",
-    "gsap/": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/",
-    "flubber": "https://cdn.jsdelivr.net/npm/flubber@0.4.2/build/flubber.min.js",
-    "@google/genai": "https://cdn.jsdelivr.net/npm/@google/genai@2.4.0/+esm"
-  }
-}
-</script>
+
 <script type="module" src="src/main.js"></script>
 </body>
 </html>

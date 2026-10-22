@@ -14,7 +14,6 @@ export const SHAPE_CATEGORIES = [
 ];
 
 export const SHAPE_DEFS = {
-  // ── الأشكال الهندسية ──
   'rect': { id: 'rect', cat: 'basic', label: 'مستطيل', icon: '▭' },
   'rounded-rect': { id: 'rounded-rect', cat: 'basic', label: 'مستطيل مدور', icon: '▢' },
   'circle': { id: 'circle', cat: 'basic', label: 'دائرة / بيضاوي', icon: '◯' },
@@ -26,13 +25,11 @@ export const SHAPE_DEFS = {
   'hexagon': { id: 'hexagon', cat: 'basic', label: 'شكل سداسي', icon: '⬡' },
   'block-arrow': { id: 'block-arrow', cat: 'basic', label: 'سهم عريض', icon: '➔' },
 
-  // ── الخطوط والمنحنيات ──
   'line': { id: 'line', cat: 'lines', label: 'خط مستقيم', icon: '╱' },
   'arrow': { id: 'arrow', cat: 'lines', label: 'سهم أحادي', icon: '↗' },
   'double-arrow': { id: 'double-arrow', cat: 'lines', label: 'سهم ثنائي', icon: '⬄' },
   'curve': { id: 'curve', cat: 'lines', label: 'منحنى قابل للتعديل', icon: '〰️' },
 
-  // ── الدارات الكهربائية ──
   'circuit-battery': { id: 'circuit-battery', cat: 'circuits', label: 'بطارية DC', icon: '🔋' },
   'circuit-resistor': { id: 'circuit-resistor', cat: 'circuits', label: 'مقاومة كهربائية', icon: '⚡' },
   'circuit-switch': { id: 'circuit-switch', cat: 'circuits', label: 'مفتاح مفتوح', icon: '⏻' },
@@ -46,13 +43,12 @@ export const SHAPE_DEFS = {
   'circuit-ac': { id: 'circuit-ac', cat: 'circuits', label: 'مصدر AC متناوب', icon: '〜' },
   'circuit-wire': { id: 'circuit-wire', cat: 'circuits', label: 'سلك زاوية قائمة', icon: '⌐' },
 
-  // ── المستوى الديكارتي ──
   'cartesian': { id: 'cartesian', cat: 'math', label: 'مستوى ديكارتي', icon: '📈' },
 };
 
-/**
- * إنشاء عنصر SVG مبدئي للشكل
- */
+/* ============================================================
+   §1. CREATE SHAPE
+   ============================================================ */
 export function createShapeElement(kind, state, p) {
   const stroke = state.shapeStroke || '#000000';
   const strokeWidth = state.shapeSize || 3;
@@ -171,9 +167,9 @@ export function createShapeElement(kind, state, p) {
   return el;
 }
 
-/**
- * تحديث الشكل أثناء السحب بالماوس
- */
+/* ============================================================
+   §2. UPDATE DURING DRAW
+   ============================================================ */
 export function updateShapeDuringDraw(kind, el, s, p, state) {
   const x = Math.min(s.x, p.x);
   const y = Math.min(s.y, p.y);
@@ -196,12 +192,10 @@ export function updateShapeDuringDraw(kind, el, s, p, state) {
   } else if (kind === 'curve') {
     const x0 = s.x, y0 = s.y;
     const x1 = p.x, y1 = p.y;
-    // النقطة الوسطية مع إزاحة انحناء عمودية طبيعية
     const mx = (x0 + x1) / 2;
     const my = (y0 + y1) / 2;
     const dx = x1 - x0, dy = y1 - y0;
     const dist = Math.hypot(dx, dy);
-    // إزاحة عمودية أولية بنسبة 25% من طول الخط لإعطاء انحناء سلس
     const nx = -dy / (dist || 1) * (dist * 0.25);
     const ny = dx / (dist || 1) * (dist * 0.25);
     const cx = mx + nx;
@@ -212,34 +206,28 @@ export function updateShapeDuringDraw(kind, el, s, p, state) {
     el.dataset.cx = cx; el.dataset.cy = cy;
     el.dataset.x1 = x1; el.dataset.y1 = y1;
   } else if (kind === 'triangle') {
-    // مثلث متساوي الساقين (رأس في الأعلى وقاعدة في الأسفل)
     const topX = x + w / 2, topY = y;
     const brX = x + w, brY = y + h;
     const blX = x, blY = y + h;
     el.setAttribute('points', `${topX},${topY} ${brX},${brY} ${blX},${blY}`);
   } else if (kind === 'right-triangle') {
-    // مثلث قائم الزاوية
     const tlX = x, tlY = y;
     const blX = x, blY = y + h;
     const brX = x + w, brY = y + h;
     el.setAttribute('points', `${tlX},${tlY} ${blX},${blY} ${brX},${brY}`);
   } else if (kind === 'diamond') {
-    // معين
     const tX = x + w / 2, tY = y;
     const rX = x + w, rY = y + h / 2;
     const bX = x + w / 2, bY = y + h;
     const lX = x, lY = y + h / 2;
     el.setAttribute('points', `${tX},${tY} ${rX},${rY} ${bX},${bY} ${lX},${lY}`);
   } else if (kind === 'star') {
-    // نجمة خماسية
     const pts = calculateStarPoints(x + w / 2, y + h / 2, Math.max(2, w / 2), Math.max(1, h / 2), 5);
     el.setAttribute('points', pts.map(pt => `${pt.x},${pt.y}`).join(' '));
   } else if (kind === 'hexagon') {
-    // مسدس منتظم
     const pts = calculatePolygonPoints(x + w / 2, y + h / 2, Math.max(2, w / 2), Math.max(1, h / 2), 6);
     el.setAttribute('points', pts.map(pt => `${pt.x},${pt.y}`).join(' '));
   } else if (kind === 'block-arrow') {
-    // سهم عريض
     const d = calculateBlockArrowPath(x, y, Math.max(5, w), Math.max(5, h));
     el.setAttribute('d', d);
   } else if (kind === 'cylinder') {
@@ -251,9 +239,6 @@ export function updateShapeDuringDraw(kind, el, s, p, state) {
   }
 }
 
-/**
- * حساب نقاط النجمة الخماسية
- */
 function calculateStarPoints(cx, cy, rx, ry, points = 5) {
   const pts = [];
   const innerRatio = 0.42;
@@ -271,9 +256,6 @@ function calculateStarPoints(cx, cy, rx, ry, points = 5) {
   return pts;
 }
 
-/**
- * حساب نقاط مضلع منتظم
- */
 function calculatePolygonPoints(cx, cy, rx, ry, sides = 6) {
   const pts = [];
   const step = (Math.PI * 2) / sides;
@@ -288,9 +270,6 @@ function calculatePolygonPoints(cx, cy, rx, ry, sides = 6) {
   return pts;
 }
 
-/**
- * مسار السهم العريض
- */
 export function calculateBlockArrowPath(x, y, w, h) {
   const shaftH = h * 0.4;
   const shaftY = y + (h - shaftH) / 2;
@@ -307,9 +286,9 @@ export function calculateBlockArrowPath(x, y, w, h) {
     Z`;
 }
 
-/**
- * رسم وتحديث الأسطوانة (Cylinder)
- */
+/* ============================================================
+   §3. CYLINDER
+   ============================================================ */
 export function renderCylinder(group, x, y, w, h, customCapRatio) {
   const stroke = group.getAttribute('stroke') || '#000000';
   const strokeWidth = group.getAttribute('stroke-width') || '3';
@@ -330,7 +309,6 @@ export function renderCylinder(group, x, y, w, h, customCapRatio) {
   const botCy = y + h - ry;
 
   group.innerHTML = `
-    <!-- جسم الأسطوانة وقاعدتها السفلية -->
     <path class="cylinder-body"
           d="M ${x} ${topCy}
              L ${x} ${botCy}
@@ -341,13 +319,11 @@ export function renderCylinder(group, x, y, w, h, customCapRatio) {
           stroke="${stroke}"
           stroke-width="${strokeWidth}"
           stroke-linejoin="round" />
-    <!-- القوس السفلي المنقط أو المكمل للعمق ثلاثي الأبعاد -->
     <path class="cylinder-bottom-curve"
           d="M ${x} ${botCy} A ${rx} ${ry} 0 0 0 ${x + w} ${botCy}"
           fill="none"
           stroke="${stroke}"
           stroke-width="${strokeWidth}" />
-    <!-- الغطاء البيضاوي العلوي -->
     <ellipse class="cylinder-top-cap"
              cx="${cx}"
              cy="${topCy}"
@@ -359,9 +335,9 @@ export function renderCylinder(group, x, y, w, h, customCapRatio) {
   `;
 }
 
-/**
- * رسم عناصر الدارات الكهربائية (Electrical Circuits)
- */
+/* ============================================================
+   §4. CIRCUITS
+   ============================================================ */
 export function renderCircuitComponent(group, kind, x, y, w, h) {
   const stroke = group.getAttribute('stroke') || '#000000';
   const strokeWidth = group.getAttribute('stroke-width') || '3';
@@ -377,7 +353,6 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
   let inner = '';
 
   if (kind === 'circuit-battery') {
-    // بطارية DC: قطب موجب طويل وقطب سالب قصير سميك
     const leadW = w * 0.35;
     const plateGap = w * 0.08;
     const p1x = x + leadW;
@@ -386,20 +361,14 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
     const shortH = h * 0.44;
 
     inner = `
-      <!-- سلك المدخل -->
       <line x1="${x}" y1="${cy}" x2="${p1x}" y2="${cy}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round"/>
-      <!-- القطب الموجب (+) طويل ونحيف -->
       <line x1="${p1x}" y1="${cy - longH / 2}" x2="${p1x}" y2="${cy + longH / 2}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round"/>
-      <!-- القطب السالب (-) قصير وأعرض -->
       <line x1="${p2x}" y1="${cy - shortH / 2}" x2="${p2x}" y2="${cy + shortH / 2}" stroke="${stroke}" stroke-width="${Math.max(4, strokeWidth * 2)}" stroke-linecap="round"/>
-      <!-- سلك المخرج -->
       <line x1="${p2x}" y1="${cy}" x2="${x + w}" y2="${cy}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round"/>
-      <!-- إشارات + و - -->
       <text x="${p1x - 8}" y="${cy - longH / 2 - 2}" font-size="12" font-weight="bold" fill="${stroke}" text-anchor="middle">+</text>
       <text x="${p2x + 8}" y="${cy - shortH / 2 - 2}" font-size="12" font-weight="bold" fill="${stroke}" text-anchor="middle">−</text>
     `;
   } else if (kind === 'circuit-resistor') {
-    // مقاومة كهربائية متعرجة Zigzag
     const leadW = w * 0.2;
     const bodyW = w - leadW * 2;
     const bodyStartX = x + leadW;
@@ -418,7 +387,6 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
       <path d="${pathD}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round" stroke-linecap="round"/>
     `;
   } else if (kind === 'circuit-switch') {
-    // مفتاح مفتوح Open Switch
     const leadW = w * 0.25;
     const termR = 4;
     const t1x = x + leadW;
@@ -427,13 +395,11 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
     inner = `
       <line x1="${x}" y1="${cy}" x2="${t1x - termR}" y2="${cy}" stroke="${stroke}" stroke-width="${strokeWidth}"/>
       <circle cx="${t1x}" cy="${cy}" r="${termR}" fill="#fff" stroke="${stroke}" stroke-width="${strokeWidth}"/>
-      <!-- ذراع المفتاح المائل (مفتوح) -->
       <line x1="${t1x + termR}" y1="${cy}" x2="${t2x - 4}" y2="${cy - h * 0.45}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round"/>
       <circle cx="${t2x}" cy="${cy}" r="${termR}" fill="#fff" stroke="${stroke}" stroke-width="${strokeWidth}"/>
       <line x1="${t2x + termR}" y1="${cy}" x2="${x + w}" y2="${cy}" stroke="${stroke}" stroke-width="${strokeWidth}"/>
     `;
   } else if (kind === 'circuit-switch-closed') {
-    // مفتاح مغلق Closed Switch
     const leadW = w * 0.25;
     const termR = 4;
     const t1x = x + leadW;
@@ -447,7 +413,6 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
       <line x1="${t2x + termR}" y1="${cy}" x2="${x + w}" y2="${cy}" stroke="${stroke}" stroke-width="${strokeWidth}"/>
     `;
   } else if (kind === 'circuit-lamp') {
-    // مصباح كهربائي (دائرة بداخلها علامة ضرب X)
     const r = Math.min(w * 0.3, h * 0.45);
     const diag = r * 0.707;
 
@@ -459,7 +424,6 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
       <line x1="${cx + r}" y1="${cy}" x2="${x + w}" y2="${cy}" stroke="${stroke}" stroke-width="${strokeWidth}"/>
     `;
   } else if (kind === 'circuit-capacitor') {
-    // مكثف كهربائي (صفيحتان متوازيتان)
     const leadW = w * 0.42;
     const plateH = h * 0.75;
     const p1x = x + leadW;
@@ -472,7 +436,6 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
       <line x1="${p2x}" y1="${cy}" x2="${x + w}" y2="${cy}" stroke="${stroke}" stroke-width="${strokeWidth}"/>
     `;
   } else if (kind === 'circuit-inductor') {
-    // ملف / محث حلزوني
     const leadW = w * 0.15;
     const coilW = (w - leadW * 2) / 4;
     const coilR = coilW / 2;
@@ -490,7 +453,6 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
       <path d="${pathD}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round"/>
     `;
   } else if (kind === 'circuit-ground') {
-    // تأريض (Ground)
     const line1W = w * 0.6;
     const line2W = w * 0.4;
     const line3W = w * 0.2;
@@ -503,7 +465,6 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
       <line x1="${cx - line3W / 2}" y1="${y + stemH + h * 0.4}" x2="${cx + line3W / 2}" y2="${y + stemH + h * 0.4}" stroke="${stroke}" stroke-width="${strokeWidth}"/>
     `;
   } else if (kind === 'circuit-ammeter' || kind === 'circuit-voltmeter') {
-    // مقياس تيار أو جهد
     const letter = kind === 'circuit-ammeter' ? 'A' : 'V';
     const r = Math.min(w * 0.3, h * 0.45);
 
@@ -514,7 +475,6 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
       <line x1="${cx + r}" y1="${cy}" x2="${x + w}" y2="${cy}" stroke="${stroke}" stroke-width="${strokeWidth}"/>
     `;
   } else if (kind === 'circuit-ac') {
-    // مصدر AC
     const r = Math.min(w * 0.3, h * 0.45);
     const waveW = r * 0.8;
     const waveH = r * 0.45;
@@ -526,7 +486,6 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
       <line x1="${cx + r}" y1="${cy}" x2="${x + w}" y2="${cy}" stroke="${stroke}" stroke-width="${strokeWidth}"/>
     `;
   } else if (kind === 'circuit-wire') {
-    // سلك توصيل بزاوية قائمة
     inner = `
       <path d="M ${x} ${cy} L ${cx} ${cy} L ${cx} ${y + h}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>
       <circle cx="${x}" cy="${cy}" r="3" fill="${stroke}"/>
@@ -537,9 +496,9 @@ export function renderCircuitComponent(group, kind, x, y, w, h) {
   group.innerHTML = inner;
 }
 
-/**
- * رسم وتحديث المستوى الديكارتي (Cartesian Coordinate Plane)
- */
+/* ============================================================
+   §5. CARTESIAN PLANE
+   ============================================================ */
 export function renderCartesianPlane(group, x, y, w, h, opts = {}) {
   const stroke = group.getAttribute('stroke') || '#2563eb';
   const strokeWidth = parseFloat(group.getAttribute('stroke-width') || '2.5');
@@ -547,7 +506,7 @@ export function renderCartesianPlane(group, x, y, w, h, opts = {}) {
   const range = parseInt(opts.range || group.dataset.range || '5', 10);
   const showGrid = opts.showGrid !== undefined ? opts.showGrid : (group.dataset.showGrid !== 'false');
   const showNumbers = opts.showNumbers !== undefined ? opts.showNumbers : (group.dataset.showNumbers !== 'false');
-  const lang = opts.lang || group.dataset.lang || 'ar'; // 'ar' => س/ص, 'en' => X/Y
+  const lang = opts.lang || group.dataset.lang || 'ar';
 
   group.dataset.x = x; group.dataset.y = y;
   group.dataset.w = w; group.dataset.h = h;
@@ -563,13 +522,11 @@ export function renderCartesianPlane(group, x, y, w, h, opts = {}) {
 
   let gridLines = '';
   if (showGrid) {
-    // خطوط الشبكة العمودية
     for (let i = -range; i <= range; i++) {
       if (i === 0) continue;
       const gx = cx + i * stepX;
       gridLines += `<line x1="${gx}" y1="${y}" x2="${gx}" y2="${y + h}" stroke="rgba(100, 116, 139, 0.22)" stroke-width="1" stroke-dasharray="3 3"/>`;
     }
-    // خطوط الشبكة الأفقية
     for (let j = -range; j <= range; j++) {
       if (j === 0) continue;
       const gy = cy - j * stepY;
@@ -577,7 +534,6 @@ export function renderCartesianPlane(group, x, y, w, h, opts = {}) {
     }
   }
 
-  // التدريجات والأرقام على المحاور
   let ticks = '';
   const tickLen = 5;
   const fontSize = Math.max(9, Math.min(13, Math.round(stepX * 0.45)));
@@ -600,34 +556,25 @@ export function renderCartesianPlane(group, x, y, w, h, opts = {}) {
     }
   }
 
-  // أسماء المحاور
   const xLabel = lang === 'ar' ? 'س' : 'x';
   const yLabel = lang === 'ar' ? 'ص' : 'y';
   const labelSize = Math.max(14, fontSize + 3);
 
   group.innerHTML = `
-    <!-- خلفية بيضاء شفافة لتسهيل القراءة والتحديد -->
     <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="rgba(255,255,255,0.01)" pointer-events="all"/>
-    <!-- خطوط الشبكة -->
     <g class="cartesian-grid">${gridLines}</g>
-    <!-- محور السينات (X-Axis) مع سهم في الطرف الأيمن -->
     <line x1="${x}" y1="${cy}" x2="${x + w}" y2="${cy}" stroke="${stroke}" stroke-width="${strokeWidth}" marker-end="url(#arrow-end-normal)"/>
-    <!-- محور الصادات (Y-Axis) مع سهم في الطرف العلوي -->
     <line x1="${cx}" y1="${y + h}" x2="${cx}" y2="${y}" stroke="${stroke}" stroke-width="${strokeWidth}" marker-end="url(#arrow-end-normal)"/>
-    <!-- التدريجات والأرقام -->
     <g class="cartesian-ticks">${ticks}</g>
-    <!-- نقطة الأصل (0,0) -->
     <text x="${cx - 8}" y="${cy + 14}" font-size="${fontSize}" font-weight="bold" fill="#64748b" text-anchor="end">O</text>
-    <!-- عنوان المحور السيني -->
     <text x="${x + w - 4}" y="${cy - 8}" font-size="${labelSize}" font-weight="bold" fill="${stroke}" text-anchor="end">${xLabel}</text>
-    <!-- عنوان المحور الصادي -->
     <text x="${cx + 10}" y="${y + 14}" font-size="${labelSize}" font-weight="bold" fill="${stroke}" text-anchor="start">${yLabel}</text>
   `;
 }
 
-/**
- * الحصول على حدود العنصر بدقة حية من خواصه ونقاطه الفعلية
- */
+/* ============================================================
+   §6. BOUNDS
+   ============================================================ */
 export function getUniversalShapeBounds(el) {
   if (!el) return null;
   const tag = el.tagName ? el.tagName.toLowerCase() : '';
@@ -704,7 +651,6 @@ export function getUniversalShapeBounds(el) {
     };
   }
 
-  // SVG Groups or paths with transform translate
   let tx = 0, ty = 0;
   const t = el.getAttribute('transform');
   if (t) {
@@ -735,10 +681,9 @@ export function getUniversalShapeBounds(el) {
   return null;
 }
 
-/**
- * المحرك الشامل لإعادة التحجيم من الزوايا الأربعة وجميع الأطراف
- * (nw, ne, se, sw, n, s, e, w)
- */
+/* ============================================================
+   §7. RESIZE — Non-Rotated
+   ============================================================ */
 export function resizeUniversalShape(el, handle, origBox, startPt, currentPt) {
   const dx = currentPt.x - startPt.x;
   const dy = currentPt.y - startPt.y;
@@ -748,7 +693,6 @@ export function resizeUniversalShape(el, handle, origBox, startPt, currentPt) {
   let newW = origBox.width;
   let newH = origBox.height;
 
-  // حساب الأبعاد والمواضع بدقة حسب المقبض المسحوب
   if (handle === 'se') {
     newW = Math.max(10, origBox.width + dx);
     newH = Math.max(10, origBox.height + dy);
@@ -860,9 +804,173 @@ export function resizeUniversalShape(el, handle, origBox, startPt, currentPt) {
     el.setAttribute('d', d);
   }
 
-  // مزامنة dataset بشكل دائم وموثوق
   el.dataset.x = newX;
   el.dataset.y = newY;
   el.dataset.w = newW;
   el.dataset.h = newH;
+}
+
+/* ============================================================
+   §8. RESIZE — Rotated (Session 3)
+   ============================================================ */
+
+/**
+ * يطبّق box محسوب على عنصر SVG — منطق التطبيق منفصل من resizeUniversalShape
+ */
+export function applyResizedBox(el, newX, newY, newW, newH) {
+  const tag = el.tagName.toLowerCase();
+  const kind = el.dataset.type || tag;
+
+  if (tag === 'rect') {
+    el.setAttribute('x', newX);
+    el.setAttribute('y', newY);
+    el.setAttribute('width', newW);
+    el.setAttribute('height', newH);
+  } else if (tag === 'ellipse') {
+    el.setAttribute('cx', newX + newW / 2);
+    el.setAttribute('cy', newY + newH / 2);
+    el.setAttribute('rx', newW / 2);
+    el.setAttribute('ry', newH / 2);
+  } else if (tag === 'line') {
+    el.setAttribute('x1', newX);
+    el.setAttribute('y1', newY);
+    el.setAttribute('x2', newX + newW);
+    el.setAttribute('y2', newY + newH);
+  } else if (tag === 'polygon') {
+    if (kind === 'triangle') {
+      el.setAttribute('points', `${newX + newW / 2},${newY} ${newX + newW},${newY + newH} ${newX},${newY + newH}`);
+    } else if (kind === 'right-triangle') {
+      el.setAttribute('points', `${newX},${newY} ${newX},${newY + newH} ${newX + newW},${newY + newH}`);
+    } else if (kind === 'diamond') {
+      el.setAttribute('points', `${newX + newW / 2},${newY} ${newX + newW},${newY + newH / 2} ${newX + newW / 2},${newY + newH} ${newX},${newY + newH / 2}`);
+    } else if (kind === 'star') {
+      const pts = calculateStarPoints(newX + newW / 2, newY + newH / 2, newW / 2, newH / 2, 5);
+      el.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+    } else if (kind === 'hexagon') {
+      const pts = calculatePolygonPoints(newX + newW / 2, newY + newH / 2, newW / 2, newH / 2, 6);
+      el.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+    }
+  } else if (kind === 'curve') {
+    const oX0 = parseFloat(el.dataset.x0) || newX;
+    const oY0 = parseFloat(el.dataset.y0) || (newY + newH);
+    const oX1 = parseFloat(el.dataset.x1) || (newX + newW);
+    const oY1 = parseFloat(el.dataset.y1) || (newY + newH);
+    const oCx = parseFloat(el.dataset.cx) || (newX + newW / 2);
+    const oCy = parseFloat(el.dataset.cy) || (newY + newH / 2);
+
+    const oldMinX = Math.min(oX0, oX1, oCx);
+    const oldMinY = Math.min(oY0, oY1, oCy);
+    const oldMaxX = Math.max(oX0, oX1, oCx);
+    const oldMaxY = Math.max(oY0, oY1, oCy);
+    const oldW = Math.max(1, oldMaxX - oldMinX);
+    const oldH = Math.max(1, oldMaxY - oldMinY);
+
+    const sx = newW / oldW;
+    const sy = newH / oldH;
+
+    const x0 = newX + (oX0 - oldMinX) * sx;
+    const y0 = newY + (oY0 - oldMinY) * sy;
+    const x1 = newX + (oX1 - oldMinX) * sx;
+    const y1 = newY + (oY1 - oldMinY) * sy;
+    const cx = newX + (oCx - oldMinX) * sx;
+    const cy = newY + (oCy - oldMinY) * sy;
+
+    el.setAttribute('d', `M ${x0} ${y0} Q ${cx} ${cy} ${x1} ${y1}`);
+    el.dataset.x0 = x0; el.dataset.y0 = y0;
+    el.dataset.x1 = x1; el.dataset.y1 = y1;
+    el.dataset.cx = cx; el.dataset.cy = cy;
+  } else if (kind === 'cylinder') {
+    renderCylinder(el, newX, newY, newW, newH);
+  } else if (kind.startsWith('circuit-')) {
+    renderCircuitComponent(el, kind, newX, newY, newW, newH);
+  } else if (kind === 'cartesian') {
+    renderCartesianPlane(el, newX, newY, newW, newH);
+  } else if (kind === 'block-arrow') {
+    el.setAttribute('d', calculateBlockArrowPath(newX, newY, newW, newH));
+  }
+
+  el.dataset.x = newX;
+  el.dataset.y = newY;
+  el.dataset.w = newW;
+  el.dataset.h = newH;
+}
+
+function anchorForHandle(handle, box) {
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  switch (handle) {
+    case 'se': return { x: box.x, y: box.y };
+    case 'nw': return { x: box.x + box.width, y: box.y + box.height };
+    case 'ne': return { x: box.x, y: box.y + box.height };
+    case 'sw': return { x: box.x + box.width, y: box.y };
+    case 'n':  return { x: cx, y: box.y + box.height };
+    case 's':  return { x: cx, y: box.y };
+    case 'e':  return { x: box.x, y: cy };
+    case 'w':  return { x: box.x + box.width, y: cy };
+    default:   return { x: cx, y: cy };
+  }
+}
+
+/**
+ * يحسب box جديد لعنصر مُدوَّر بحيث يبقى "الركن المقابل" ثابتاً بصرياً.
+ */
+export function computeRotatedResize(el, handle, origBox, startPt, currentPt) {
+  const rot = parseFloat(el.dataset.rotation) || 0;
+
+  const ox = parseFloat(el.dataset.originX ?? 0.5);
+  const oy = parseFloat(el.dataset.originY ?? 0.5);
+  const pivot0 = {
+    x: origBox.x + ox * origBox.width,
+    y: origBox.y + oy * origBox.height,
+  };
+
+  // 1) delta محلي
+  const radN = -rot * Math.PI / 180;
+  const cosN = Math.cos(radN), sinN = Math.sin(radN);
+  const sdx = startPt.x - pivot0.x, sdy = startPt.y - pivot0.y;
+  const cdx = currentPt.x - pivot0.x, cdy = currentPt.y - pivot0.y;
+  const sLocal = { x: pivot0.x + sdx * cosN - sdy * sinN, y: pivot0.y + sdx * sinN + sdy * cosN };
+  const cLocal = { x: pivot0.x + cdx * cosN - cdy * sinN, y: pivot0.y + cdx * sinN + cdy * cosN };
+  const dx = cLocal.x - sLocal.x;
+  const dy = cLocal.y - sLocal.y;
+
+  // 2) أبعاد جديدة
+  let nx = origBox.x, ny = origBox.y, nw = origBox.width, nh = origBox.height;
+  if (handle === 'se') { nw = Math.max(10, origBox.width + dx); nh = Math.max(10, origBox.height + dy); }
+  else if (handle === 'nw') { nw = Math.max(10, origBox.width - dx); nh = Math.max(10, origBox.height - dy); nx = origBox.x + (origBox.width - nw); ny = origBox.y + (origBox.height - nh); }
+  else if (handle === 'ne') { nw = Math.max(10, origBox.width + dx); nh = Math.max(10, origBox.height - dy); ny = origBox.y + (origBox.height - nh); }
+  else if (handle === 'sw') { nw = Math.max(10, origBox.width - dx); nh = Math.max(10, origBox.height + dy); nx = origBox.x + (origBox.width - nw); }
+  else if (handle === 'n') { nh = Math.max(10, origBox.height - dy); ny = origBox.y + (origBox.height - nh); }
+  else if (handle === 's') { nh = Math.max(10, origBox.height + dy); }
+  else if (handle === 'w') { nw = Math.max(10, origBox.width - dx); nx = origBox.x + (origBox.width - nw); }
+  else if (handle === 'e') { nw = Math.max(10, origBox.width + dx); }
+
+  if (rot === 0) {
+    return { x: nx, y: ny, width: nw, height: nh };
+  }
+
+  // 3) anchor
+  const A_old = anchorForHandle(handle, origBox);
+  const A_new = anchorForHandle(handle, { x: nx, y: ny, width: nw, height: nh });
+
+  const rad = rot * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const ax0 = A_old.x - pivot0.x, ay0 = A_old.y - pivot0.y;
+  const screenAnchor = {
+    x: pivot0.x + ax0 * cos - ay0 * sin,
+    y: pivot0.y + ax0 * sin + ay0 * cos,
+  };
+
+  const pivot1 = { x: nx + ox * nw, y: ny + oy * nh };
+
+  const ax1 = screenAnchor.x - pivot1.x, ay1 = screenAnchor.y - pivot1.y;
+  const A_target_local = {
+    x: pivot1.x + ax1 * cosN - ay1 * sinN,
+    y: pivot1.y + ax1 * sinN + ay1 * cosN,
+  };
+
+  const shiftX = A_target_local.x - A_new.x;
+  const shiftY = A_target_local.y - A_new.y;
+
+  return { x: nx + shiftX, y: ny + shiftY, width: nw, height: nh };
 }

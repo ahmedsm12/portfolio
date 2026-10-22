@@ -169,6 +169,24 @@ export function escapeXml(s) {
   }[c]));
 }
 
+/* ★ موحِّد الأبعاد: يقبل px أو % ويحوّل لـ %
+   يُستخدم لكل كتابة CSS ديناميكية (left/top/width/height) */
+export function normalizeDim(val, axis) {
+  if (!val) return 'auto';
+  if (typeof val !== 'string') return val + 'px';
+  if (val.endsWith('%')) return val;
+  if (val.endsWith('px')) {
+    const px = parseFloat(val);
+    if (!isFinite(px)) return val;
+    const stageDim = axis === 'w' ? state.cssW : state.cssH;
+    if (stageDim > 0) return (px / stageDim * 100).toFixed(3) + '%';
+    const pdfDim = axis === 'w' ? state.pdfW : state.pdfH;
+    if (pdfDim > 0) return (px / pdfDim * 100).toFixed(3) + '%';
+    return val;
+  }
+  return val;
+}
+
 export function getVideoDimensions(url) {
   return new Promise(resolve => {
     const v = document.createElement('video');
@@ -308,8 +326,7 @@ export function playWrongSound() {
 }
 
 /* §5. STATE
- * history: كائن موحد {past, future} عبر كامل المشروع — كل عنصر:
- *   { pageNum: number, snapshot: object, timestamp: number }
+ * history: كائن موحد {past, future} عبر كامل المشروع
  * dirty: هل هناك تعديلات غير محفوظة؟
  */
 export const state = {
@@ -360,6 +377,8 @@ export const state = {
   pages: {},
   history: { past: [], future: [] },
   dirty: false,
+
+  _spaceHeld: false,
 };
 
 export const mediaBlobs = new Map();
@@ -422,6 +441,12 @@ export function serializeMedia(el) {
     x: el.style.left, y: el.style.top,
     w: el.style.width, h: el.style.height,
     z: el.style.zIndex || '',
+    // ★ الدوران والانعكاس
+    rotation: parseFloat(el.dataset.rotation) || 0,
+    originX: parseFloat(el.dataset.originX ?? 0.5),
+    originY: parseFloat(el.dataset.originY ?? 0.5),
+    flipH: el.dataset.flipH === 'true',
+    flipV: el.dataset.flipV === 'true',
   };
 }
 
@@ -435,12 +460,19 @@ export function serializeButton(el) {
     borderOpacity: parseFloat(el.dataset.borderOpacity || '.45'),
     textColor: el.dataset.textColor || '#1e3a8a',
     fontSize: parseFloat(el.dataset.fontSize || '18'),
+    fontSizeRefCssW: parseFloat(el.dataset.fontSizeRefCssW) || 800,
     borderRadius: parseFloat(el.dataset.borderRadius || '12'),
     isCorrect: el.dataset.isCorrect === 'true',
     isLtr: el.dataset.isLtr === 'true',
     x: el.style.left, y: el.style.top,
     w: el.style.width, h: el.style.height,
     z: el.style.zIndex || '',
+    // ★ الدوران والانعكاس
+    rotation: parseFloat(el.dataset.rotation) || 0,
+    originX: parseFloat(el.dataset.originX ?? 0.5),
+    originY: parseFloat(el.dataset.originY ?? 0.5),
+    flipH: el.dataset.flipH === 'true',
+    flipV: el.dataset.flipV === 'true',
   };
 }
 
@@ -452,6 +484,7 @@ export function serializeText(el) {
     x: el.style.left, y: el.style.top,
     w: el.style.width, h: el.style.height,
     fontSize: parseFloat(el.dataset.fontSize || '20'),
+    fontSizeRefCssW: parseFloat(el.dataset.fontSizeRefCssW) || 800,
     fontFamily: el.dataset.fontFamily || 'system-ui',
     fontWeight: el.dataset.fontWeight || 'normal',
     fontStyle: el.dataset.fontStyle || 'italic',
@@ -461,6 +494,12 @@ export function serializeText(el) {
     bg: el.dataset.bg || '',
     isEquation: el.dataset.isEquation === 'true',
     z: el.style.zIndex || '',
+    // ★ الدوران والانعكاس
+    rotation: parseFloat(el.dataset.rotation) || 0,
+    originX: parseFloat(el.dataset.originX ?? 0.5),
+    originY: parseFloat(el.dataset.originY ?? 0.5),
+    flipH: el.dataset.flipH === 'true',
+    flipV: el.dataset.flipV === 'true',
   };
 }
 
@@ -541,7 +580,15 @@ export function getHistory() {
 }
 
 export function savePageNow() {
-  if (state.currentPage) state.pages[state.currentPage] = snapshot();
+  if (!state.currentPage) return;
+  state.pages[state.currentPage] = snapshot();
+
+  // ★ حفظ الملاحظات في الشريحة — خارج snapshot (لا تدخل سجل التراجع)
+  const notesEl = document.getElementById('notesTextarea');
+  const slide = state.slides && state.slides[state.currentPage - 1];
+  if (slide && notesEl) {
+    slide.notes = notesEl.value || '';
+  }
 }
 
 export function markDirty() {

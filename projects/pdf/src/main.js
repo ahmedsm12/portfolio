@@ -1,10 +1,11 @@
 /* ============================================================
  * main.js — الشريط + القوائم الفرعية + التهيئة
  * ============================================================
- *  ★ إصلاح: transientCanvas يبقى ظاهراً دائماً
- *  ★ إصلاح: إلغاء captureStageThumbnail عند بدء أي تفاعل
- *  ★ منع zoom المتصفح
- *  ★ إخفاء الشريطين الجانبيين عند عدم وجود مشروع نشط
+ *  ★ Undo شامل عبر الشرائح (من core.js)
+ *  ★ Dirty state + beforeunload
+ *  ★ Auto-save + Recovery عند البدء
+ *  ★ Zoom بـ Ctrl+Wheel + pinch على التراك باد
+ *  ★ اختصارات كاملة (Ctrl+A/D/X/G, Nudge, Space+Drag, Alt+Drag)
  * ============================================================ */
 
 import {
@@ -40,6 +41,9 @@ import {
   hideFloatingToolbars, closeEquationEditor, bindEquationEditor,
   openEquationEditor, copyElement, pasteElement, updatePasteBtnState,
   uiHooks, undoAction, redoAction,
+  applyElementDelta, drawSelectionOverlay,
+  deleteSelectedElements, duplicateSelectedElements,
+  getAllSelectableElements,
 } from './interaction.js';
 
 import { initUIShell } from './ui-shell.js';
@@ -90,7 +94,6 @@ export function repositionSubmenu() {
   const h = submenu.offsetHeight;
   const w = submenu.offsetWidth;
 
-  // Toolbar is fixed on the right side of the screen
   const rightOffset = Math.max(10, (window.innerWidth - r.left) + 8);
   let top = r.top + (r.height / 2) - (h / 2);
 
@@ -104,7 +107,6 @@ export function repositionSubmenu() {
 
 export function openSubmenu(ownerBtn, kind) {
   if (!submenu) return;
-  // Handle swapped args or missing ownerBtn
   if (typeof ownerBtn === 'string' && (typeof kind === 'object' || !kind)) {
     const tmp = ownerBtn;
     ownerBtn = kind;
@@ -518,7 +520,11 @@ function bindToolbar() {
       if (btn.id === 'btnFullscreen') { toggleFullscreen(); return; }
       if (btn.id === 'btnOpen') { fileInput.click(); return; }
       if (btn.id === 'btnExport') { exportAnnotatedPdf(); return; }
-      if (btn.id === 'btnSave') { await saveProjectAsFile(); return; }
+      if (btn.id === 'btnSave') {
+        const storage = await import('./storage.js');
+        await storage.saveProjectOver();
+        return;
+      }
 
       const tool = btn.dataset.tool;
       if (!tool) return;
@@ -583,21 +589,94 @@ function toggleFullscreen() {
 /* ============================================================
    §4. KEYBOARD
    ============================================================ */
+let _nudgePre = null;
+let _nudgeTimer = null;
+
+function flushNudgeCommit() {
+  if (_nudgePre) {
+    clearTimeout(_nudgeTimer);
+    try { commitChange(_nudgePre); } catch (_) {}
+    _nudgePre = null;
+  }
+}
+
+function nudgeSelection(dxPdf, dyPdf) {
+  const items = state.selectedList && state.selectedList.length > 0
+    ? state.selectedList
+    : (state.selected ? [state.selected] : []);
+  if (items.length === 0) return;
+
+  if (!_nudgePre) _nudgePre = snapshot();
+  clearTimeout(_nudgeTimer);
+  _nudgeTimer = setTimeout(() => {
+    if (_nudgePre) {
+      try { commitChange(_nudgePre); } catch (_) {}
+      _nudgePre = null;
+    }
+  }, 500);
+
+  items.forEach(it => {
+    try { applyElementDelta(it, dxPdf, dyPdf); } catch (_) {}
+  });
+  drawSelectionOverlay();
+  document.dispatchEvent(new CustomEvent('ipb:elementTransformed'));
+}
+
 function bindKeyboard() {
   document.addEventListener('keydown', async e => {
     if (e.target.matches('input, textarea, select')) return;
     if (e.target.isContentEditable) return;
 
+    // ═══ ملفات ═══
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      const storage = await import('./storage.js');
+      await storage.saveProjectOver();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      const storage = await import('./storage.js');
+      await storage.saveProjectAsFile();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') {
+      e.preventDefault();
+      const fi = document.getElementById('fileInput');
+      if (fi) fi.click();
+      return;
+    }
+
+    // ═══ تاريخ ═══
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-      e.preventDefault(); await undoAction(); return;
+      e.preventDefault();
+      flushNudgeCommit();
+      await undoAction(); return;
     }
     if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' ||
         (e.shiftKey && e.key.toLowerCase() === 'z'))) {
-      e.preventDefault(); await redoAction(); return;
+      e.preventDefault();
+      flushNudgeCommit();
+      await redoAction(); return;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-      e.preventDefault(); await saveProjectAsFile(); return;
+
+    // ═══ تحديد الكل ═══
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      const items = getAllSelectableElements();
+      if (items.length === 0) return;
+      deselect();
+      state.selectedList = items;
+      state.selected = items[0] || null;
+      items.forEach(it => it.el.classList.add('selected'));
+      drawSelectionOverlay();
+      document.dispatchEvent(new CustomEvent('ipb:selectionChanged', {
+        detail: { selected: state.selected, list: state.selectedList },
+      }));
+      return;
     }
+
+    // ═══ نسخ ═══
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
       const sel = state.selectedList && state.selectedList.length > 0 ? state.selectedList[0] : state.selected;
       if (sel && sel.el) {
@@ -606,30 +685,49 @@ function bindKeyboard() {
         return;
       }
     }
+
+    // ═══ قص ═══
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+      const sel = state.selectedList && state.selectedList.length > 0 ? state.selectedList[0] : state.selected;
+      if (sel && sel.el) {
+        e.preventDefault();
+        copyElement(sel.el);
+        deleteSelectedElements();
+        return;
+      }
+    }
+
+    // ═══ لصق ═══
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
       e.preventDefault();
-      pasteElement();
+      pasteElement(!!e.shiftKey);
       return;
     }
+
+    // ═══ تكرار ═══
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      duplicateSelectedElements();
+      return;
+    }
+
+    // ═══ تجميع (غير مدعوم بعد) ═══
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
+      e.preventDefault();
+      toast('التجميع (Group) غير مدعوم بعد — قيد التطوير', 'info');
+      return;
+    }
+
+    // ═══ حذف ═══
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (state.selected) {
-        const pre = snapshot();
-        const sel = state.selected;
-        if (sel.kind === 'media') {
-          try {
-            const v = sel.el.querySelector('video');
-            if (v) { v.pause(); v.src = ''; }
-          } catch (_) {}
-        }
-        const wrap = sel.el.closest && sel.el.closest('.annot-wrapper');
-        (wrap || sel.el).remove();
-        state.selected = null;
-        hideFloatingToolbars();
-        commitChange(pre);
+      if (state.selected || (state.selectedList && state.selectedList.length)) {
         e.preventDefault();
+        deleteSelectedElements();
       }
       return;
     }
+
+    // ═══ إلغاء ═══
     if (e.key === 'Escape') {
       deselect();
       closeSubmenu();
@@ -637,6 +735,37 @@ function bindKeyboard() {
       e.preventDefault();
       return;
     }
+
+    // ═══ Nudge بالأسهم ═══
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      const hasSel = (state.selectedList && state.selectedList.length > 0) || state.selected;
+      if (hasSel && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const pdfW = state.pdfW || 2000;
+        const pdfH = state.pdfH || 2828;
+        const cssW = state.cssW || 800;
+        const cssH = state.cssH || 600;
+        const step = e.shiftKey ? 10 : 1;
+        const stepX = (pdfW / cssW) * step;
+        const stepY = (pdfH / cssH) * step;
+        const dx = e.key === 'ArrowLeft' ? -stepX : (e.key === 'ArrowRight' ? stepX : 0);
+        const dy = e.key === 'ArrowUp' ? -stepY : (e.key === 'ArrowDown' ? stepY : 0);
+        nudgeSelection(dx, dy);
+        return;
+      }
+    }
+
+    // ═══ التنقل بين الشرائح — PageUp / PageDown ═══
+    if (e.key === 'PageDown' || e.key === 'PageUp') {
+      e.preventDefault();
+      const pdf = await import('./pdf.js');
+      if (e.key === 'PageDown') pdf.goToPage(state.currentPage + 1);
+      else pdf.goToPage(state.currentPage - 1);
+      return;
+    }
+
+    // ═══ اختصارات الأدوات ═══
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const map = { h:'hand', v:'select', p:'pen', m:'highlighter',
                   e:'eraser', a:'laser', s:'shape', t:'text' };
     const t = map[e.key.toLowerCase()];
@@ -652,13 +781,40 @@ function bindKeyboard() {
         } else setTool(t);
       }
     }
-    if (e.key === 'ArrowRight') import('./pdf.js').then(m => m.goToPage(state.currentPage + 1));
-    if (e.key === 'ArrowLeft') import('./pdf.js').then(m => m.goToPage(state.currentPage - 1));
+  });
+}
+
+/* ═══ Space+Drag = Pan مؤقت ═══ */
+function bindSpacePan() {
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' || e.repeat) return;
+    if (e.target.matches('input, textarea, select')) return;
+    if (e.target.isContentEditable) return;
+    if (state._spaceHeld) return;
+    e.preventDefault();
+    state._spaceHeld = true;
+    const stageEl = document.getElementById('stage');
+    if (stageEl) stageEl.style.cursor = 'grab';
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.code !== 'Space') return;
+    state._spaceHeld = false;
+    const stageEl = document.getElementById('stage');
+    if (stageEl) stageEl.style.cursor = '';
+    updateCursorForTool();
+  });
+
+  window.addEventListener('blur', () => {
+    state._spaceHeld = false;
+    const stageEl = document.getElementById('stage');
+    if (stageEl) stageEl.style.cursor = '';
+    updateCursorForTool();
   });
 }
 
 /* ============================================================
-   §5. FILE INPUT + DRAG/DROP + CONTEXTMENU
+   §5. FILE INPUT + GLOBAL LISTENERS
    ============================================================ */
 function bindFileInput() {
   if (!fileInput) return;
@@ -670,10 +826,10 @@ function bindFileInput() {
       if (isActPdf) await loadProjectFromFile(f);
       else if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) await loadPdfFile(f);
       else if (/^image\//.test(f.type)) await loadImageFile(f);
-      else alert('نوع الملف غير مدعوم');
+      else toast('نوع الملف غير مدعوم', 'warn');
     } catch (err) {
       console.error(err);
-      alert('خطأ: ' + err.message);
+      toast('خطأ: ' + err.message, 'error');
     }
     fileInput.value = '';
   });
@@ -689,10 +845,18 @@ function bindGlobalListeners() {
   document.addEventListener('drop', e => e.preventDefault());
   document.addEventListener('contextmenu', e => e.preventDefault());
 
+  // ★ تحذير عند إغلاق التبويب مع تعديلات غير محفوظة
+  window.addEventListener('beforeunload', (e) => {
+    if (state.dirty) {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    }
+  });
+
   let _lastWinW = window.innerWidth;
   window.addEventListener('resize', () => {
     adjustToolbarSize();
-    // تجنب إعادة بناء وتفريغ الشريحة عند فتح لوحة المفاتيح الافتراضية في الهاتف
     const isEditing = !!document.querySelector('.pdf-text-box.editing, [contenteditable="true"]');
     const widthChanged = Math.abs(window.innerWidth - _lastWinW) > 15;
     if (isEditing || !widthChanged) {
@@ -713,13 +877,6 @@ function bindGlobalListeners() {
   window.addEventListener('orientationchange', () => {
     setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
   });
-    window.addEventListener('beforeunload', (e) => {
-    if (state.dirty) {
-      e.preventDefault();
-      e.returnValue = '';
-      return '';
-    }
-  });
 
   const pBtn = $('btnPrev');
   if (pBtn) pBtn.addEventListener('click', () => goToPage(state.currentPage - 1));
@@ -739,45 +896,120 @@ async function loadLocalFonts() {
 }
 
 /* ============================================================
-   §7. DISABLE BROWSER ZOOM
+   §7. ZOOM — على الكانفاس فقط (Ctrl+Wheel + Pinch)
    ============================================================ */
 function disableBrowserZoom() {
-  window.addEventListener('wheel', (e) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }, { passive: false, capture: true });
+  const stageEl = document.getElementById('stage');
+  if (!stageEl) return;
 
-  window.addEventListener('keydown', (e) => {
-    if (!(e.ctrlKey || e.metaKey)) return;
-    const k = e.key;
-    const c = e.keyCode;
-    if (k === '+' || k === '-' || k === '=' || k === '0' ||
-        k === 'Add' || k === 'Subtract' ||
-        c === 187 || c === 189 || c === 48 ||
-        c === 107 || c === 109 || c === 96) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }, { capture: true });
+  // عجلة مع Ctrl = zoom على الكانفاس (يشمل pinch على التراك باد)
+  stageEl.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!state.pdfW || !state.cssW) return;
+    const delta = e.deltaY > 0 ? -10 : 10;
+    const pdfW = state.pdfW;
+    const cssW = state.cssW;
+    const curPct = (cssW * state.view.scale) / pdfW * 100;
+    const nextPct = Math.max(10, Math.min(500, curPct + delta));
+    state.view.scale = (nextPct / 100) * pdfW / cssW;
+    import('./pdf.js').then(pdf => pdf.applyView());
+  }, { passive: false });
 
-  ['gesturestart', 'gesturechange', 'gestureend'].forEach(evt => {
-    document.addEventListener(evt, (e) => {
-      e.preventDefault();
-    }, { passive: false });
-  });
+  // Safari pinch (gesture events)
+  let lastScale = 1;
+  stageEl.addEventListener('gesturestart', (e) => {
+    e.preventDefault();
+    lastScale = e.scale || 1;
+  }, { passive: false });
+
+  stageEl.addEventListener('gesturechange', (e) => {
+    e.preventDefault();
+    if (!state.pdfW || !state.cssW) return;
+    const ratio = (e.scale || 1) / lastScale;
+    lastScale = e.scale || 1;
+    const pdfW = state.pdfW;
+    const cssW = state.cssW;
+    const curPct = (cssW * state.view.scale) / pdfW * 100;
+    const nextPct = Math.max(10, Math.min(500, curPct * ratio));
+    state.view.scale = (nextPct / 100) * pdfW / cssW;
+    import('./pdf.js').then(pdf => pdf.applyView());
+  }, { passive: false });
+
+  stageEl.addEventListener('gestureend', (e) => {
+    e.preventDefault();
+  }, { passive: false });
 }
 
 /* ============================================================
-   §8. INIT
+   §8. RECOVERY PROMPT
+   ============================================================ */
+async function checkAndPromptRecovery() {
+  try {
+    const storage = await import('./storage.js');
+    const saved = await storage.checkForRecovery();
+    if (!saved) return;
+    if (state.slides && state.slides.length > 0) return;
+
+    const age = Math.round((Date.now() - saved.timestamp) / 60000);
+    const timeLabel = age < 60
+      ? `قبل ${age} دقيقة`
+      : age < 1440
+        ? `قبل ${Math.round(age/60)} ساعة`
+        : `قبل ${Math.round(age/1440)} يوم`;
+
+    const projectName = (saved.projectData && saved.projectData.pdfName) || 'مشروع';
+    const choice = await new Promise(resolve => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'ipb-confirm-backdrop';
+      backdrop.innerHTML = `
+        <div class="ipb-confirm-dialog">
+          <div class="ipb-confirm-icon">💾</div>
+          <h2 class="ipb-confirm-title">استعادة جلسة سابقة</h2>
+          <p class="ipb-confirm-subtitle">${projectName}</p>
+          <p class="ipb-confirm-message">يوجد مشروع محفوظ تلقائياً ${timeLabel}. هل تريد استعادته؟</p>
+          <div class="ipb-confirm-actions">
+            <button type="button" class="ipb-confirm-btn ipb-confirm-primary" data-r="yes">💾 استعادة</button>
+            <button type="button" class="ipb-confirm-btn ipb-confirm-secondary" data-r="no">تجاهل</button>
+            <button type="button" class="ipb-confirm-btn ipb-confirm-cancel" data-r="cancel">لاحقاً</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+      requestAnimationFrame(() => backdrop.classList.add('show'));
+
+      backdrop.querySelectorAll('[data-r]').forEach(btn => {
+        btn.onclick = () => {
+          backdrop.classList.remove('show');
+          setTimeout(() => backdrop.remove(), 180);
+          resolve(btn.dataset.r);
+        };
+      });
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) {
+          backdrop.classList.remove('show');
+          setTimeout(() => backdrop.remove(), 180);
+          resolve('cancel');
+        }
+      });
+    });
+
+    if (choice === 'yes') {
+      await storage.restoreFromAutoSave();
+    } else if (choice === 'no') {
+      await storage.discardAutoSave();
+    }
+  } catch (err) {
+    console.warn('Recovery prompt failed:', err);
+  }
+}
+
+/* ============================================================
+   §9. INIT
    ============================================================ */
 async function init() {
   await loadKatex();
-    // ── كشف dirty للمكونات القديمة التي تعتمد على window.__CORE__
-  if (typeof window !== 'undefined') {
-    window.__CORE__ = { state };
-  }
   await initPdfJs();
 
   uiHooks.setTool = setTool;
@@ -790,6 +1022,7 @@ async function init() {
 
   bindToolbar();
   bindKeyboard();
+  bindSpacePan();
   bindFileInput();
   bindGlobalListeners();
   bindSlideContextMenu();
@@ -819,6 +1052,8 @@ async function init() {
       get slides() { return state.slides; },
       reload: () => location.reload(),
     };
+    // ★ كشف state للمكونات القديمة التي تعتمد على window.__CORE__
+    window.__CORE__ = { state };
   }
 
   import('./pdf.js').then(pdf => {
@@ -849,10 +1084,16 @@ async function init() {
 
   initUIShell();
   initNewProject();
+
+  // ★ بدء الحفظ التلقائي
+  import('./storage.js').then(s => s.startAutoSave());
+
+  // ★ فحص الاستعادة — بعد 800ms ليتيح للواجهة الاستقرار
+  setTimeout(() => checkAndPromptRecovery(), 800);
 }
 
 /* ============================================================
-   §9. BOOT
+   §10. BOOT
    ============================================================ */
 init().catch(err => {
   console.error(err);
