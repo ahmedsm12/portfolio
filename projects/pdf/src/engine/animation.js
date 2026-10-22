@@ -3,8 +3,8 @@
  * Supports 12 animation types, Draw Path, Move+Draw, Morphing,
  * Keyframe Timeline, Triggers (onClick, withPrev, afterPrev), and Live Previews.
  */
-import gsap from 'gsap';
-import { MotionPathPlugin } from 'gsap/MotionPathPlugin';
+import gsap from 'https://cdn.jsdelivr.net/npm/gsap@3.13.0/index.js';
+import { MotionPathPlugin } from 'https://cdn.jsdelivr.net/npm/gsap@3.13.0/MotionPathPlugin.js';
 import { animateDrawPath, animateMoveDraw } from './stroke-path.js';
 import { morphSvgPath } from './morph.js';
 

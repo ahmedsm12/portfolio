@@ -5,7 +5,7 @@
  * ★ If flubber is unavailable, morphSvgPath returns null gracefully.
  * ★ Morph only works on SVG <path> elements (not rect, circle, etc.).
  */
-import gsap from 'gsap';
+import gsap from 'https://cdn.jsdelivr.net/npm/gsap@3.13.0/index.js';
 
 let _flubber = null;
 let _flubberTried = false;
@@ -15,7 +15,7 @@ let _flubberTried = false;
   if (_flubberTried) return;
   _flubberTried = true;
 
-  import('flubber')
+  import('https://cdn.jsdelivr.net/npm/flubber@0.4.2/+esm')
     .then(mod => {
       const f = mod && (mod.default || mod);
       if (f && typeof f.interpolate === 'function') {

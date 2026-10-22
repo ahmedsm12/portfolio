@@ -3,8 +3,8 @@
  * Implements Draw Path (stroke-dashoffset) and synchronized Move+Draw
  * using GSAP and MotionPathPlugin
  */
-import gsap from 'gsap';
-import { MotionPathPlugin } from 'gsap/MotionPathPlugin';
+import gsap from 'https://cdn.jsdelivr.net/npm/gsap@3.13.0/index.js';
+import { MotionPathPlugin } from 'https://cdn.jsdelivr.net/npm/gsap@3.13.0/MotionPathPlugin.js';
 
 gsap.registerPlugin(MotionPathPlugin);
 

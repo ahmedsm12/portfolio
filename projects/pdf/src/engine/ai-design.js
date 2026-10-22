@@ -3,7 +3,7 @@
  * Uses Google Gemini API (gemini-3.8-flash) to automatically design slides,
  * insert styled typography, shapes, diagrams, visual effects, and synchronized animations.
  */
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI } from 'https://cdn.jsdelivr.net/npm/@google/genai@2.4.0/+esm';
 
 export async function generateAiSlideDesign(prompt, options = {}) {
   const apiKey = process.env.GEMINI_API_KEY || (typeof window !== 'undefined' && window.__GEMINI_KEY__);

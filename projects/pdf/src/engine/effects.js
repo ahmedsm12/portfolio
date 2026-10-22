@@ -2,7 +2,7 @@
  * Visual Effects Tweening Engine (GSAP)
  * Handles animated transitions for Glow, Drop Shadow, Stroke, Fill, Blur, and 3D Tilt
  */
-import gsap from 'gsap';
+import gsap from 'https://cdn.jsdelivr.net/npm/gsap@3.13.0/index.js';
 
 export function tweenVisualEffects(el, fromFx = {}, toFx = {}, options = {}) {
   if (!el) return null;
