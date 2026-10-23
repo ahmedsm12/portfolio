@@ -491,6 +491,85 @@ function getEffectsListFromElement(el) {
   return [];
 }
 
+/* ═══════════════════════════════════════════════════════════
+   §5. VISUAL EFFECTS — Redesigned (v2)
+   ═══════════════════════════════════════════════════════════ */
+
+const FX_TYPES = {
+  shadow: { icon: '☁️', name: 'ظل', cost: 1, isGlass: false, controls: ['shadow'] },
+  glow: { icon: '💡', name: 'توهج', cost: 2, isGlass: false, controls: ['glow'] },
+  stroke: { icon: '📐', name: 'حدود', cost: 0.5, isGlass: false, controls: ['stroke'] },
+  fill: { icon: '🎨', name: 'تعبئة', cost: 0.5, isGlass: false, controls: ['fill'] },
+  blur: { icon: '🔍', name: 'تمويه', cost: 3, isGlass: false, controls: ['blur'] },
+  tilt: { icon: '📐', name: '3D', cost: 2, isGlass: false, controls: ['tilt'] },
+  'liquid-glass': { icon: '🔮', name: 'Liquid Glass', cost: 15, isGlass: true, controls: ['glass'] },
+};
+
+const FX_DEFAULTS = {
+  shadow: { x: 0, y: 12, blur: 24, color: '#000000', opacity: 0.4 },
+  glow: { color: '#3b82f6', blur: 20, spread: 2 },
+  stroke: { color: '#3b82f6', width: 3, style: 'solid' },
+  fill: { fillType: 'gradient', c1: '#3b82f6', c2: '#9333ea', angle: 45 },
+  blur: { val: 8 },
+  tilt: { rx: 15, ry: -15 },
+  'liquid-glass': { blur: 18, refraction: 0.15, aberration: 0.03, edgeGlow: 0.6, tint: '#ffffff' },
+};
+
+const FX_PRESETS = [
+  { id: 'soft-card', icon: '💳', name: 'Soft Card',
+    effects: [
+      { type: 'shadow', params: { x: 0, y: 8, blur: 24, color: '#000', opacity: 0.25 } },
+      { type: 'stroke', params: { color: '#ffffff', width: 1, style: 'solid' } },
+    ] },
+  { id: 'neon-glow', icon: '🌟', name: 'Neon',
+    effects: [
+      { type: 'glow', params: { color: '#7c3aed', blur: 30, spread: 3 } },
+      { type: 'glow', params: { color: '#a78bfa', blur: 12, spread: 1 } },
+    ] },
+  { id: 'glass-morph', icon: '🔮', name: 'Glass Morph',
+    effects: [
+      { type: 'liquid-glass', params: {} },
+      { type: 'shadow', params: { x: 0, y: 6, blur: 16, color: '#000', opacity: 0.3 } },
+    ] },
+  { id: 'sharp', icon: '🎯', name: 'Sharp',
+    effects: [
+      { type: 'stroke', params: { color: '#000', width: 2, style: 'solid' } },
+      { type: 'shadow', params: { x: 2, y: 2, blur: 0, color: '#000', opacity: 0.8 } },
+    ] },
+];
+
+const FX_QUICK_ADD = ['shadow', 'glow', 'stroke', 'fill', 'blur', 'tilt', 'liquid-glass'];
+
+/* ─── Normalize old format → new ─── */
+function migrateFxList(fxList) {
+  const counters = {};
+  return fxList.map(item => {
+    if (!item.id) item.id = 'fx_' + Math.random().toString(36).slice(2, 9);
+    if (!counters[item.type]) counters[item.type] = 0;
+    counters[item.type] += 1;
+    if (item.instanceIndex == null) item.instanceIndex = counters[item.type];
+    if (item.active == null) item.active = true;
+    if (!item.name && FX_TYPES[item.type]) item.name = FX_TYPES[item.type].name;
+    return item;
+  });
+}
+
+function getFxCost(fx) {
+  if (!fx.active) return 0;
+  const meta = FX_TYPES[fx.type];
+  return meta ? meta.cost : 1;
+}
+
+function getTotalFxCost(fxList) {
+  return fxList.reduce((sum, fx) => sum + getFxCost(fx), 0);
+}
+
+function getNextFxIndex(fxList, type) {
+  const same = fxList.filter(fx => fx.type === type);
+  return same.length === 0 ? 1 : Math.max(...same.map(f => f.instanceIndex || 0)) + 1;
+}
+
+/* ─── Main render ─── */
 export async function renderEffectsPanel() {
   const panel = document.getElementById('visualEffectsPanel');
   if (!panel) return;
@@ -502,17 +581,10 @@ export async function renderEffectsPanel() {
 
   if (!sel || !sel.el) {
     panel.innerHTML = `
-      <div class="effects-empty">
-        <div class="effects-empty-icon">✨</div>
-        <div class="effects-empty-title">التأثيرات البصرية للإنفوغرافيك</div>
-        <div class="effects-empty-desc">حدد عنصراً (شكلاً هندسياً، نصاً، صورة، فيديو، أو زراً) لتطبيق وتعديل التأثيرات البصرية المتطورة عليه.</div>
-        <div class="effects-features-list">
-          <div class="fx-feature-item">💡 توهج نيون مشع (Outer Glow)</div>
-          <div class="fx-feature-item">☁️ ظل ساقط واقعي (Drop Shadow)</div>
-          <div class="fx-feature-item">🎨 تعبئة بتدرج لوني سلس (Gradient Fill)</div>
-          <div class="fx-feature-item">📐 ميلان وبعد ثلاثي الأبعاد (3D Tilt & Depth)</div>
-          <div class="fx-feature-item">🔍 تمويه ناعم وتأثير زجاجي (Glassmorphism)</div>
-        </div>
+      <div class="fx-empty-state">
+        <div class="fx-empty-icon">✨</div>
+        <div class="fx-empty-title">التأثيرات البصرية</div>
+        <div class="fx-empty-desc">حدد عنصراً (شكلاً، نصاً، صورة، زراً) لتطبيق التأثيرات عليه.</div>
       </div>
     `;
     return;
@@ -520,229 +592,653 @@ export async function renderEffectsPanel() {
 
   const el = sel.el;
   let fxList = getEffectsListFromElement(el);
+  fxList = migrateFxList(fxList);
 
-  const kindLabel = {
-    svg: 'شكل SVG', text: 'مربع نص', media: 'وسائط', button: 'زر تفاعلي', embed: 'تضمين ويب',
-  }[sel.kind] || 'عنصر';
+  const activeCount = fxList.filter(f => f.active).length;
+  const totalCost = getTotalFxCost(fxList);
 
   panel.innerHTML = `
     <div class="fx-panel-container">
-      <div class="fx-top-bar">
-        <div>
-          <div class="fx-main-title">✨ التأثيرات البصرية</div>
-          <div class="fx-item-count">${kindLabel} • (${fxList.length} تأثير)</div>
+
+      <!-- Presets -->
+      <div class="fx-section">
+        <div class="fx-section-title">
+          <span>🎴 تركيبات جاهزة</span>
+          <span class="fx-section-hint">نقرة = إضافة</span>
         </div>
-        <div class="fx-add-wrapper">
-          <button type="button" class="fx-add-btn" id="btnAddEffectBtn"><span>➕</span><span>إضافة تأثير</span></button>
-          <div class="fx-add-menu" id="fxAddMenu" style="display:none">
-            <button type="button" class="fx-menu-item" data-add="shadow">☁️ ظل ساقط</button>
-            <button type="button" class="fx-menu-item" data-add="glow">💡 توهج خارجي</button>
-            <button type="button" class="fx-menu-item" data-add="stroke">📐 إطار وحدود</button>
-            <button type="button" class="fx-menu-item" data-add="fill">🎨 تعبئة وتدرج</button>
-            <button type="button" class="fx-menu-item" data-add="blur">🔍 تمويه زجاجي</button>
-            <button type="button" class="fx-menu-item" data-add="tilt">📐 بعد ثلاثي الأبعاد</button>
-          </div>
-        </div>
-      </div>
-      <div class="fx-items-stack" id="fxItemsStack">
-        ${fxList.length === 0 ? `
-          <div class="fx-empty-card">
-            <h4>لا توجد تأثيرات مضافة بعد</h4>
-            <p>اضغط على زر (+ إضافة تأثير) أعلاه لإضافة الظلال، التوهج، التدرجات أو الأبعاد الثلاثية.</p>
-          </div>
-        ` : fxList.map((item, idx) => {
-          const typeIcons = { shadow: '☁️', glow: '💡', stroke: '📐', fill: '🎨', blur: '🔍', tilt: '📐' };
-          const icon = typeIcons[item.type] || '✨';
-          return `
-            <div class="fx-item-card ${item.active ? '' : 'disabled'}" data-fx-id="${item.id}">
-              <div class="fx-item-header">
-                <div class="fx-item-title-wrap"><span style="font-size:14px">${icon}</span><span class="fx-item-title">${item.name || item.type} #${idx + 1}</span></div>
-                <div class="fx-actions-row">
-                  <button type="button" class="fx-icon-btn fx-btn-up" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''}>▲</button>
-                  <button type="button" class="fx-icon-btn fx-btn-down" data-idx="${idx}" ${idx === fxList.length - 1 ? 'disabled' : ''}>▼</button>
-                  <button type="button" class="fx-icon-btn fx-btn-eye" data-idx="${idx}">${item.active ? '👁️' : '🙈'}</button>
-                  <button type="button" class="fx-icon-btn danger fx-btn-del" data-idx="${idx}">🗑️</button>
-                </div>
+        <div class="fx-presets-grid" id="fxPresetsGrid">
+          ${FX_PRESETS.map(p => `
+            <div class="fx-preset-card" data-preset="${p.id}" title="${p.effects.map(e => FX_TYPES[e.type]?.name || e.type).join(' + ')}">
+              <span class="fx-preset-icon">${p.icon}</span>
+              <div class="fx-preset-body">
+                <span class="fx-preset-name">${p.name}</span>
+                <span class="fx-preset-count">${p.effects.length} تأثيرات</span>
               </div>
-              <div class="fx-item-body" style="${item.active ? '' : 'display:none'}">${renderEffectControls(item, idx)}</div>
             </div>
-          `;
-        }).join('')}
+          `).join('')}
+        </div>
       </div>
+
+      <!-- Quick Add -->
+      <div class="fx-section">
+        <div class="fx-section-title">
+          <span>➕ إضافة سريعة</span>
+          <span class="fx-section-hint">نقرة = إضافة</span>
+        </div>
+        <div class="fx-quick-add-grid" id="fxQuickAddGrid">
+          ${FX_QUICK_ADD.map(type => {
+            const meta = FX_TYPES[type];
+            const count = fxList.filter(f => f.type === type).length;
+            return `
+              <button type="button" class="fx-quick-add-btn ${meta.isGlass ? 'special' : ''}" data-add-type="${type}">
+                <span class="fx-qa-icon">${meta.icon}</span>
+                <span class="fx-qa-label">${meta.name}</span>
+                <span class="fx-qa-count ${count > 0 ? 'show' : ''}">${count > 0 ? count : ''}</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Effects list -->
+      <div class="fx-section">
+        <div class="fx-section-title">
+          <span>📚 التأثيرات (${activeCount} نشطة)</span>
+          ${fxList.length > 0 ? `<span class="fx-section-hint">${fxList.length} إجمالي</span>` : ''}
+        </div>
+        <div class="fx-effects-list" id="fxEffectsList">
+          ${fxList.length === 0 ? `
+            <div class="fx-empty-state" style="padding:16px 12px">
+              <div class="fx-empty-desc" style="font-size:11px">لا توجد تأثيرات — أضف من الأعلى</div>
+            </div>
+          ` : fxList.map((fx, idx) => renderFxCard(fx, idx)).join('')}
+        </div>
+      </div>
+
+      <!-- Cost bar -->
+      ${fxList.length > 0 ? `
+        <div class="fx-cost-bar">
+          <div class="fx-cost-bar-row">
+            <span class="fx-cost-label">📊 التكلفة</span>
+            <span class="fx-cost-value" id="fxCostValue">${formatFxNum(totalCost)}ms / إطار</span>
+            <span class="fx-cost-status ${totalCost < 10 ? 'safe' : totalCost < 16 ? 'warn' : 'danger'}" id="fxCostStatus">
+              ${totalCost < 10 ? 'آمن' : totalCost < 16 ? 'تحذير' : 'بطيء'}
+            </span>
+          </div>
+          <div class="fx-cost-track">
+            <div class="fx-cost-fill ${totalCost < 10 ? 'safe' : totalCost < 16 ? 'warn' : 'danger'}"
+                 id="fxCostFill"
+                 style="width:${Math.min(100, (totalCost / 16) * 100)}%"></div>
+          </div>
+        </div>
+      ` : ''}
+
     </div>
   `;
 
-  const btnAdd = document.getElementById('btnAddEffectBtn');
-  const addMenu = document.getElementById('fxAddMenu');
-  if (btnAdd && addMenu) {
-    btnAdd.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isShow = addMenu.style.display !== 'none';
-      addMenu.style.display = isShow ? 'none' : 'flex';
-    });
-    document.addEventListener('pointerdown', (e) => {
-      if (!addMenu.contains(e.target) && e.target !== btnAdd && !btnAdd.contains(e.target)) addMenu.style.display = 'none';
-    });
-  }
-
-  // ★★ Session 2 — استخدام state.selected بدل closure el عند النقر
-  panel.querySelectorAll('.fx-menu-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const type = btn.dataset.add;
-      if (addMenu) addMenu.style.display = 'none';
-      const current = (core.state.selectedList && core.state.selectedList.length > 0)
-        ? core.state.selectedList[0]
-        : core.state.selected;
-      if (current && current.el) addEffectOfType(type, current.el);
-    });
-  });
-
-  panel.querySelectorAll('.fx-btn-up').forEach(btn => btn.addEventListener('click', () => {
-    const i = parseInt(btn.dataset.idx, 10);
-    if (i > 0) {
-      const tmp = fxList[i];
-      fxList[i] = fxList[i - 1];
-      fxList[i - 1] = tmp;
-      saveAndApplyEffects(el, fxList);
-    }
-  }));
-  panel.querySelectorAll('.fx-btn-down').forEach(btn => btn.addEventListener('click', () => {
-    const i = parseInt(btn.dataset.idx, 10);
-    if (i < fxList.length - 1) {
-      const tmp = fxList[i];
-      fxList[i] = fxList[i + 1];
-      fxList[i + 1] = tmp;
-      saveAndApplyEffects(el, fxList);
-    }
-  }));
-  panel.querySelectorAll('.fx-btn-eye').forEach(btn => btn.addEventListener('click', () => {
-    const i = parseInt(btn.dataset.idx, 10);
-    if (fxList[i]) { fxList[i].active = !fxList[i].active; saveAndApplyEffects(el, fxList); }
-  }));
-  panel.querySelectorAll('.fx-btn-del').forEach(btn => btn.addEventListener('click', () => {
-    const i = parseInt(btn.dataset.idx, 10);
-    if (fxList[i]) { fxList.splice(i, 1); saveAndApplyEffects(el, fxList); }
-  }));
-
-  wireEffectControls(panel, el, fxList);
+  wireFxPanel(panel, el, fxList);
 }
 
-function renderEffectControls(item, idx) {
-  if (item.type === 'shadow') {
-    return `
-      <div class="fx-field-row"><label><span>لون الظل والشفافية:</span><span class="fx-val-badge">${Math.round((item.opacity != null ? item.opacity : 0.4) * 100)}%</span></label>
-        <div style="display:flex;gap:6px;align-items:center">
-          <input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="color" value="${item.color && item.color.startsWith('#') ? item.color : '#000000'}">
-          <input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="opacity" min="0" max="1" step="0.05" value="${item.opacity != null ? item.opacity : 0.4}">
+function formatFxNum(n) {
+  return n % 1 === 0 ? String(n) : n.toFixed(2);
+}
+
+function renderFxCard(fx, idx) {
+  const meta = FX_TYPES[fx.type] || { icon: '✨', name: fx.type, cost: 1, isGlass: false };
+  const isExpanded = fx._expanded === true;
+  const costClass = meta.cost < 1 ? 'light' : meta.cost < 5 ? 'medium' : 'heavy';
+  const expandedClass = isExpanded ? ' expanded' : '';
+  const disabledClass = !fx.active ? ' disabled' : '';
+  const glassClass = meta.isGlass ? ' glass' : '';
+
+  return `
+    <div class="fx-effect-card${expandedClass}${disabledClass}${glassClass}" data-fx-id="${fx.id}" draggable="true">
+      <div class="fx-effect-header">
+        <span class="fx-drag-handle" title="اسحب لإعادة الترتيب">⋮⋮</span>
+        <span class="fx-effect-icon">${meta.icon}</span>
+        <span class="fx-effect-name">
+          ${meta.name}<span class="fx-effect-index">#${fx.instanceIndex || idx + 1}</span>
+        </span>
+        <span class="fx-effect-cost ${costClass}">${formatFxNum(meta.cost)}ms</span>
+        <div class="fx-effect-actions">
+          <button type="button" class="fx-effect-action ${fx.active ? 'active' : ''}" data-action="toggle" title="${fx.active ? 'إخفاء' : 'إظهار'}">${fx.active ? '👁' : '🚫'}</button>
+          <button type="button" class="fx-effect-action danger" data-action="delete" title="حذف">🗑</button>
         </div>
       </div>
-      <div class="fx-field-row"><label><span>التمويه (Blur):</span><span class="fx-val-badge">${item.blur || 24}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="blur" min="0" max="60" value="${item.blur || 24}"></div>
-      <div class="fx-field-row-2">
-        <div class="fx-field-row"><label><span>إزاحة X:</span><span class="fx-val-badge">${item.x || 0}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="x" min="-50" max="50" value="${item.x || 0}"></div>
-        <div class="fx-field-row"><label><span>إزاحة Y:</span><span class="fx-val-badge">${item.y || 12}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="y" min="-50" max="50" value="${item.y || 12}"></div>
+      <div class="fx-effect-body">
+        <div class="fx-effect-body-inner">
+          ${meta.isGlass ? `<div class="fx-export-note">⚙️ يعمل فقط عند التصدير</div>` : ''}
+          ${renderFxControls(fx)}
+          <div class="fx-card-actions">
+            <button type="button" class="fx-card-action-btn accent" data-action="duplicate">⧉ تكرار</button>
+            <button type="button" class="fx-card-action-btn" data-action="reset">↺ إعادة ضبط</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFxControls(fx) {
+  const p = fx.params || FX_DEFAULTS[fx.type] || {};
+  const t = fx.type;
+
+  if (t === 'shadow') {
+    return `
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">اللون</span>
+        <input type="color" class="fx-ctrl-color ctrl-input" data-key="color" value="${p.color || '#000000'}">
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="opacity" min="0" max="1" step="0.05" value="${p.opacity ?? 0.4}">
+          <span class="fx-ctrl-value" data-unit="%">${Math.round((p.opacity ?? 0.4) * 100)}%</span>
+        </div>
+      </div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">Blur</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="blur" min="0" max="60" step="1" value="${p.blur ?? 24}">
+          <span class="fx-ctrl-value" data-unit="px">${p.blur ?? 24}px</span>
+        </div>
+      </div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">Y</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="y" min="-40" max="40" step="1" value="${p.y ?? 12}">
+          <span class="fx-ctrl-value" data-unit="px">${p.y ?? 12}px</span>
+        </div>
       </div>
     `;
   }
-  if (item.type === 'glow') {
+
+  if (t === 'glow') {
     return `
-      <div class="fx-field-row"><label><span>لون التوهج:</span></label><input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="color" value="${item.color || '#3b82f6'}"></div>
-      <div class="fx-field-row"><label><span>نصف قطر التوهج:</span><span class="fx-val-badge">${item.blur || 20}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="blur" min="2" max="60" value="${item.blur || 20}"></div>
-      <div class="fx-field-row"><label><span>شدة الإشعاع (Spread):</span><span class="fx-val-badge">${item.spread || 2}x</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="spread" min="1" max="5" value="${item.spread || 2}"></div>
-    `;
-  }
-  if (item.type === 'stroke') {
-    return `
-      <div class="fx-field-row"><label><span>لون الإطار:</span></label><input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="color" value="${item.color || '#3b82f6'}"></div>
-      <div class="fx-field-row"><label><span>سمك الإطار:</span><span class="fx-val-badge">${item.width || 3}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="width" min="1" max="30" value="${item.width || 3}"></div>
-      <div class="fx-field-row"><label><span>نمط الخط:</span></label>
-        <select class="prop-input fx-ctrl" data-idx="${idx}" data-field="style">
-          <option value="solid" ${item.style === 'solid' ? 'selected' : ''}>متصل</option>
-          <option value="dashed" ${item.style === 'dashed' ? 'selected' : ''}>متقطع</option>
-          <option value="dotted" ${item.style === 'dotted' ? 'selected' : ''}>نقاط</option>
-        </select>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">اللون</span>
+        <input type="color" class="fx-ctrl-color ctrl-input" data-key="color" value="${p.color || '#3b82f6'}">
+      </div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">Blur</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="blur" min="2" max="60" step="1" value="${p.blur ?? 20}">
+          <span class="fx-ctrl-value" data-unit="px">${p.blur ?? 20}px</span>
+        </div>
+      </div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">Spread</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="spread" min="1" max="5" step="1" value="${p.spread ?? 2}">
+          <span class="fx-ctrl-value" data-unit="x">${p.spread ?? 2}x</span>
+        </div>
       </div>
     `;
   }
-  if (item.type === 'fill') {
+
+  if (t === 'stroke') {
     return `
-      <div class="fx-field-row"><label><span>نوع التعبئة:</span></label>
-        <select class="prop-input fx-ctrl" data-idx="${idx}" data-field="fillType">
-          <option value="gradient" ${item.fillType !== 'solid' ? 'selected' : ''}>تدرج لوني</option>
-          <option value="solid" ${item.fillType === 'solid' ? 'selected' : ''}>لون خالص</option>
-        </select>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">اللون</span>
+        <input type="color" class="fx-ctrl-color ctrl-input" data-key="color" value="${p.color || '#3b82f6'}">
       </div>
-      <div class="fx-field-row-2">
-        <div class="fx-field-row"><label><span>اللون الأول:</span></label><input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="c1" value="${item.c1 || '#3b82f6'}"></div>
-        <div class="fx-field-row" style="${item.fillType === 'solid' ? 'display:none' : ''}"><label><span>اللون الثاني:</span></label><input type="color" class="shlib-color-pick fx-ctrl" data-idx="${idx}" data-field="c2" value="${item.c2 || '#9333ea'}"></div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">السماكة</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="width" min="1" max="20" step="1" value="${p.width ?? 3}">
+          <span class="fx-ctrl-value" data-unit="px">${p.width ?? 3}px</span>
+        </div>
       </div>
-      <div class="fx-field-row" style="${item.fillType === 'solid' ? 'display:none' : ''}"><label><span>زاوية التدرج:</span><span class="fx-val-badge">${item.angle || 45}°</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="angle" min="0" max="360" value="${item.angle || 45}"></div>
     `;
   }
-  if (item.type === 'blur') {
-    return `<div class="fx-field-row"><label><span>شدة التمويه:</span><span class="fx-val-badge">${item.val || 6}px</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="val" min="1" max="40" value="${item.val || 6}"></div>`;
-  }
-  if (item.type === 'tilt') {
+
+  if (t === 'fill') {
     return `
-      <div class="fx-field-row"><label><span>ميلان رأسي (X Tilt):</span><span class="fx-val-badge">${item.rx || 0}°</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="rx" min="-45" max="45" value="${item.rx || 0}"></div>
-      <div class="fx-field-row"><label><span>ميلان أفقي (Y Tilt):</span><span class="fx-val-badge">${item.ry || 0}°</span></label><input type="range" class="fx-slider fx-ctrl" data-idx="${idx}" data-field="ry" min="-45" max="45" value="${item.ry || 0}"></div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">الألوان</span>
+        <input type="color" class="fx-ctrl-color ctrl-input" data-key="c1" value="${p.c1 || '#3b82f6'}">
+        <input type="color" class="fx-ctrl-color ctrl-input" data-key="c2" value="${p.c2 || '#9333ea'}">
+      </div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">الزاوية</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="angle" min="0" max="360" step="1" value="${p.angle ?? 45}">
+          <span class="fx-ctrl-value" data-unit="°">${p.angle ?? 45}°</span>
+        </div>
+      </div>
     `;
   }
+
+  if (t === 'blur') {
+    return `
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">الشدة</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="val" min="1" max="40" step="1" value="${p.val ?? 8}">
+          <span class="fx-ctrl-value" data-unit="px">${p.val ?? 8}px</span>
+        </div>
+      </div>
+    `;
+  }
+
+  if (t === 'tilt') {
+    return `
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">X</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="rx" min="-45" max="45" step="1" value="${p.rx ?? 15}">
+          <span class="fx-ctrl-value" data-unit="°">${p.rx ?? 15}°</span>
+        </div>
+      </div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">Y</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="ry" min="-45" max="45" step="1" value="${p.ry ?? -15}">
+          <span class="fx-ctrl-value" data-unit="°">${p.ry ?? -15}°</span>
+        </div>
+      </div>
+    `;
+  }
+
+  if (t === 'liquid-glass') {
+    return `
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">Blur</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="blur" min="4" max="40" step="1" value="${p.blur ?? 18}">
+          <span class="fx-ctrl-value" data-unit="px">${p.blur ?? 18}px</span>
+        </div>
+      </div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">انكسار</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="refraction" min="0" max="0.5" step="0.01" value="${p.refraction ?? 0.15}">
+          <span class="fx-ctrl-value">${formatFxNum(p.refraction ?? 0.15)}</span>
+        </div>
+      </div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">انحراف</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="aberration" min="0" max="0.1" step="0.005" value="${p.aberration ?? 0.03}">
+          <span class="fx-ctrl-value">${formatFxNum(p.aberration ?? 0.03)}</span>
+        </div>
+      </div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">حافة</span>
+        <div class="fx-ctrl-slider-wrap">
+          <input type="range" class="fx-ctrl-slider ctrl-input" data-key="edgeGlow" min="0" max="1" step="0.05" value="${p.edgeGlow ?? 0.6}">
+          <span class="fx-ctrl-value">${formatFxNum(p.edgeGlow ?? 0.6)}</span>
+        </div>
+      </div>
+      <div class="fx-ctrl-row">
+        <span class="fx-ctrl-label">اللون</span>
+        <input type="color" class="fx-ctrl-color ctrl-input" data-key="tint" value="${p.tint || '#ffffff'}">
+      </div>
+    `;
+  }
+
   return '';
 }
 
-function wireEffectControls(panel, el, fxList) {
-  panel.querySelectorAll('.fx-ctrl').forEach(ctrl => {
-    const idx = parseInt(ctrl.dataset.idx, 10);
-    const field = ctrl.dataset.field;
-    const it = fxList[idx];
-    if (!it) return;
+/* ─── Wire all handlers ─── */
+function wireFxPanel(panel, el, fxList) {
+  const corePromise = import('./core.js');
 
-    const handler = () => {
-      let val = ctrl.value;
-      if (['opacity', 'blur', 'x', 'y', 'spread', 'width', 'angle', 'val', 'rx', 'ry'].includes(field)) val = parseFloat(val) || 0;
-      it[field] = val;
-      const badge = ctrl.closest('.fx-field-row')?.querySelector('.fx-val-badge');
-      if (badge) {
-        if (field === 'opacity') badge.textContent = Math.round(val * 100) + '%';
-        else if (['blur', 'x', 'y', 'width', 'val'].includes(field)) badge.textContent = val + 'px';
-        else if (field === 'spread') badge.textContent = val + 'x';
-        else if (['angle', 'rx', 'ry'].includes(field)) badge.textContent = val + '°';
-      }
+  /* Quick-add */
+  panel.querySelectorAll('[data-add-type]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const type = btn.dataset.addType;
+      const core = await corePromise;
+
+      const newFx = {
+        id: 'fx_' + Math.random().toString(36).slice(2, 9),
+        type,
+        instanceIndex: getNextFxIndex(fxList, type),
+        active: true,
+        params: { ...FX_DEFAULTS[type] },
+        name: FX_TYPES[type]?.name || type,
+      };
+      newFx._expanded = true;
+      fxList.push(newFx);
+
+      const cleanList = fxList.map(f => { const c = {...f}; delete c._expanded; return c; });
+el.dataset.effectsList = JSON.stringify(cleanList);
       applyVisualEffectsToElement(el, fxList);
-      el.dataset.effectsList = JSON.stringify(fxList);
-    };
-
-    ctrl.addEventListener('input', handler);
-    ctrl.addEventListener('change', async () => {
-      handler();
-      const core = await import('./core.js');
       core.commitChange();
+      core.toast(`تم إضافة ${FX_TYPES[type]?.name || type} #${newFx.instanceIndex}`, 'ok');
+      renderEffectsPanel();
+    });
+  });
+
+  /* Presets */
+  panel.querySelectorAll('[data-preset]').forEach(card => {
+    card.addEventListener('click', async () => {
+      const preset = FX_PRESETS.find(p => p.id === card.dataset.preset);
+      if (!preset) return;
+      const core = await corePromise;
+
+      preset.effects.forEach(e => {
+        const newFx = {
+          id: 'fx_' + Math.random().toString(36).slice(2, 9),
+          type: e.type,
+          instanceIndex: getNextFxIndex(fxList, e.type),
+          active: true,
+          params: { ...FX_DEFAULTS[e.type], ...(e.params || {}) },
+          name: FX_TYPES[e.type]?.name || e.type,
+        };
+        fxList.push(newFx);
+      });
+
+      const cleanList = fxList.map(f => { const c = {...f}; delete c._expanded; return c; });
+el.dataset.effectsList = JSON.stringify(cleanList);;
+      applyVisualEffectsToElement(el, fxList);
+      core.commitChange();
+      core.toast(`تم إضافة تركيبة "${preset.name}" (${preset.effects.length} تأثيرات)`, 'ok');
+      renderEffectsPanel();
+    });
+  });
+
+  /* Card actions */
+  panel.querySelectorAll('.fx-effect-card').forEach(card => {
+    const fxId = card.dataset.fxId;
+    const fx = fxList.find(f => f.id === fxId);
+    if (!fx) return;
+
+    // Expand toggle on header click
+    const header = card.querySelector('.fx-effect-header');
+    header?.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      fx._expanded = !fx._expanded;
+      renderEffectsPanel();
+    });
+
+    // Toggle active
+    card.querySelector('[data-action="toggle"]')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const core = await corePromise;
+      fx.active = !fx.active;
+      const cleanList = fxList.map(f => { const c = {...f}; delete c._expanded; return c; });
+el.dataset.effectsList = JSON.stringify(cleanList);
+      applyVisualEffectsToElement(el, fxList);
+      core.commitChange();
+      renderEffectsPanel();
+    });
+
+    // Delete
+    card.querySelector('[data-action="delete"]')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const core = await corePromise;
+      const idx = fxList.findIndex(f => f.id === fxId);
+      if (idx >= 0) fxList.splice(idx, 1);
+      const cleanList = fxList.map(f => { const c = {...f}; delete c._expanded; return c; });
+el.dataset.effectsList = JSON.stringify(cleanList);
+      applyVisualEffectsToElement(el, fxList);
+      core.commitChange();
+      core.toast(`تم حذف ${FX_TYPES[fx.type]?.name || fx.type} #${fx.instanceIndex}`, 'info');
+      renderEffectsPanel();
+    });
+
+    // Duplicate
+    card.querySelector('[data-action="duplicate"]')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const core = await corePromise;
+      const copy = {
+        id: 'fx_' + Math.random().toString(36).slice(2, 9),
+        type: fx.type,
+        instanceIndex: getNextFxIndex(fxList, fx.type),
+        active: true,
+        params: JSON.parse(JSON.stringify(fx.params || {})),
+        name: FX_TYPES[fx.type]?.name || fx.type,
+        _expanded: true,
+      };
+      fxList.push(copy);
+      const cleanList = fxList.map(f => { const c = {...f}; delete c._expanded; return c; });
+el.dataset.effectsList = JSON.stringify(cleanList);
+      applyVisualEffectsToElement(el, fxList);
+      core.commitChange();
+      core.toast(`تم تكرار ${FX_TYPES[fx.type]?.name || fx.type} #${fx.instanceIndex} → #${copy.instanceIndex}`, 'ok');
+      renderEffectsPanel();
+    });
+
+    // Reset
+    card.querySelector('[data-action="reset"]')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const core = await corePromise;
+      fx.params = { ...FX_DEFAULTS[fx.type] };
+      const cleanList = fxList.map(f => { const c = {...f}; delete c._expanded; return c; });
+el.dataset.effectsList = JSON.stringify(cleanList);
+      applyVisualEffectsToElement(el, fxList);
+      core.commitChange();
+      core.toast('تم إعادة ضبط التأثير', 'info');
+      renderEffectsPanel();
+    });
+
+    // Control inputs
+    const controls = card.querySelectorAll('.ctrl-input');
+    let preSnapshot = null;
+    const capturePre = () => { if (!preSnapshot) { import('./core.js').then(c => preSnapshot = c.snapshot()); } };
+
+    controls.forEach(ctrl => {
+      const key = ctrl.dataset.key;
+      ctrl.addEventListener('pointerdown', capturePre);
+      ctrl.addEventListener('focus', capturePre);
+
+      const update = () => {
+        const val = (ctrl.type === 'range') ? parseFloat(ctrl.value) : ctrl.value;
+        if (!fx.params) fx.params = {};
+        fx.params[key] = val;
+
+        // Update display value without re-render
+        const display = ctrl.parentElement.querySelector('.fx-ctrl-value');
+        if (display && ctrl.type === 'range') {
+          const unit = display.dataset.unit || '';
+          if (unit === '%') display.textContent = Math.round(val * 100) + '%';
+          else if (unit === 'px') display.textContent = val + 'px';
+          else if (unit === 'x') display.textContent = val + 'x';
+          else if (unit === '°') display.textContent = val + '°';
+          else display.textContent = formatFxNum(val);
+        }
+
+        // Live apply
+        const cleanList = fxList.map(f => { const c = {...f}; delete c._expanded; return c; });
+el.dataset.effectsList = JSON.stringify(cleanList);
+        applyVisualEffectsToElement(el, fxList);
+      };
+
+      ctrl.addEventListener('input', update);
+      ctrl.addEventListener('change', async () => {
+        update();
+        const core = await corePromise;
+        if (preSnapshot) {
+          core.commitChange(preSnapshot);
+          preSnapshot = null;
+        } else {
+          core.commitChange();
+        }
+      });
+    });
+
+    // Drag & drop
+    card.addEventListener('dragstart', (e) => {
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', fxId);
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      panel.querySelectorAll('.fx-effect-card').forEach(c => {
+        c.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+    });
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const srcId = e.dataTransfer.types.includes('text/plain');
+      if (!srcId) return;
+      const rect = card.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      const isTop = e.clientY < mid;
+      panel.querySelectorAll('.fx-effect-card').forEach(c => {
+        c.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      card.classList.add(isTop ? 'drag-over-top' : 'drag-over-bottom');
+    });
+    card.addEventListener('dragleave', (e) => {
+      if (!card.contains(e.relatedTarget)) {
+        card.classList.remove('drag-over-top', 'drag-over-bottom');
+      }
+    });
+    card.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      card.classList.remove('drag-over-top', 'drag-over-bottom');
+      const srcId = e.dataTransfer.getData('text/plain');
+      if (!srcId || srcId === fxId) return;
+      const core = await corePromise;
+
+      const fromIdx = fxList.findIndex(f => f.id === srcId);
+      const toIdx = fxList.findIndex(f => f.id === fxId);
+      if (fromIdx < 0 || toIdx < 0) return;
+
+      const rect = card.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      const insertBefore = e.clientY < mid;
+
+      const [moved] = fxList.splice(fromIdx, 1);
+      let target = toIdx;
+      if (fromIdx < toIdx) target = insertBefore ? toIdx - 1 : toIdx;
+      else target = insertBefore ? toIdx : toIdx + 1;
+      target = Math.max(0, Math.min(fxList.length, target));
+      fxList.splice(target, 0, moved);
+
+      const cleanList = fxList.map(f => { const c = {...f}; delete c._expanded; return c; });
+el.dataset.effectsList = JSON.stringify(cleanList);
+      applyVisualEffectsToElement(el, fxList);
+      core.commitChange();
+      renderEffectsPanel();
     });
   });
 }
 
-function addEffectOfType(type, el) {
-  const fxList = getEffectsListFromElement(el);
-  const uid = 'fx_' + Math.random().toString(36).slice(2, 8);
-  const defs = {
-    shadow: { id: uid, type: 'shadow', name: 'ظل ساقط', active: true, x: 0, y: 12, blur: 24, color: '#000000', opacity: 0.4 },
-    glow: { id: uid, type: 'glow', name: 'توهج خارجي', active: true, color: '#3b82f6', blur: 20, spread: 2 },
-    stroke: { id: uid, type: 'stroke', name: 'إطار وحدود', active: true, color: '#3b82f6', width: 3, style: 'solid' },
-    fill: { id: uid, type: 'fill', name: 'تعبئة وتدرج', active: true, fillType: 'gradient', c1: '#3b82f6', c2: '#9333ea', angle: 45 },
-    blur: { id: uid, type: 'blur', name: 'تمويه زجاجي', active: true, val: 8 },
-    tilt: { id: uid, type: 'tilt', name: 'بعد ثلاثي الأبعاد', active: true, rx: 15, ry: -15 },
-  };
-  const newFx = defs[type] || { id: uid, type, name: 'تأثير', active: true };
-  fxList.push(newFx);
-  saveAndApplyEffects(el, fxList);
-}
+/* ─── Apply effects visually (updated for liquid-glass) ─── */
+export function applyVisualEffectsToElement(el, effects) {
+  if (!el || !effects) return;
+  const isSvg = el.tagName && ['rect','circle','ellipse','line','polygon','path','g'].includes(el.tagName.toLowerCase());
 
-async function saveAndApplyEffects(el, fxList) {
-  el.dataset.effectsList = JSON.stringify(fxList);
-  applyVisualEffectsToElement(el, fxList);
-  const core = await import('./core.js');
-  core.commitChange();
-  renderEffectsPanel();
+  const fxList = Array.isArray(effects) ? effects : getEffectsListFromElement(el);
+
+  const filters = [];
+  let transformStr = '';
+  let activeStroke = null;
+  let activeFill = null;
+  let hasGlass = false;
+
+  fxList.forEach(item => {
+    if (!item.active) return;
+    if (item.type === 'shadow') {
+      const op = item.opacity != null ? item.opacity : 0.4;
+      let col = item.color || '#000000';
+      if (col.startsWith('#') && col.length === 7) {
+        const r = parseInt(col.slice(1, 3), 16);
+        const g = parseInt(col.slice(3, 5), 16);
+        const b = parseInt(col.slice(5, 7), 16);
+        col = `rgba(${r},${g},${b},${op})`;
+      }
+      filters.push(`drop-shadow(${item.x || 0}px ${item.y || 12}px ${item.blur || 24}px ${col})`);
+    } else if (item.type === 'glow') {
+      const col = item.color || '#3b82f6';
+      const b = item.blur || 20;
+      const repeat = Math.min(3, Math.max(1, item.spread || 1));
+      for (let i = 0; i < repeat; i++) filters.push(`drop-shadow(0 0 ${b}px ${col})`);
+    } else if (item.type === 'blur') {
+      if ((item.val || 0) > 0) filters.push(`blur(${item.val}px)`);
+    } else if (item.type === 'tilt') {
+      transformStr = `perspective(800px) rotateX(${item.rx || 0}deg) rotateY(${item.ry || 0}deg)`;
+    } else if (item.type === 'stroke') {
+      activeStroke = item;
+    } else if (item.type === 'fill') {
+      activeFill = item;
+    } else if (item.type === 'liquid-glass') {
+      hasGlass = true;
+    }
+  });
+
+  const filterStr = filters.join(' ');
+
+  if (isSvg) {
+    el.style.filter = filterStr;
+
+    if (transformStr) {
+      const existing = el.style.transform || '';
+      const rotMatch = existing.match(/rotate\([^)]+\)/);
+      const combined = [rotMatch ? rotMatch[0] : '', transformStr].filter(Boolean).join(' ');
+      el.style.transformBox = 'fill-box';
+      el.style.transformOrigin = 'center center';
+      el.style.transform = combined;
+    }
+
+    if (activeStroke) {
+      el.setAttribute('stroke', activeStroke.color || '#3b82f6');
+      el.setAttribute('stroke-width', activeStroke.width || 3);
+      if (activeStroke.style === 'dashed') el.setAttribute('stroke-dasharray', '8 4');
+      else if (activeStroke.style === 'dotted') el.setAttribute('stroke-dasharray', '2 4');
+      else el.removeAttribute('stroke-dasharray');
+    }
+
+    if (activeFill) {
+      if (activeFill.fillType === 'solid') {
+        el.setAttribute('fill', activeFill.c1 || '#3b82f6');
+      } else {
+        const gradId = 'grad_' + (el.dataset.id || 'fx');
+        let defs = document.getElementById('svgDefs');
+        if (!defs) {
+          defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+          defs.id = 'svgDefs';
+          document.body.appendChild(defs);
+        }
+        let grad = defs.querySelector('#' + gradId);
+        if (!grad) {
+          grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+          grad.id = gradId;
+          defs.appendChild(grad);
+        }
+        const ang = (activeFill.angle || 45) * Math.PI / 180;
+        grad.setAttribute('x1', Math.round(50 - Math.cos(ang) * 50) + '%');
+        grad.setAttribute('y1', Math.round(50 - Math.sin(ang) * 50) + '%');
+        grad.setAttribute('x2', Math.round(50 + Math.cos(ang) * 50) + '%');
+        grad.setAttribute('y2', Math.round(50 + Math.sin(ang) * 50) + '%');
+        grad.innerHTML = `<stop offset="0%" stop-color="${activeFill.c1 || '#3b82f6'}"/><stop offset="100%" stop-color="${activeFill.c2 || '#9333ea'}"/>`;
+        el.setAttribute('fill', `url(#${gradId})`);
+      }
+    }
+
+    // liquid-glass: CSS approximation for preview only
+    if (hasGlass) {
+      const g = fxList.find(f => f.active && f.type === 'liquid-glass');
+      el.style.backdropFilter = `blur(${g.blur || 18}px) saturate(1.4)`;
+      el.style.webkitBackdropFilter = `blur(${g.blur || 18}px) saturate(1.4)`;
+    } else {
+      el.style.backdropFilter = '';
+      el.style.webkitBackdropFilter = '';
+    }
+  } else {
+    el.style.filter = filterStr;
+    if (transformStr) {
+      el.style.transform = transformStr;
+      el.style.transformOrigin = 'center center';
+    }
+    if (activeStroke) el.style.border = `${activeStroke.width || 2}px ${activeStroke.style || 'solid'} ${activeStroke.color || '#3b82f6'}`;
+    if (activeFill) {
+      if (activeFill.fillType === 'solid') el.style.backgroundColor = activeFill.c1 || '#3b82f6';
+      else el.style.background = `linear-gradient(${activeFill.angle || 45}deg, ${activeFill.c1 || '#3b82f6'}, ${activeFill.c2 || '#9333ea'})`;
+    }
+
+    // liquid-glass preview
+    if (hasGlass) {
+      const g = fxList.find(f => f.active && f.type === 'liquid-glass');
+      el.style.backdropFilter = `blur(${g.blur || 18}px) saturate(1.4)`;
+      el.style.webkitBackdropFilter = `blur(${g.blur || 18}px) saturate(1.4)`;
+    } else {
+      el.style.backdropFilter = '';
+      el.style.webkitBackdropFilter = '';
+    }
+  }
 }
 
 /**
