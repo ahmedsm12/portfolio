@@ -45,12 +45,14 @@ self.C3_GetObjectRefTable = function () {
 		C3.Plugins.Sprite.Cnds.IsOverlapping,
 		C3.Plugins.Sprite.Acts.SetOpacity,
 		C3.Plugins.System.Cnds.Else,
-		C3.Plugins.Text.Acts.SetText,
+		C3.Plugins.System.Cnds.OnLoadFinished,
 		C3.Plugins.Browser.Exps.URL,
+		C3.Plugins.System.Exps.random,
 		C3.Plugins.Text.Cnds.CompareInstanceVar,
 		C3.Behaviors.Tween.Acts.TweenValue,
 		C3.Plugins.Particles.Acts.SetRate,
 		C3.Behaviors.Tween.Cnds.IsPlaying,
+		C3.Plugins.Text.Acts.SetText,
 		C3.Plugins.System.Exps.int,
 		C3.Behaviors.Tween.Exps.Value
 	];
@@ -101,7 +103,8 @@ self.C3_JsPropNameTable = [
 	{posX5: 0},
 	{posY5: 0},
 	{posX6: 0},
-	{posY6: 0}
+	{posY6: 0},
+	{cc: 0}
 ];
 
 self.InstanceType = {

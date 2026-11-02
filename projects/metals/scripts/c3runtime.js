@@ -1533,6 +1533,15 @@ self.C3_ExpressionFuncs = [
 			const f0 = p._GetNode(0).GetBoundMethod();
 			return () => f0();
 		},
+		() => "https://ahmedsm12.github.io/portfolio/projects/metals/",
+		p => {
+			const f0 = p._GetNode(0).GetBoundMethod();
+			return () => f0(0, 100);
+		},
+		p => {
+			const f0 = p._GetNode(0).GetBoundMethod();
+			return () => f0(101, 200);
+		},
 		() => 0.2,
 		() => 191,
 		() => 12,
