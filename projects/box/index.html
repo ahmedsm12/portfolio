@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="منصة صندوق العلوم (Science Box) - بوابة الألعاب التعليمية التفاعلية الممتعة للعلوم، إعداد وتطوير: أحمد صبحي.">
+  <title>صندوق العلوم | Science Box - أ. أحمد صبحي</title>
+
+  <!-- Google Fonts (Tajawal & Readex Pro) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Favicon using logo -->
+  <link rel="icon" type="image/png" href="logo.png">
+</head>
+<body>
+
+  <!-- Background Animated Cosmic Orbs -->
+  <div class="cosmic-canvas" aria-hidden="true">
+    <div class="cosmic-orb orb-1"></div>
+    <div class="cosmic-orb orb-2"></div>
+    <div class="cosmic-orb orb-3"></div>
+  </div>
+
+  <!-- Header / Navigation -->
+  <header class="site-header">
+    <div class="container navbar">
+      <a href="#" class="brand-wrapper" aria-label="صندوق العلوم - الرئيسية">
+        <img src="logo.png" alt="شعار صندوق العلوم Science Box" class="brand-logo-img">
+        <div class="brand-text">
+          <span class="brand-title">Science Box</span>
+          <span class="brand-tagline">صندوق العلوم • إعداد: أحمد صبحي</span>
+        </div>
+      </a>
+
+      <div class="nav-actions">
+        <!-- Sound Effect Toggle -->
+        <button type="button" class="nav-btn" id="soundToggleBtn" title="تشغيل أو كتم المؤثرات الصوتية">
+          <span>🔊</span>
+          <span>المؤثرات: تشغيل</span>
+        </button>
+
+        <!-- Theme Toggle -->
+        <button type="button" class="nav-btn" id="themeToggleBtn" title="التبديل بين الوضع الليلي والنهاري">
+          <span>☀️</span>
+          <span>الوضع النهاري</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main>
+    <!-- Hero Showcase Section (Light & Compact) -->
+    <section class="hero-section">
+      <div class="container">
+        
+        <!-- Central Logo Showcase with Glowing Science Badges -->
+        <div class="hero-logo-showcase">
+          <div class="hero-logo-box">
+            <img src="logo.png" alt="Science Box صندوق العلوم" class="hero-logo-img">
+          </div>
+          <!-- Floating Science Elements -->
+          <div class="floating-science-icon icon-atom" title="فيزياء وذرات">⚛️</div>
+          <div class="floating-science-icon icon-flask" title="تجارب وكيمياء">🧪</div>
+          <div class="floating-science-icon icon-planet" title="فضاء وكواكب">🪐</div>
+          <div class="floating-science-icon icon-sparkle" title="استكشاف واكتشاف">✨</div>
+        </div>
+
+        <div class="hero-badge">
+          <span>✨</span>
+          <span>بوابة الألعاب العلمية المنهجية التفاعلية</span>
+          <span class="badge-separator">•</span>
+          <span>إعداد وتطوير: <strong>أحمد صبحي</strong></span>
+        </div>
+
+        <h1 class="hero-title">
+          عالم العلوم بين يديك... <br>
+          <span class="highlight">تعلّم، استكشف، والعب!</span>
+        </h1>
+
+        <p class="hero-subtitle">
+          مجموعة شيّقة من أفضل الألعاب والمحاكاة التعليمية المصممة بعناية لتبسيط مفاهيم الفيزياء، الكيمياء، الأحياء، والفلك بأسلوب تفاعلي ممتع يناسب جميع المراحل الدراسية.
+        </p>
+
+      </div>
+    </section>
+
+    <!-- Games Portal Section -->
+    <section class="container" id="gamesSection">
+      
+      <!-- Interactive Filter & Search Controls -->
+      <div class="controls-bar">
+        <!-- Live Search -->
+        <div class="search-box-wrapper">
+          <span class="search-icon" aria-hidden="true">🔎</span>
+          <input 
+            type="search" 
+            id="searchInput" 
+            class="search-input" 
+            placeholder="ابحث باسم اللعبة أو المفهوم العلمي (مثال: انعكاس، كواكب، فلزات، تصنيف)..."
+            aria-label="ابحث في الألعاب التعليمية"
+          >
+          <button type="button" id="searchClearBtn" class="search-clear-btn" title="مسح البحث">✕</button>
+        </div>
+
+        <!-- Category Filter Pills -->
+        <div class="filter-pills" id="filterPills" role="toolbar" aria-label="تصفية الألعاب حسب التخصص">
+          <!-- Populated dynamically via app.js -->
+        </div>
+      </div>
+
+      <!-- Games Grid -->
+      <div class="games-grid" id="gamesGrid" aria-live="polite">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Game Details Modal Dialog -->
+  <div class="modal-backdrop" id="gameModal" role="dialog" aria-modal="true" aria-labelledby="modalGameTitle">
+    <div class="modal-window">
+      <button type="button" class="modal-close-btn" id="modalCloseBtn" aria-label="إغلاق النافذة">✕</button>
+      <div id="modalBody">
+        <!-- Injected via openGameModal() in app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Toast Notification -->
+  <div class="toast-notice" id="toastNotice" role="status" aria-live="polite"></div>
+
+  <!-- Site Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <img src="logo.png" alt="Science Box" class="footer-logo">
+          <div>
+            <div class="footer-brand-title">صندوق العلوم | Science Box</div>
+            <div class="footer-brand-desc">إعداد وتطوير الأستاذ: <strong>أحمد صبحي</strong></div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <a href="#gamesSection" class="btn-secondary" style="padding: 8px 18px; font-size: 0.88rem;">
+            <span>🎮</span>
+            <span>قائمة الألعاب</span>
+          </a>
+          <button type="button" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn-secondary" style="padding: 8px 18px; font-size: 0.88rem;">
+            <span>⬆️</span>
+            <span>أعلى الصفحة</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>جميع الحقوق محفوظة © صندوق العلوم (Science Box) 2026 • تصميم وتطوير: <strong>أحمد صبحي</strong></p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Main JavaScript File -->
+  <script src="app.js"></script>
+</body>
+</html>
