@@ -2,7 +2,10 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0b0f19">
   <meta name="description" content="منصة صندوق العلوم (Science Box) - بوابة الألعاب التعليمية التفاعلية الممتعة للعلوم، إعداد وتطوير: أحمد صبحي.">
   <title>صندوق العلوم | Science Box - أ. أحمد صبحي</title>
 
@@ -30,24 +33,21 @@
   <header class="site-header">
     <div class="container navbar">
       <a href="#" class="brand-wrapper" aria-label="صندوق العلوم - الرئيسية">
-        <img src="logo.png" alt="شعار صندوق العلوم Science Box" class="brand-logo-img">
         <div class="brand-text">
           <span class="brand-title">Science Box</span>
-          <span class="brand-tagline">صندوق العلوم</span>
+          <span class="brand-tagline">صندوق العلوم • أ. أحمد صبحي</span>
         </div>
       </a>
 
       <div class="nav-actions">
         <!-- Sound Effect Toggle -->
-        <button type="button" class="nav-btn" id="soundToggleBtn" title="تشغيل أو كتم المؤثرات الصوتية">
-          <span>🔊</span>
-          <span>المؤثرات: تشغيل</span>
+        <button type="button" class="nav-btn" id="soundToggleBtn" title="تشغيل أو كتم المؤثرات الصوتية" aria-label="المؤثرات الصوتية">
+          <span class="nav-btn-icon">🔊</span>
         </button>
 
         <!-- Theme Toggle -->
-        <button type="button" class="nav-btn" id="themeToggleBtn" title="التبديل بين الوضع الليلي والنهاري">
-          <span>☀️</span>
-          <span>الوضع النهاري</span>
+        <button type="button" class="nav-btn" id="themeToggleBtn" title="التبديل بين الوضع الليلي والنهاري" aria-label="تبديل الوضع">
+          <span class="nav-btn-icon">☀️</span>
         </button>
       </div>
     </div>

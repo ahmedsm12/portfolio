@@ -211,9 +211,9 @@ function initTheme() {
 
 function updateThemeIcon() {
   if (themeToggleBtn) {
-    themeToggleBtn.innerHTML = state.theme === "dark" 
-      ? `<span>☀️</span><span>الوضع النهاري</span>` 
-      : `<span>🌙</span><span>الوضع الليلي</span>`;
+    const isDark = state.theme === "dark";
+    themeToggleBtn.innerHTML = `<span class="nav-btn-icon">${isDark ? "☀️" : "🌙"}</span>`;
+    themeToggleBtn.title = isDark ? "التبديل إلى الوضع النهاري" : "التبديل إلى الوضع الليلي";
   }
 }
 
@@ -229,9 +229,8 @@ function toggleTheme() {
 function toggleSound() {
   state.soundEnabled = !state.soundEnabled;
   if (soundToggleBtn) {
-    soundToggleBtn.innerHTML = state.soundEnabled 
-      ? `<span>🔊</span><span>المؤثرات: تشغيل</span>` 
-      : `<span>🔇</span><span>المؤثرات: كتم</span>`;
+    soundToggleBtn.innerHTML = `<span class="nav-btn-icon">${state.soundEnabled ? "🔊" : "🔇"}</span>`;
+    soundToggleBtn.title = state.soundEnabled ? "كتم المؤثرات الصوتية" : "تشغيل المؤثرات الصوتية";
   }
   if (state.soundEnabled) playSound("click");
 }
@@ -289,30 +288,31 @@ function renderGames() {
   gamesGrid.innerHTML = filtered.map((game) => `
     <article class="game-card" data-category="${game.category}" id="card-${game.id}">
       <div class="card-thumb-wrapper">
-        <img 
-          src="${game.thumb}" 
-          alt="${game.title}" 
-          class="card-thumb-img" 
-          loading="lazy" 
-          onerror="this.onerror=null; this.src='${game.fallbackThumb}';"
+        <a 
+          href="${game.url}" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          class="card-thumb-link"
+          onclick="handleGameLaunch('${game.id}', '${game.title}')"
+          aria-label="العب ${game.title} في تبويب جديد"
         >
-        <div class="card-thumb-overlay"></div>
+          <img 
+            src="${game.thumb}" 
+            alt="${game.title}" 
+            class="card-thumb-img" 
+            loading="lazy" 
+            onerror="this.onerror=null; this.src='${game.fallbackThumb}';"
+          >
+          <div class="card-thumb-overlay"></div>
+          <div class="card-play-hover">
+            <div class="play-circle-btn">▶</div>
+          </div>
+        </a>
         
         <span class="card-badge">
           <span>${game.badgeIcon}</span>
           <span>${game.categoryLabel}</span>
         </span>
-
-        <a 
-          href="${game.url}" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          class="card-play-hover"
-          onclick="handleGameLaunch('${game.id}', '${game.title}')"
-          aria-label="العب ${game.title} في تبويب جديد"
-        >
-          <div class="play-circle-btn">▶</div>
-        </a>
       </div>
 
       <div class="card-body">
