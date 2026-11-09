@@ -602,7 +602,7 @@
       box-shadow: var(--shadow-md);
     }
 
-    /* Fullscreen Styles */
+    /* Fullscreen Styles - Hide Toolbar & Expand Stage 100% */
     .player-wrapper:fullscreen,
     .player-wrapper:-webkit-full-screen {
       max-width: 100vw;
@@ -610,9 +610,12 @@
       height: 100vh;
       border: none;
       border-radius: 0;
-      display: flex;
-      flex-direction: column;
       background: #000000;
+    }
+
+    .player-wrapper:fullscreen .player-toolbar,
+    .player-wrapper:-webkit-full-screen .player-toolbar {
+      display: none !important;
     }
 
     .player-toolbar {
@@ -701,11 +704,44 @@
 
     .player-wrapper:fullscreen .player-stage,
     .player-wrapper:-webkit-full-screen .player-stage {
-      flex: 1;
-      max-height: none;
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
+      max-height: 100vh;
       aspect-ratio: auto;
+    }
+
+    /* Floating Exit Fullscreen Icon Over Content */
+    .exit-fullscreen-float-btn {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      z-index: 9999;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+      font-size: 1.25rem;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.65;
+      transition: opacity var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .exit-fullscreen-float-btn:hover {
+      opacity: 1;
+      background: var(--accent-rose);
+      border-color: var(--accent-rose);
+      transform: scale(1.08);
+    }
+
+    .player-wrapper:fullscreen .exit-fullscreen-float-btn,
+    .player-wrapper:-webkit-full-screen .exit-fullscreen-float-btn,
+    .player-wrapper.is-fullscreen .exit-fullscreen-float-btn {
+      display: flex;
     }
 
     .game-iframe {
@@ -1081,6 +1117,14 @@
         font-size: 0.85rem;
       }
 
+      .exit-fullscreen-float-btn {
+        top: 10px;
+        left: 10px;
+        width: 38px;
+        height: 38px;
+        font-size: 1.1rem;
+      }
+
       .site-footer {
         padding-block: 0.5rem;
       }
@@ -1176,7 +1220,7 @@
       <div class="container" style="flex: 1; display: flex; flex-direction: column;">
         <div class="player-wrapper" id="playerWrapper">
           
-          <!-- Player Control Bar -->
+          <!-- Player Control Bar (Hidden automatically in Fullscreen) -->
           <div class="player-toolbar">
             <button type="button" class="player-btn player-btn-back" onclick="closeGamePlayer()" title="العودة إلى القائمة الرئيسة">
               <span>🏠</span>
@@ -1189,13 +1233,24 @@
             </div>
 
             <button type="button" class="player-btn player-btn-fullscreen" id="fullscreenBtn" onclick="toggleGameFullscreen()" title="تكبير اللعبة على كامل الشاشة">
-              <span id="fullscreenIcon">⛶</span>
-              <span id="fullscreenText">ملء الشاشة</span>
+              <span>⛶</span>
+              <span>ملء الشاشة</span>
             </button>
           </div>
 
           <!-- Landscape Game Stage -->
           <div class="player-stage">
+            <!-- Floating Overlay Icon to Exit Fullscreen without shrinking content -->
+            <button 
+              type="button" 
+              class="exit-fullscreen-float-btn" 
+              onclick="toggleGameFullscreen()" 
+              title="تصغير الشاشة" 
+              aria-label="تصغير الشاشة"
+            >
+              🗗
+            </button>
+
             <div class="player-loading" id="playerLoading">
               <span>⏳ جارٍ تحميل اللعبة...</span>
             </div>
@@ -1429,8 +1484,6 @@
     const gameIframe = document.getElementById("gameIframe");
     const playerGameTitle = document.getElementById("playerGameTitle");
     const playerLoading = document.getElementById("playerLoading");
-    const fullscreenIcon = document.getElementById("fullscreenIcon");
-    const fullscreenText = document.getElementById("fullscreenText");
 
     const gamesGrid = document.getElementById("gamesGrid");
     const searchInput = document.getElementById("searchInput");
@@ -1622,9 +1675,8 @@
 
     function updateFullscreenButtonUI() {
       const isFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
-      if (fullscreenIcon && fullscreenText) {
-        fullscreenIcon.textContent = isFullscreen ? "🗗" : "⛶";
-        fullscreenText.textContent = isFullscreen ? "تصغير الشاشة" : "ملء الشاشة";
+      if (playerWrapper) {
+        playerWrapper.classList.toggle("is-fullscreen", isFullscreen);
       }
     }
 
