@@ -9,133 +9,1221 @@
   <meta name="description" content="منصة صندوق العلوم (Science Box) - بوابة الألعاب التعليمية التفاعلية الممتعة للعلوم، إعداد وتطوير: أحمد صبحي.">
   <title>صندوق العلوم | Science Box - أ. أحمد صبحي</title>
 
-  <!-- Google Fonts (Tajawal & Readex Pro) -->
+  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@500;700;800&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 
-  <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="style.css">
-
-  <!-- Favicon using logo -->
   <link rel="icon" type="image/png" href="logo.png">
+
+  <style>
+    /* ==========================================================================
+       Science Box - Lightweight Single-File Stylesheet
+       ========================================================================== */
+    :root {
+      --bg-primary: #0b0f19;
+      --bg-secondary: #111827;
+      --bg-card: #161f33;
+      --bg-card-hover: #1e293b;
+      --bg-surface: #1e293b;
+      --border-color: #283548;
+      --border-accent: #6366f1;
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --secondary: #06b6d4;
+      --accent-rose: #f43f5e;
+      --accent-emerald: #10b981;
+
+      --scrollbar-track: #0b0f19;
+      --scrollbar-thumb: #283548;
+      --scrollbar-thumb-hover: #6366f1;
+
+      --font-arabic: 'Tajawal', system-ui, -apple-system, sans-serif;
+      --font-heading: 'Readex Pro', 'Tajawal', sans-serif;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --radius-xl: 24px;
+      --radius-full: 9999px;
+
+      --transition-fast: 0.15s ease;
+      --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.25);
+      --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.35);
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #f8fafc;
+      --bg-secondary: #f1f5f9;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f8fafc;
+      --bg-surface: #e2e8f0;
+      --border-color: #cbd5e1;
+      --border-accent: #4f46e5;
+
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #64748b;
+
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+
+      --scrollbar-track: #f1f5f9;
+      --scrollbar-thumb: #cbd5e1;
+      --scrollbar-thumb-hover: #4f46e5;
+
+      --shadow-sm: 0 2px 5px rgba(15, 23, 42, 0.06);
+      --shadow-md: 0 6px 16px rgba(15, 23, 42, 0.1);
+    }
+
+    /* Custom Scrollbar */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--scrollbar-track);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+      border-radius: var(--radius-full);
+      border: 2px solid var(--scrollbar-track);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--scrollbar-thumb-hover);
+    }
+
+    /* Base Reset */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 16px;
+      direction: rtl;
+    }
+
+    body {
+      font-family: var(--font-arabic);
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1240px;
+      margin-inline: auto;
+      padding-inline: 1.25rem;
+    }
+
+    /* Header & Navbar */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .navbar {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 68px;
+    }
+
+    .brand-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .brand-title {
+      font-family: var(--font-heading);
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--primary);
+      line-height: 1.2;
+    }
+
+    .brand-tagline {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .nav-actions {
+      position: absolute;
+      left: 1.25rem;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    }
+
+    .nav-btn:hover {
+      border-color: var(--primary);
+      background: var(--bg-card-hover);
+    }
+
+    /* Hero Section */
+    .hero-section {
+      padding-block: 1.8rem 1.2rem;
+      text-align: center;
+    }
+
+    .hero-section .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .hero-logo-showcase {
+      margin-bottom: 1rem;
+      max-width: 220px;
+      width: 100%;
+    }
+
+    .hero-logo-img {
+      width: 100%;
+      max-width: 220px;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 1rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--primary);
+      padding: 5px 16px;
+      border-radius: var(--radius-full);
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+
+    .hero-title {
+      font-family: var(--font-heading);
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      line-height: 1.3;
+      margin-bottom: 0.8rem;
+    }
+
+    .hero-title .highlight {
+      color: var(--secondary);
+    }
+
+    .hero-subtitle {
+      font-size: 1rem;
+      color: var(--text-muted);
+      max-width: 700px;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      margin-bottom: 2rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 1rem;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .search-box-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    .search-icon {
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 1rem;
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 44px 12px 40px;
+      border-radius: var(--radius-full);
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      font-size: 0.95rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color var(--transition-fast);
+    }
+
+    .search-input:focus {
+      border-color: var(--primary);
+    }
+
+    .search-clear-btn {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 1rem;
+      cursor: pointer;
+      display: none;
+    }
+
+    .search-clear-btn.visible {
+      display: block;
+    }
+
+    /* Filter Pills */
+    .filter-pills {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .filter-pill {
+      white-space: nowrap;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 7px 16px;
+      border-radius: var(--radius-full);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+    }
+
+    .filter-pill:hover {
+      color: var(--text-main);
+      border-color: var(--primary);
+    }
+
+    .filter-pill.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+
+    .filter-pill .pill-count {
+      font-size: 0.75rem;
+      background: rgba(255, 255, 255, 0.15);
+      padding: 1px 6px;
+      border-radius: var(--radius-full);
+    }
+
+    /* Games Grid */
+    .games-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    /* Game Card */
+    .game-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform var(--transition-fast), border-color var(--transition-fast);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .game-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--card-accent, var(--primary));
+    }
+
+    .card-thumb-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background-color: #0f172a;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .card-thumb-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .card-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 2;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--card-accent, var(--border-color));
+      color: #ffffff;
+    }
+
+    .card-play-hover {
+      position: absolute;
+      inset: 0;
+      background: rgba(11, 15, 25, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+    }
+
+    .card-thumb-wrapper:hover .card-play-hover {
+      opacity: 1;
+    }
+
+    .play-circle-btn {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--card-accent, var(--primary));
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+    }
+
+    .card-body {
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+    }
+
+    .card-title {
+      font-family: var(--font-heading);
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--text-main);
+      margin-bottom: 0.25rem;
+    }
+
+    .card-english-title {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      direction: ltr;
+      text-align: right;
+      margin-bottom: 0.65rem;
+    }
+
+    .card-description {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin-bottom: 1rem;
+      flex-grow: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 1.1rem;
+    }
+
+    .tag-item {
+      font-size: 0.75rem;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-dim);
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+    }
+
+    .card-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: auto;
+      padding-top: 0.9rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .btn-card-play {
+      flex: 1;
+      background: var(--card-accent, var(--primary));
+      color: #ffffff;
+      padding: 9px 16px;
+      border-radius: var(--radius-full);
+      font-size: 0.92rem;
+      font-weight: 700;
+      font-family: inherit;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity var(--transition-fast);
+    }
+
+    .btn-card-play:hover {
+      opacity: 0.92;
+    }
+
+    .btn-card-info {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      transition: border-color var(--transition-fast), color var(--transition-fast);
+    }
+
+    .btn-card-info:hover {
+      color: var(--text-main);
+      border-color: var(--primary);
+    }
+
+    .game-card[data-category="physics"] { --card-accent: #06b6d4; }
+    .game-card[data-category="biology"] { --card-accent: #10b981; }
+    .game-card[data-category="space"] { --card-accent: #8b5cf6; }
+    .game-card[data-category="chemistry"] { --card-accent: #f43f5e; }
+    .game-card[data-category="light-sources"] { --card-accent: #f59e0b; }
+
+    /* ==========================================================================
+       In-Page Landscape Game Player View
+       ========================================================================== */
+    .game-player-view {
+      display: none;
+      flex-direction: column;
+      width: 100%;
+      flex: 1;
+      background: var(--bg-primary);
+      padding-block: 1rem 2rem;
+    }
+
+    .game-player-view.active {
+      display: flex;
+    }
+
+    .player-wrapper {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 1180px;
+      margin-inline: auto;
+      background: #000000;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+    }
+
+    /* Fullscreen Styles */
+    .player-wrapper:fullscreen,
+    .player-wrapper:-webkit-full-screen {
+      max-width: 100vw;
+      width: 100vw;
+      height: 100vh;
+      border: none;
+      border-radius: 0;
+      display: flex;
+      flex-direction: column;
+      background: #000000;
+    }
+
+    .player-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 10;
+    }
+
+    .player-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 8px 16px;
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    }
+
+    .player-btn:hover {
+      border-color: var(--primary);
+      background: var(--bg-card-hover);
+    }
+
+    .player-btn-back {
+      background: rgba(244, 63, 94, 0.12);
+      border-color: rgba(244, 63, 94, 0.4);
+      color: #fda4af;
+    }
+
+    [data-theme="light"] .player-btn-back {
+      color: #e11d48;
+    }
+
+    .player-btn-back:hover {
+      background: var(--accent-rose);
+      border-color: var(--accent-rose);
+      color: #ffffff;
+    }
+
+    .player-btn-fullscreen {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #ffffff;
+    }
+
+    .player-btn-fullscreen:hover {
+      background: var(--primary-hover);
+    }
+
+    .player-title-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-heading);
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-main);
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Landscape 16:9 Stage */
+    .player-stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: calc(100vh - 150px);
+      background: #000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .player-wrapper:fullscreen .player-stage,
+    .player-wrapper:-webkit-full-screen .player-stage {
+      flex: 1;
+      max-height: none;
+      width: 100%;
+      height: 100%;
+      aspect-ratio: auto;
+    }
+
+    .game-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      background: #000000;
+    }
+
+    .player-loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: #0b0f19;
+      color: #f8fafc;
+      font-weight: 700;
+      z-index: 1;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .player-loading.hidden {
+      opacity: 0;
+    }
+
+    /* Buttons */
+    .btn-primary, .btn-secondary {
+      padding: 10px 20px;
+      border-radius: var(--radius-full);
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: inherit;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border-color: var(--border-color);
+    }
+
+    /* Empty State */
+    .no-results {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 3rem 1.5rem;
+      background: var(--bg-card);
+      border: 1px dashed var(--border-color);
+      border-radius: var(--radius-lg);
+    }
+
+    /* Modal Dialog */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-window {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      max-width: 600px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-md);
+      position: relative;
+    }
+
+    .modal-header-img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .modal-close-btn {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+
+    .modal-close-btn:hover {
+      background: var(--accent-rose);
+    }
+
+    .modal-content-body {
+      padding: 1.5rem;
+    }
+
+    .modal-game-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: var(--bg-surface);
+      color: var(--primary);
+      margin-bottom: 0.6rem;
+    }
+
+    .modal-game-title {
+      font-family: var(--font-heading);
+      font-size: 1.45rem;
+      font-weight: 800;
+      margin-bottom: 0.2rem;
+    }
+
+    .modal-game-subtitle {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      direction: ltr;
+      text-align: right;
+    }
+
+    .modal-section-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin-top: 1rem;
+      margin-bottom: 0.35rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--secondary);
+    }
+
+    .modal-game-desc {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+
+    .modal-objectives-list {
+      padding-right: 1.2rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      line-height: 1.7;
+    }
+
+    .modal-footer-actions {
+      display: flex;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    /* Footer */
+    .site-footer {
+      border-top: 1px solid var(--border-color);
+      background-color: var(--bg-secondary);
+      padding-block: 2rem 1.5rem;
+      margin-top: auto;
+    }
+
+    .footer-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.2rem;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .footer-logo {
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+    }
+
+    .footer-brand-title {
+      font-family: var(--font-heading);
+      font-weight: 800;
+      font-size: 1.1rem;
+    }
+
+    .footer-brand-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .footer-bottom {
+      text-align: center;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+      font-size: 0.82rem;
+      color: var(--text-dim);
+    }
+
+    /* ==========================================================================
+       Mobile & Responsive Optimizations
+       ========================================================================== */
+    @media (max-width: 768px) {
+      .container {
+        padding-inline: 10px;
+      }
+
+      .navbar {
+        height: 52px;
+      }
+
+      .brand-title {
+        font-size: 1.05rem;
+      }
+
+      .brand-tagline {
+        font-size: 0.68rem;
+      }
+
+      .nav-actions {
+        left: 8px;
+        gap: 6px;
+      }
+
+      .nav-btn {
+        width: 34px;
+        height: 34px;
+        font-size: 1rem;
+      }
+
+      .hero-section {
+        padding-block: 0.4rem 0.2rem;
+      }
+
+      .hero-logo-showcase {
+        margin-bottom: 0.2rem;
+        max-width: 75px;
+      }
+
+      .hero-logo-img {
+        max-width: 75px;
+      }
+
+      .hero-badge {
+        padding: 2px 10px;
+        font-size: 0.72rem;
+        margin-bottom: 0.3rem;
+      }
+
+      .hero-title,
+      .hero-subtitle {
+        display: none !important;
+      }
+
+      .controls-bar {
+        margin-bottom: 0.5rem;
+        padding: 0.4rem;
+        gap: 0.35rem;
+      }
+
+      .search-input {
+        height: 34px;
+        padding: 6px 34px 6px 28px;
+        font-size: 0.8rem;
+      }
+
+      .filter-pill {
+        padding: 4px 10px;
+        font-size: 0.74rem;
+      }
+
+      .games-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-bottom: 0.5rem;
+      }
+
+      .card-thumb-wrapper {
+        aspect-ratio: 16 / 10;
+      }
+
+      .card-badge {
+        top: 5px;
+        right: 5px;
+        padding: 2px 6px;
+        font-size: 0.62rem;
+      }
+
+      .card-body {
+        padding: 6px;
+      }
+
+      .card-title {
+        font-size: 0.78rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .card-english-title {
+        font-size: 0.62rem;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .card-description,
+      .card-tags {
+        display: none !important;
+      }
+
+      .card-actions {
+        padding-top: 4px;
+        gap: 4px;
+      }
+
+      .btn-card-play {
+        padding: 4px 6px;
+        font-size: 0.72rem;
+        border-radius: var(--radius-sm);
+      }
+
+      .btn-card-info {
+        width: 26px;
+        height: 26px;
+        font-size: 0.75rem;
+      }
+
+      /* Mobile Game Player Toolbar */
+      .player-toolbar {
+        padding: 8px 10px;
+      }
+
+      .player-btn {
+        padding: 6px 10px;
+        font-size: 0.78rem;
+        gap: 5px;
+      }
+
+      .player-title-box {
+        font-size: 0.85rem;
+      }
+
+      .site-footer {
+        padding-block: 0.5rem;
+      }
+
+      .footer-top {
+        display: none !important;
+      }
+
+      .footer-bottom {
+        padding-top: 0;
+        border-top: none;
+        font-size: 0.68rem;
+      }
+    }
+  </style>
 </head>
 <body>
-
-  <!-- Background Animated Cosmic Orbs -->
-  <div class="cosmic-canvas" aria-hidden="true">
-    <div class="cosmic-orb orb-1"></div>
-    <div class="cosmic-orb orb-2"></div>
-    <div class="cosmic-orb orb-3"></div>
-  </div>
 
   <!-- Header / Navigation -->
   <header class="site-header">
     <div class="container navbar">
-      <a href="#" class="brand-wrapper" aria-label="صندوق العلوم - الرئيسية">
+      <a onclick="closeGamePlayer()" class="brand-wrapper" aria-label="صندوق العلوم - الرئيسية">
         <div class="brand-text">
           <span class="brand-title">Science Box</span>
-          <span class="brand-tagline">صندوق العلوم </span>
+          <span class="brand-tagline">صندوق العلوم</span>
         </div>
       </a>
 
       <div class="nav-actions">
-        <!-- Sound Effect Toggle -->
         <button type="button" class="nav-btn" id="soundToggleBtn" title="تشغيل أو كتم المؤثرات الصوتية" aria-label="المؤثرات الصوتية">
-          <span class="nav-btn-icon">🔊</span>
+          <span>🔊</span>
         </button>
 
-        <!-- Theme Toggle -->
         <button type="button" class="nav-btn" id="themeToggleBtn" title="التبديل بين الوضع الليلي والنهاري" aria-label="تبديل الوضع">
-          <span class="nav-btn-icon">☀️</span>
+          <span>☀️</span>
         </button>
       </div>
     </div>
   </header>
 
   <!-- Main Content Area -->
-  <main>
-    <!-- Hero Showcase Section (Light & Compact) -->
-    <section class="hero-section">
-      <div class="container">
-        
-        <!-- Central Logo Showcase with Glowing Science Badges -->
-        <div class="hero-logo-showcase">
-          <div class="hero-logo-box">
+  <main style="flex: 1; display: flex; flex-direction: column;">
+    
+    <!-- Home Portal View -->
+    <div id="portalView">
+      <!-- Hero Showcase Section -->
+      <section class="hero-section">
+        <div class="container">
+          <div class="hero-logo-showcase">
             <img src="logo.png" alt="Science Box صندوق العلوم" class="hero-logo-img">
           </div>
-          <!-- Floating Science Elements -->
-          <div class="floating-science-icon icon-atom" title="فيزياء وذرات">⚛️</div>
-          <div class="floating-science-icon icon-flask" title="تجارب وكيمياء">🧪</div>
-          <div class="floating-science-icon icon-planet" title="فضاء وكواكب">🪐</div>
-          <div class="floating-science-icon icon-sparkle" title="استكشاف واكتشاف">✨</div>
+
+          <div class="hero-badge">
+            <span>✨</span>
+            <span>بوابة الألعاب العلمية المنهجية التفاعلية</span>
+          </div>
+
+          <h1 class="hero-title">
+            عالم العلوم بين يديك... <br>
+            <span class="highlight">تعلّم، استكشف، والعب!</span>
+          </h1>
+
+          <p class="hero-subtitle">
+            مجموعة شيّقة من أفضل الألعاب والمحاكاة التعليمية المصممة بعناية لتبسيط مفاهيم الفيزياء، الكيمياء، الأحياء، والفلك بأسلوب تفاعلي ممتع يناسب جميع المراحل الدراسية.
+          </p>
+        </div>
+      </section>
+
+      <!-- Games Portal Section -->
+      <section class="container" id="gamesSection">
+        <div class="controls-bar">
+          <div class="search-box-wrapper">
+            <span class="search-icon" aria-hidden="true">🔎</span>
+            <input 
+              type="search" 
+              id="searchInput" 
+              class="search-input" 
+              placeholder="ابحث باسم اللعبة أو المفهوم العلمي (مثال: انعكاس، كواكب، فلزات، تصنيف)..."
+              aria-label="ابحث في الألعاب التعليمية"
+            >
+            <button type="button" id="searchClearBtn" class="search-clear-btn" title="مسح البحث">✕</button>
+          </div>
+
+          <div class="filter-pills" id="filterPills" role="toolbar" aria-label="تصفية الألعاب حسب التخصص"></div>
         </div>
 
-        <div class="hero-badge">
-          <span>✨</span>
-          <span>بوابة الألعاب العلمية المنهجية التفاعلية</span>
-          <span class="badge-separator">•</span>
+        <div class="games-grid" id="gamesGrid" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <!-- In-Page Game Player View (Landscape 16:9) -->
+    <section id="gamePlayerView" class="game-player-view" aria-label="مشغل اللعبة">
+      <div class="container" style="flex: 1; display: flex; flex-direction: column;">
+        <div class="player-wrapper" id="playerWrapper">
+          
+          <!-- Player Control Bar -->
+          <div class="player-toolbar">
+            <button type="button" class="player-btn player-btn-back" onclick="closeGamePlayer()" title="العودة إلى القائمة الرئيسة">
+              <span>🏠</span>
+              <span>الرئيسة</span>
+            </button>
+
+            <div class="player-title-box" id="playerGameTitle">
+              <span>🎮</span>
+              <span>اسم اللعبة</span>
+            </div>
+
+            <button type="button" class="player-btn player-btn-fullscreen" id="fullscreenBtn" onclick="toggleGameFullscreen()" title="تكبير اللعبة على كامل الشاشة">
+              <span id="fullscreenIcon">⛶</span>
+              <span id="fullscreenText">ملء الشاشة</span>
+            </button>
+          </div>
+
+          <!-- Landscape Game Stage -->
+          <div class="player-stage">
+            <div class="player-loading" id="playerLoading">
+              <span>⏳ جارٍ تحميل اللعبة...</span>
+            </div>
+            <iframe 
+              id="gameIframe" 
+              class="game-iframe" 
+              src="about:blank" 
+              allow="fullscreen; autoplay; gamepad" 
+              allowfullscreen
+            ></iframe>
+          </div>
+
         </div>
-
-        <h1 class="hero-title">
-          عالم العلوم بين يديك... <br>
-          <span class="highlight">تعلّم، استكشف، والعب!</span>
-        </h1>
-
-        <p class="hero-subtitle">
-          مجموعة شيّقة من أفضل الألعاب والمحاكاة التعليمية المصممة بعناية لتبسيط مفاهيم الفيزياء، الكيمياء، الأحياء، والفلك بأسلوب تفاعلي ممتع يناسب جميع المراحل الدراسية.
-        </p>
-
       </div>
     </section>
 
-    <!-- Games Portal Section -->
-    <section class="container" id="gamesSection">
-      
-      <!-- Interactive Filter & Search Controls -->
-      <div class="controls-bar">
-        <!-- Live Search -->
-        <div class="search-box-wrapper">
-          <span class="search-icon" aria-hidden="true">🔎</span>
-          <input 
-            type="search" 
-            id="searchInput" 
-            class="search-input" 
-            placeholder="ابحث باسم اللعبة أو المفهوم العلمي (مثال: انعكاس، كواكب، فلزات، تصنيف)..."
-            aria-label="ابحث في الألعاب التعليمية"
-          >
-          <button type="button" id="searchClearBtn" class="search-clear-btn" title="مسح البحث">✕</button>
-        </div>
-
-        <!-- Category Filter Pills -->
-        <div class="filter-pills" id="filterPills" role="toolbar" aria-label="تصفية الألعاب حسب التخصص">
-          <!-- Populated dynamically via app.js -->
-        </div>
-      </div>
-
-      <!-- Games Grid -->
-      <div class="games-grid" id="gamesGrid" aria-live="polite">
-        <!-- Rendered dynamically by app.js -->
-      </div>
-
-    </section>
   </main>
 
   <!-- Game Details Modal Dialog -->
-  <div class="modal-backdrop" id="gameModal" role="dialog" aria-modal="true" aria-labelledby="modalGameTitle">
+  <div class="modal-backdrop" id="gameModal" role="dialog" aria-modal="true">
     <div class="modal-window">
       <button type="button" class="modal-close-btn" id="modalCloseBtn" aria-label="إغلاق النافذة">✕</button>
-      <div id="modalBody">
-        <!-- Injected via openGameModal() in app.js -->
-      </div>
+      <div id="modalBody"></div>
     </div>
   </div>
 
-  <!-- Floating Toast Notification -->
-  <div class="toast-notice" id="toastNotice" role="status" aria-live="polite"></div>
-
   <!-- Site Footer -->
-  <footer class="site-footer">
+  <footer class="site-footer" id="siteFooter">
     <div class="container">
       <div class="footer-top">
         <div class="footer-brand">
@@ -146,12 +1234,8 @@
           </div>
         </div>
 
-        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-          <a href="#gamesSection" class="btn-secondary" style="padding: 8px 18px; font-size: 0.88rem;">
-            <span>🎮</span>
-            <span>قائمة الألعاب</span>
-          </a>
-          <button type="button" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn-secondary" style="padding: 8px 18px; font-size: 0.88rem;">
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button type="button" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn-secondary" style="padding: 7px 16px; font-size: 0.85rem;">
             <span>⬆️</span>
             <span>أعلى الصفحة</span>
           </button>
@@ -164,7 +1248,557 @@
     </div>
   </footer>
 
-  <!-- Main JavaScript File -->
-  <script src="app.js"></script>
+  <!-- Application Script -->
+  <script>
+    const GAMES_DATA = [
+      {
+        id: "reflection",
+        title: "انعكاس الضوء وتوليد الطاقة",
+        englishTitle: "Light Reflection & Solar Power",
+        category: "physics",
+        categoryLabel: "فيزياء وبصريات",
+        thumb: "thumb/01.png",
+        fallbackThumb: "https://ahmedsm12.github.io/portfolio/thumb/e01.png",
+        url: "https://ahmedsm12.github.io/portfolio/projects/reflection/",
+        grade: "الصفوف 4 - 8",
+        description: "تجربة علمية بصرية وتفاعلية ممتعة لاستكشاف انعكاس الضوء باستخدام المرايا وتوجيه حزم الأشعة نحو الألواح الشمسية لشحن البطارية بالكامل 100%.",
+        concepts: ["انعكاس الضوء", "زاوية السقوط والانعكاس", "المواد العاكسة", "الطاقة الشمسية"],
+        objectives: [
+          "فهم قانون انعكاس الضوء وكيف يسير الضوء في خطوط مستقيمة.",
+          "التمييز بين المواد العاكسة (المرايا والفضة) والمواد الماصة للضوء (الخشب والقماش).",
+          "تطبيق عملي لكيفية تحويل الطاقة الضوئية إلى طاقة كهربائية لتشغيل الأجهزة."
+        ],
+        badgeIcon: "⚡"
+      },
+      {
+        id: "vertebrate",
+        title: "كائنات البيئة الصحراوية وتكيفها",
+        englishTitle: "Desert Organisms & Adaptation",
+        category: "biology",
+        categoryLabel: "أحياء وبيئة",
+        thumb: "thumb/02.png",
+        fallbackThumb: "https://ahmedsm12.github.io/portfolio/thumb/e02.png",
+        url: "https://ahmedsm12.github.io/portfolio/projects/vertebrate/",
+        grade: "الصفوف 3 - 7",
+        description: "انطلق في رحلة استكشاف شيقة داخل البيئة الصحراوية بالعدسة المكبرة للبحث عن الحيوانات والنباتات واكتشاف أسرار تكيفها في البيئة القاسية.",
+        concepts: ["البيئة الصحراوية", "تكيف الكائنات الحية", "الفقاريات", "السلاسل الغذائية"],
+        objectives: [
+          "التعرف على الكائنات التي تعيش في البيئات الجافة مثل الجمل والغزال والعقرب والأفعى.",
+          "استيعاب مفهوم التكيف السلوكي والجسدي للتعايش مع قلة المياه ودرجات الحرارة العالية.",
+          "تنمية مهارات الملاحظة والبحث الاستقصائي الدقيق بالعدسة المكبرة."
+        ],
+        badgeIcon: "🌿"
+      },
+      {
+        id: "light",
+        title: "مصادر الضوء: الطبيعية والصناعية",
+        englishTitle: "Light Sources: Natural & Artificial",
+        category: "light-sources",
+        categoryLabel: "طاقة ومواد",
+        thumb: "thumb/03.png",
+        fallbackThumb: "https://ahmedsm12.github.io/portfolio/thumb/e03.png",
+        url: "https://ahmedsm12.github.io/portfolio/projects/light/",
+        grade: "الصفوف 2 - 6",
+        description: "لعبة تصنيف ذكية وممتعة داخل متجر للألعاب؛ قم بفرز العناصر بدقة واكتشف الفرق الجوهري بين مصادر الضوء الطبيعية والمصادر الصناعية.",
+        concepts: ["مصادر الضوء الطبيعية", "مصادر الضوء الصناعية", "الإضاءة الحيوية", "الطاقة الضوئية"],
+        objectives: [
+          "التمييز الواضح بين المصادر الطبيعية كالشمس وقناديل البحر واليراعات، والمصادر الصناعية.",
+          "اكتشاف ظاهرة الإضاءة الحيوية لدى بعض الكائنات البحرية والحشرات.",
+          "تعزيز سرعة البديهة والقدرة على التصنيف العلمي السليم."
+        ],
+        badgeIcon: "💡"
+      },
+      {
+        id: "classi",
+        title: "تصنيف الكائنات الحية والمجموعات",
+        englishTitle: "Living Organisms Classification",
+        category: "biology",
+        categoryLabel: "علم الحيوان",
+        thumb: "thumb/04.png",
+        fallbackThumb: "https://ahmedsm12.github.io/portfolio/thumb/e04.png",
+        url: "https://ahmedsm12.github.io/portfolio/projects/classi/",
+        grade: "الصفوف 3 - 8",
+        description: "تحدي الجزر الطافية لتصنيف الحيوانات المتنوعة إلى فئاتها الحيوية الست الأساسية: الثدييات، الطيور، الزواحف، البرمائيات، الأسماك، والحشرات.",
+        concepts: ["تصنيف الكائنات", "مجموعات الفقاريات", "اللافقاريات والحشرات", "خصائص الكائنات"],
+        objectives: [
+          "تصنيف الكائنات الحية بناءً على الخصائص المشتركة كطريقة التكاثر وغطاء الجسم وبيئة العيش.",
+          "الربط بين الحيوان ومجموعته الصحيحة (مثل: البطريق من الطيور، السلحفاة من الزواحف، الجمل من الثدييات).",
+          "بناء أساس علمي قوي في علم التصنيف البيولوجي الحديث."
+        ],
+        badgeIcon: "🐾"
+      },
+      {
+        id: "planets",
+        title: "كواكب المجموعة الشمسية: الصخرية والغازية",
+        englishTitle: "Solar System: Terrestrial & Gas Giants",
+        category: "space",
+        categoryLabel: "فضاء وفلك",
+        thumb: "thumb/05.png",
+        fallbackThumb: "https://ahmedsm12.github.io/portfolio/thumb/e05.png",
+        url: "https://ahmedsm12.github.io/portfolio/projects/planets/",
+        grade: "الصفوف 4 - 9",
+        description: "حلق في رحلة كونية عبر النظام الشمسي وصنّف الكواكب الثمانية إلى كواكب صخرية داخلية قريبة من الشمس وكواكب غازية عملاقة وباردة في أطراف المنظومة.",
+        concepts: ["المجموعة الشمسية", "الكواكب الصخرية", "العمالقة الغازية", "المدارات والأحجام"],
+        objectives: [
+          "التعرف على أسماء ومواقع كواكب المجموعة الشمسية الثمانية ومميزات كل كوكب.",
+          "فهم الفروق الجوهرية بين تكوين الكواكب الصخرية والغازية.",
+          "إدراك أحجام الكواكب ومظاهر أغلفتها وحلقاتها المذهلة مثل حلقات زحل وأورانوس."
+        ],
+        badgeIcon: "🪐"
+      },
+      {
+        id: "metals",
+        title: "الفلزات واللافلزات في المختبر",
+        englishTitle: "Metals & Non-Metals Classification",
+        category: "chemistry",
+        categoryLabel: "كيمياء ومواد",
+        thumb: "thumb/06.png",
+        fallbackThumb: "https://ahmedsm12.github.io/portfolio/thumb/e07.png",
+        url: "https://ahmedsm12.github.io/portfolio/projects/metals/",
+        grade: "الصفوف 6 - 10",
+        description: "مختبر علمي مستقبلي مجهز لاختبار خواص المواد الكيميائية المختلفة؛ صنف العناصر بدقة إلى فلزات ولافلزات بناءً على البريق والتوصيل والصلابة.",
+        concepts: ["الفلزات واللافلزات", "التوصيل الكهربائي والحراري", "البريق المعدني", "خصائص المواد"],
+        objectives: [
+          "التعرف على الخواص الفيزيائية والكيميائية المميزة للفلزات (اللمعان، التوصيل، القابلية للطرق).",
+          "التمييز بين الفلزات واللافلزات وتطبيقاتها في حياتنا اليومية والصناعية.",
+          "تطبيق الطريقة العلمية في الفحص والتجريب والفرز داخل بيئة افتراضية تفاعلية."
+        ],
+        badgeIcon: "⚗️"
+      }
+    ];
+
+    const state = {
+      activeCategory: "all",
+      searchQuery: "",
+      soundEnabled: true,
+      theme: localStorage.getItem("sb_theme") || "dark",
+      activeGameId: null
+    };
+
+    let audioCtx = null;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audioCtx = new AudioContextClass();
+      }
+      if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+      return audioCtx;
+    }
+
+    function playSound(type) {
+      if (!state.soundEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+
+        if (type === "click") {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(540, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.06);
+          gain.gain.setValueAtTime(0.06, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.06);
+        } else if (type === "launch") {
+          const freqs = [523.25, 659.25, 783.99];
+          freqs.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "triangle";
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.06);
+            gain.gain.setValueAtTime(0.09, ctx.currentTime + idx * 0.06);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.06 + 0.18);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + idx * 0.06);
+            osc.stop(ctx.currentTime + idx * 0.06 + 0.19);
+          });
+        }
+      } catch (e) {}
+    }
+
+    // DOM References
+    const portalView = document.getElementById("portalView");
+    const gamePlayerView = document.getElementById("gamePlayerView");
+    const playerWrapper = document.getElementById("playerWrapper");
+    const gameIframe = document.getElementById("gameIframe");
+    const playerGameTitle = document.getElementById("playerGameTitle");
+    const playerLoading = document.getElementById("playerLoading");
+    const fullscreenIcon = document.getElementById("fullscreenIcon");
+    const fullscreenText = document.getElementById("fullscreenText");
+
+    const gamesGrid = document.getElementById("gamesGrid");
+    const searchInput = document.getElementById("searchInput");
+    const searchClearBtn = document.getElementById("searchClearBtn");
+    const filterPillsContainer = document.getElementById("filterPills");
+    const gameModal = document.getElementById("gameModal");
+    const modalCloseBtn = document.getElementById("modalCloseBtn");
+    const themeToggleBtn = document.getElementById("themeToggleBtn");
+    const soundToggleBtn = document.getElementById("soundToggleBtn");
+
+    function initTheme() {
+      document.documentElement.setAttribute("data-theme", state.theme);
+      updateThemeIcon();
+    }
+
+    function updateThemeIcon() {
+      if (themeToggleBtn) {
+        const isDark = state.theme === "dark";
+        themeToggleBtn.innerHTML = `<span>${isDark ? "☀️" : "🌙"}</span>`;
+      }
+    }
+
+    function toggleTheme() {
+      playSound("click");
+      state.theme = state.theme === "dark" ? "light" : "dark";
+      localStorage.setItem("sb_theme", state.theme);
+      document.documentElement.setAttribute("data-theme", state.theme);
+      updateThemeIcon();
+    }
+
+    function toggleSound() {
+      state.soundEnabled = !state.soundEnabled;
+      if (soundToggleBtn) {
+        soundToggleBtn.innerHTML = `<span>${state.soundEnabled ? "🔊" : "🔇"}</span>`;
+      }
+      if (state.soundEnabled) playSound("click");
+    }
+
+    function getFilteredGames() {
+      return GAMES_DATA.filter((game) => {
+        const matchesCategory = state.activeCategory === "all" || game.category === state.activeCategory;
+        const query = state.searchQuery.trim().toLowerCase();
+        if (!query) return matchesCategory;
+
+        const matchesSearch =
+          game.title.toLowerCase().includes(query) ||
+          game.englishTitle.toLowerCase().includes(query) ||
+          game.description.toLowerCase().includes(query) ||
+          game.concepts.some(c => c.toLowerCase().includes(query)) ||
+          game.categoryLabel.toLowerCase().includes(query);
+
+        return matchesCategory && matchesSearch;
+      });
+    }
+
+    function renderGames() {
+      if (!gamesGrid) return;
+      const filtered = getFilteredGames();
+
+      if (filtered.length === 0) {
+        gamesGrid.innerHTML = `
+          <div class="no-results">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+            <h3 style="margin-bottom: 0.5rem;">لم نعثر على ألعاب مطابقة للبحث</h3>
+            <p style="color: var(--text-muted); margin-bottom: 1.2rem;">جرب البحث بكلمات أخرى أو اختر تصنيفاً علمياً مختلفاً.</p>
+            <button class="btn-primary" onclick="resetFilters()">إعادة ضبط البحث</button>
+          </div>
+        `;
+        return;
+      }
+
+      gamesGrid.innerHTML = filtered.map((game) => `
+        <article class="game-card" data-category="${game.category}">
+          <div class="card-thumb-wrapper" onclick="openGamePlayer('${game.id}')" role="button" tabindex="0" aria-label="العب ${game.title}">
+            <img 
+              src="${game.thumb}" 
+              alt="${game.title}" 
+              class="card-thumb-img" 
+              loading="lazy" 
+              onerror="this.onerror=null; this.src='${game.fallbackThumb}';"
+            >
+            <div class="card-play-hover">
+              <div class="play-circle-btn">▶</div>
+            </div>
+            <span class="card-badge">
+              <span>${game.badgeIcon}</span>
+              <span>${game.categoryLabel}</span>
+            </span>
+          </div>
+
+          <div class="card-body">
+            <h3 class="card-title">${game.title}</h3>
+            <div class="card-english-title">${game.englishTitle} • ${game.grade}</div>
+            <p class="card-description">${game.description}</p>
+
+            <div class="card-tags">
+              ${game.concepts.map(tag => `<span class="tag-item">#${tag}</span>`).join("")}
+            </div>
+
+            <div class="card-actions">
+              <button 
+                type="button" 
+                class="btn-card-play"
+                onclick="openGamePlayer('${game.id}')"
+              >
+                <span>▶</span>
+                <span>العب الآن</span>
+              </button>
+
+              <button 
+                type="button" 
+                class="btn-card-info" 
+                onclick="openGameModal('${game.id}')"
+                title="معلومات وتفاصيل اللعبة"
+                aria-label="معلومات وتفاصيل اللعبة"
+              >
+                ℹ️
+              </button>
+            </div>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    // In-Page Game Player Functions
+    function openGamePlayer(gameId) {
+      const game = GAMES_DATA.find(g => g.id === gameId);
+      if (!game) return;
+
+      closeGameModal(false);
+      playSound("launch");
+
+      state.activeGameId = game.id;
+      playerGameTitle.innerHTML = `<span>${game.badgeIcon}</span><span>${game.title}</span>`;
+      playerLoading.classList.remove("hidden");
+
+      gameIframe.src = game.url;
+      portalView.style.display = "none";
+      gamePlayerView.classList.add("active");
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+    window.openGamePlayer = openGamePlayer;
+
+    function closeGamePlayer() {
+      if (!state.activeGameId) return;
+      playSound("click");
+
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      }
+
+      gameIframe.src = "about:blank";
+      state.activeGameId = null;
+      gamePlayerView.classList.remove("active");
+      portalView.style.display = "block";
+    }
+    window.closeGamePlayer = closeGamePlayer;
+
+    async function toggleGameFullscreen() {
+      playSound("click");
+      try {
+        const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+        if (!isFullscreen) {
+          if (playerWrapper.requestFullscreen) {
+            await playerWrapper.requestFullscreen();
+          } else if (playerWrapper.webkitRequestFullscreen) {
+            playerWrapper.webkitRequestFullscreen();
+          }
+          if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock("landscape").catch(() => {});
+          }
+        } else {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          }
+          if (screen.orientation && screen.orientation.unlock) {
+            screen.orientation.unlock();
+          }
+        }
+      } catch (e) {}
+    }
+    window.toggleGameFullscreen = toggleGameFullscreen;
+
+    document.addEventListener("fullscreenchange", updateFullscreenButtonUI);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenButtonUI);
+
+    function updateFullscreenButtonUI() {
+      const isFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+      if (fullscreenIcon && fullscreenText) {
+        fullscreenIcon.textContent = isFullscreen ? "🗗" : "⛶";
+        fullscreenText.textContent = isFullscreen ? "تصغير الشاشة" : "ملء الشاشة";
+      }
+    }
+
+    if (gameIframe) {
+      gameIframe.addEventListener("load", () => {
+        if (gameIframe.src && gameIframe.src !== "about:blank") {
+          playerLoading.classList.add("hidden");
+        }
+      });
+    }
+
+    function resetFilters() {
+      state.activeCategory = "all";
+      state.searchQuery = "";
+      if (searchInput) searchInput.value = "";
+      if (searchClearBtn) searchClearBtn.classList.remove("visible");
+
+      document.querySelectorAll(".filter-pill").forEach(p => {
+        p.classList.toggle("active", p.dataset.category === "all");
+      });
+
+      renderGames();
+    }
+    window.resetFilters = resetFilters;
+
+    function setupFilterPills() {
+      if (!filterPillsContainer) return;
+
+      const categories = [
+        { id: "all", label: "الكل", icon: "✨" },
+        { id: "physics", label: "فيزياء وبصريات", icon: "⚡" },
+        { id: "biology", label: "أحياء وبيئة", icon: "🌿" },
+        { id: "light-sources", label: "طاقة ومواد", icon: "💡" },
+        { id: "space", label: "فضاء وفلك", icon: "🪐" },
+        { id: "chemistry", label: "كيمياء ومواد", icon: "⚗️" }
+      ];
+
+      filterPillsContainer.innerHTML = categories.map(cat => {
+        const count = cat.id === "all"
+          ? GAMES_DATA.length
+          : GAMES_DATA.filter(g => g.category === cat.id).length;
+
+        return `
+          <button 
+            type="button" 
+            class="filter-pill ${cat.id === state.activeCategory ? 'active' : ''}" 
+            data-category="${cat.id}"
+          >
+            <span>${cat.icon}</span>
+            <span>${cat.label}</span>
+            <span class="pill-count">${count}</span>
+          </button>
+        `;
+      }).join("");
+
+      filterPillsContainer.querySelectorAll(".filter-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+          playSound("click");
+          filterPillsContainer.querySelectorAll(".filter-pill").forEach(p => p.classList.remove("active"));
+          pill.classList.add("active");
+          state.activeCategory = pill.dataset.category;
+          renderGames();
+        });
+      });
+    }
+
+    function openGameModal(gameId) {
+      playSound("click");
+      const game = GAMES_DATA.find(g => g.id === gameId);
+      if (!game || !gameModal) return;
+
+      const modalBody = document.getElementById("modalBody");
+      if (!modalBody) return;
+
+      modalBody.innerHTML = `
+        <img 
+          src="${game.thumb}" 
+          alt="${game.title}" 
+          class="modal-header-img"
+          onerror="this.onerror=null; this.src='${game.fallbackThumb}';"
+        >
+        <div class="modal-content-body">
+          <span class="modal-game-badge">${game.badgeIcon} ${game.categoryLabel} • ${game.grade}</span>
+          <h2 class="modal-game-title">${game.title}</h2>
+          <div class="modal-game-subtitle">${game.englishTitle}</div>
+
+          <div class="modal-section-title">
+            <span>📖</span>
+            <span>نظرة عامة على اللعبة</span>
+          </div>
+          <p class="modal-game-desc">${game.description}</p>
+
+          <div class="modal-section-title">
+            <span>🎯</span>
+            <span>مخرجات التعلم والأهداف العلمية</span>
+          </div>
+          <ul class="modal-objectives-list">
+            ${game.objectives.map(obj => `<li>${obj}</li>`).join("")}
+          </ul>
+
+          <div class="modal-section-title">
+            <span>🔬</span>
+            <span>المفاهيم العلمية المرتبطة</span>
+          </div>
+          <div class="card-tags" style="margin-top: 6px;">
+            ${game.concepts.map(tag => `<span class="tag-item">#${tag}</span>`).join("")}
+          </div>
+
+          <div class="modal-footer-actions">
+            <button 
+              type="button" 
+              class="btn-primary" 
+              style="flex: 1; justify-content: center;"
+              onclick="openGamePlayer('${game.id}')"
+            >
+              <span>▶</span>
+              <span>تشغيل اللعبة الآن داخل الصفحة</span>
+            </button>
+          </div>
+        </div>
+      `;
+
+      gameModal.classList.add("open");
+      document.body.style.overflow = "hidden";
+    }
+    window.openGameModal = openGameModal;
+
+    function closeGameModal(withSound = true) {
+      if (!gameModal) return;
+      if (withSound) playSound("click");
+      gameModal.classList.remove("open");
+      document.body.style.overflow = "";
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      initTheme();
+      setupFilterPills();
+      renderGames();
+
+      if (searchInput) {
+        searchInput.addEventListener("input", (e) => {
+          state.searchQuery = e.target.value;
+          if (searchClearBtn) {
+            searchClearBtn.classList.toggle("visible", state.searchQuery.length > 0);
+          }
+          renderGames();
+        });
+      }
+
+      if (searchClearBtn) {
+        searchClearBtn.addEventListener("click", () => {
+          playSound("click");
+          if (searchInput) searchInput.value = "";
+          state.searchQuery = "";
+          searchClearBtn.classList.remove("visible");
+          renderGames();
+        });
+      }
+
+      if (modalCloseBtn) modalCloseBtn.addEventListener("click", () => closeGameModal(true));
+      if (gameModal) {
+        gameModal.addEventListener("click", (e) => {
+          if (e.target === gameModal) closeGameModal(true);
+        });
+      }
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && gameModal && gameModal.classList.contains("open")) {
+          closeGameModal(true);
+        }
+      });
+
+      if (themeToggleBtn) themeToggleBtn.addEventListener("click", toggleTheme);
+      if (soundToggleBtn) soundToggleBtn.addEventListener("click", toggleSound);
+    });
+  </script>
 </body>
 </html>
