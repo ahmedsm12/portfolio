@@ -11,6 +11,7 @@ self.C3_GetObjectRefTable = function () {
 		C3.Plugins.AdvancedRandom,
 		C3.Behaviors.Pin,
 		C3.Behaviors.Tween,
+		C3.Behaviors.Rotate,
 		C3.Plugins.Browser,
 		C3.Plugins.System.Cnds.OnLayoutStart,
 		C3.Plugins.AdvancedRandom.Acts.CreatePermutationTable,
@@ -33,8 +34,7 @@ self.C3_GetObjectRefTable = function () {
 		C3.Behaviors.CV_BoundedDragnDrop.Cnds.OnDrop,
 		C3.Plugins.Sprite.Cnds.IsOverlapping,
 		C3.Plugins.Touch.Cnds.OnDoubleTapGesture,
-		C3.Plugins.System.Acts.RestartLayout,
-		C3.Behaviors.Tween.Acts.TweenTwoProperties
+		C3.Plugins.System.Acts.RestartLayout
 	];
 };
 self.C3_JsPropNameTable = [
@@ -59,6 +59,7 @@ self.C3_JsPropNameTable = [
 	{objects_d3: 0},
 	{objects_d4: 0},
 	{Tween: 0},
+	{Rotate: 0},
 	{glass: 0},
 	{Browser: 0}
 ];
